@@ -1,0 +1,24 @@
+{
+  "containerEnv": {
+    "CCACHE_DIR": "/home/user/netwatch/.ccache",
+    "CORES_DIR": "/cores",
+    "PREFIX": "${PREFIX:-~/.local}",
+    "SHELL": "/bin/bash",
+    "USERVER_ENABLE_STACK_USAGE_MONITOR": "0"
+  },
+  "forwardPorts": [
+    8080
+  ],
+  "image": "ghcr.io/userver-framework/ubuntu-22.04-userver-pg-dev:latest",
+  "mounts": [],
+  "onCreateCommand": "sudo git config --global --add safe.directory /home/user/netwatch",
+  "remoteUser": "user",
+  "runArgs": [
+    "--platform=linux/amd64",
+    "--cap-add=SYS_PTRACE",
+    "--security-opt",
+    "seccomp=unconfined"
+  ],
+  "workspaceFolder": "/home/user/netwatch",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/home/user/netwatch,type=bind"
+}
