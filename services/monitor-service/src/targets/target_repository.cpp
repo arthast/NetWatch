@@ -1,0 +1,77 @@
+#include "target_repository.hpp"
+#include "target.hpp"
+
+#include <userver/storages/postgres/result_set.hpp>
+#include <userver/storages/postgres/row.hpp>
+
+#include <utility>
+
+namespace monitor_service::target {
+
+namespace {
+
+Target TargetFromRow(const userver::storages::postgres::Row& row) {
+    return Target{
+        .id = row["id"].As<std::int64_t>(),
+        .name = row["name"].As<std::string>(),
+        .type = TargetTypeFromString(row["type"].As<std::string>()),
+        .url = row["url"].As<std::optional<std::string>>(),
+        .method = row["method"].As<std::optional<std::string>>(),
+        .expected_status_code = row["expected_status_code"].As<std::optional<int>>(),
+        .host = row["host"].As<std::optional<std::string>>(),
+        .port = row["port"].As<std::optional<int>>(),
+        .interval_seconds = row["interval_seconds"].As<int>(),
+        .timeout_ms = row["timeout_ms"].As<int>(),
+        .is_active = row["is_active"].As<bool>(),
+    };
+}
+
+}  // namespace
+
+TargetRepository::TargetRepository(userver::storages::postgres::ClusterPtr pg_cluster)
+    : pg_cluster_(std::move(pg_cluster)) {}
+
+Target TargetRepository::CreateTarget(const CreateTargetRequest& request) const {
+    const auto result = pg_cluster_->Execute(
+        userver::storages::postgres::ClusterHostType::kMaster,
+        R"(
+            INSERT INTO targets (
+                name,
+                type,
+                url,
+                method,
+                expected_status_code,
+                host,
+                port,
+                interval_seconds,
+                timeout_ms
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING
+                id,
+                name,
+                type,
+                url,
+                method,
+                expected_status_code,
+                host,
+                port,
+                interval_seconds,
+                timeout_ms,
+                is_active
+        )",
+        request.name,
+        TargetTypeToString(request.type),
+        request.url,
+        request.method,
+        request.expected_status_code,
+        request.host,
+        request.port,
+        request.interval_seconds,
+        request.timeout_ms
+    );
+
+    return TargetFromRow(result.Front());
+}
+
+}  // namespace monitor_service::target

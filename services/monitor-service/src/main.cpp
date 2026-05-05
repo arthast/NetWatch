@@ -8,12 +8,9 @@
 #include <userver/server/handlers/tests_control.hpp>
 #include <userver/testsuite/testsuite_support.hpp>
 
-#include <userver/storages/postgres/component.hpp> 
+#include <userver/storages/postgres/component.hpp>
 
 #include <userver/utils/daemon_run.hpp>
-
-#include <hello.hpp>
-#include <hello_postgres.hpp> 
 
 int main(int argc, char* argv[]) {
     auto component_list =
@@ -24,9 +21,7 @@ int main(int argc, char* argv[]) {
             .Append<userver::clients::dns::Component>()
             .Append<userver::server::handlers::TestsControl>()
             .Append<userver::congestion_control::Component>()
-            .Append<monitor_service::Hello>()
             .Append<userver::components::Postgres>("postgres-db-1")
-            .Append<monitor_service::HelloPostgres>()
         ;
 
     return userver::utils::DaemonMain(argc, argv, component_list);

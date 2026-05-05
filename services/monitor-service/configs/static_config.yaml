@@ -39,7 +39,7 @@ components_manager:
 
         http-client:
         http-client-core:
-            load-enabled: $is_testing
+            load-enabled: $is-testing
             fs-task-processor: fs-task-processor
 
         dns-client:
@@ -57,16 +57,6 @@ components_manager:
             task_processor: main-task-processor
             throttling_enabled: false
             url_trailing_slash: strict-match
-
-        handler-hello:  # Finally! Our handler.
-            path: /hello  # Registering handler by URL '/hello'.
-            method: GET,POST  # It will only reply to GET (HEAD) and POST requests.
-            task_processor: main-task-processor  # Run it on CPU bound task processor
-
-        handler-hello-postgres:  # Our postgres handler.
-            path: /hello-postgres  # Registering handler by URL '/hello-postgres'.
-            method: GET,POST  # It will only reply to GET (HEAD) and POST requests.
-            task_processor: main-task-processor  # Run it on CPU bound task processor
 
         postgres-db-1:
             dbconnection: $pg-connection
