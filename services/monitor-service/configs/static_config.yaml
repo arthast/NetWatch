@@ -60,7 +60,7 @@ components_manager:
 
         handler-targets:
             path: /api/v1/targets
-            method: POST
+            method: GET,POST
             task_processor: main-task-processor
 
         postgres-db-1:

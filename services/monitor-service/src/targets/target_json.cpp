@@ -1,43 +1,46 @@
 #include "target_json.hpp"
 
-#include <userver/formats/json/value_builder.hpp>
-
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <userver/formats/common/type.hpp>
+#include <userver/formats/json/value_builder.hpp>
+#include <vector>
 
 namespace monitor_service::target {
-
 namespace {
-
-template <typename T>
-T ReadRequired(const userver::formats::json::Value& json, std::string_view field) {
-    const auto value = json[field];
-    if (value.IsMissing() || value.IsNull()) {
-        throw std::invalid_argument("field '" + std::string{field} + "' is required");
+    template<typename T>
+    T ReadRequired(const userver::formats::json::Value &json,
+                   std::string_view field) {
+        const auto value = json[field];
+        if (value.IsMissing() || value.IsNull()) {
+            throw std::invalid_argument("field '" + std::string{field} +
+                                        "' is required");
+        }
+        return value.As<T>();
     }
-    return value.As<T>();
-}
 
-template <typename T>
-std::optional<T> ReadOptional(const userver::formats::json::Value& json, std::string_view field) {
-    const auto value = json[field];
-    if (value.IsMissing() || value.IsNull()) {
-        return std::nullopt;
+    template<typename T>
+    std::optional<T> ReadOptional(const userver::formats::json::Value &json,
+                                  std::string_view field) {
+        const auto value = json[field];
+        if (value.IsMissing() || value.IsNull()) {
+            return std::nullopt;
+        }
+        return value.As<T>();
     }
-    return value.As<T>();
-}
 
-template <typename T>
-void SetOptional(userver::formats::json::ValueBuilder& builder, std::string_view field, const std::optional<T>& value) {
-    if (value) {
-        builder[std::string{field}] = *value;
+    template<typename T>
+    void SetOptional(userver::formats::json::ValueBuilder &builder,
+                     std::string_view field, const std::optional<T> &value) {
+        if (value) {
+            builder[std::string{field}] = *value;
+        }
     }
-}
+} // namespace
 
-}  // namespace
-
-CreateTargetRequest ParseCreateTargetRequest(const userver::formats::json::Value& json) {
+CreateTargetRequest ParseCreateTargetRequest(
+    const userver::formats::json::Value &json) {
     if (!json.IsObject()) {
         throw std::invalid_argument("request body must be a JSON object");
     }
@@ -71,7 +74,7 @@ CreateTargetRequest ParseCreateTargetRequest(const userver::formats::json::Value
     return request;
 }
 
-userver::formats::json::Value SerializeTarget(const Target& target) {
+userver::formats::json::Value SerializeTarget(const Target &target) {
     userver::formats::json::ValueBuilder builder;
     builder["id"] = target.id;
     builder["name"] = target.name;
@@ -87,10 +90,20 @@ userver::formats::json::Value SerializeTarget(const Target& target) {
     return builder.ExtractValue();
 }
 
+userver::formats::json::Value SerializeTargets(
+    const std::vector<Target> &targets) {
+    userver::formats::json::ValueBuilder builder(
+        userver::formats::common::Type::kArray);
+    for (const auto &target: targets) {
+        userver::formats::json::ValueBuilder item(SerializeTarget(target));
+        builder.PushBack(std::move(item));
+    }
+    return builder.ExtractValue();
+}
+
 userver::formats::json::Value SerializeError(std::string_view message) {
     userver::formats::json::ValueBuilder builder;
     builder["error"] = std::string{message};
     return builder.ExtractValue();
 }
-
-}  // namespace monitor_service::target
+} // namespace monitor_service::target
