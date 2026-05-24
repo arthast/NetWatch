@@ -58,6 +58,11 @@ components_manager:
             throttling_enabled: false
             url_trailing_slash: strict-match
 
+        handler-targets:
+            path: /api/v1/targets
+            method: POST
+            task_processor: main-task-processor
+
         postgres-db-1:
             dbconnection: $pg-connection
             dbconnection#env: DB_CONNECTION

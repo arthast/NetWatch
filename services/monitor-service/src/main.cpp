@@ -12,6 +12,8 @@
 
 #include <userver/utils/daemon_run.hpp>
 
+#include <targets/targets_handler.hpp>
+
 int main(int argc, char* argv[]) {
     auto component_list =
         userver::components::MinimalServerComponentList()
@@ -22,6 +24,7 @@ int main(int argc, char* argv[]) {
             .Append<userver::server::handlers::TestsControl>()
             .Append<userver::congestion_control::Component>()
             .Append<userver::components::Postgres>("postgres-db-1")
+            .Append<monitor_service::target::TargetsHandler>()
         ;
 
     return userver::utils::DaemonMain(argc, argv, component_list);

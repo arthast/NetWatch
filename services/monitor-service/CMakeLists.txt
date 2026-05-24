@@ -22,8 +22,10 @@ userver_setup_environment()
 add_library(
         ${PROJECT_NAME}_objs OBJECT
         src/targets/target.cpp
+        src/targets/target_json.cpp
         src/targets/target_repository.cpp
         src/targets/target_validator.cpp
+        src/targets/targets_handler.cpp
 )
 
 target_include_directories(
