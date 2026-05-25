@@ -68,6 +68,21 @@ components_manager:
             method: GET,PATCH,DELETE
             task_processor: main-task-processor
 
+        handler-manual-check:
+            path: /api/v1/targets/{id}/check
+            method: POST
+            task_processor: main-task-processor
+
+        handler-target-checks:
+            path: /api/v1/targets/{id}/checks
+            method: GET
+            task_processor: main-task-processor
+
+        handler-target-status:
+            path: /api/v1/targets/{id}/status
+            method: GET
+            task_processor: main-task-processor
+
         postgres-db-1:
             dbconnection: $pg-connection
             dbconnection#env: DB_CONNECTION

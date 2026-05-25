@@ -1,11 +1,11 @@
-#include <targets/handlers/target_http_response.hpp>
+#include <common/http_response.hpp>
 
 #include <userver/formats/json/serialize.hpp>
+#include <userver/formats/json/value_builder.hpp>
 #include <userver/http/content_type.hpp>
 
-#include <targets/json/target_json.hpp>
+namespace monitor_service::common {
 
-namespace monitor_service::target {
 std::string JsonResponse(const userver::server::http::HttpRequest &request,
                          const userver::formats::json::Value &body) {
     request.GetHttpResponse().SetContentType(
@@ -16,9 +16,13 @@ std::string JsonResponse(const userver::server::http::HttpRequest &request,
 std::string ErrorResponse(const userver::server::http::HttpRequest &request,
                           userver::server::http::HttpStatus status,
                           std::string_view message) {
+    userver::formats::json::ValueBuilder builder;
+    builder["error"] = std::string{message};
+
     request.SetResponseStatus(status);
-    auto response = JsonResponse(request, SerializeError(message));
+    auto response = JsonResponse(request, builder.ExtractValue());
     response.push_back('\n');
     return response;
 }
-} // namespace monitor_service::target
+
+} // namespace monitor_service::common

@@ -12,6 +12,9 @@
 
 #include <userver/utils/daemon_run.hpp>
 
+#include <checks/handlers/manual_check_handler.hpp>
+#include <checks/handlers/target_checks_handler.hpp>
+#include <checks/handlers/target_status_handler.hpp>
 #include <targets/handlers/target_by_id_handler.hpp>
 #include <targets/handlers/targets_handler.hpp>
 
@@ -25,6 +28,9 @@ int main(int argc, char *argv[]) {
             .Append<userver::server::handlers::TestsControl>()
             .Append<userver::congestion_control::Component>()
             .Append<userver::components::Postgres>("postgres-db-1")
+            .Append<monitor_service::checks::ManualCheckHandler>()
+            .Append<monitor_service::checks::TargetChecksHandler>()
+            .Append<monitor_service::checks::TargetStatusHandler>()
             .Append<monitor_service::target::TargetByIdHandler>()
             .Append<monitor_service::target::TargetsHandler>();
 

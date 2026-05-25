@@ -8,11 +8,13 @@
 #include <userver/server/http/http_status.hpp>
 #include <userver/storages/postgres/component.hpp>
 
-#include <targets/handlers/target_http_response.hpp>
+#include <common/http_response.hpp>
 #include <targets/json/target_json.hpp>
 #include <targets/validation/target_validator.hpp>
 
 namespace monitor_service::target {
+using common::ErrorResponse;
+using common::JsonResponse;
 
 TargetsHandler::TargetsHandler(
     const userver::components::ComponentConfig &config,

@@ -21,8 +21,15 @@ userver_setup_environment()
 
 add_library(
         ${PROJECT_NAME}_objs OBJECT
+        src/checks/handlers/manual_check_handler.cpp
+        src/checks/handlers/target_checks_handler.cpp
+        src/checks/handlers/target_status_handler.cpp
+        src/checks/json/check_json.cpp
+        src/checks/model/check_result.cpp
+        src/checks/runner/check_runner.cpp
+        src/checks/storage/check_repository.cpp
+        src/common/http_response.cpp
         src/targets/handlers/target_by_id_handler.cpp
-        src/targets/handlers/target_http_response.cpp
         src/targets/handlers/targets_handler.cpp
         src/targets/json/target_json.cpp
         src/targets/model/target.cpp
