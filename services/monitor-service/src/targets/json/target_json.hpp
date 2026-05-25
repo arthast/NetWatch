@@ -4,10 +4,13 @@
 #include <userver/formats/json/value.hpp>
 #include <vector>
 
-#include "target.hpp"
+#include <targets/model/target.hpp>
 
 namespace monitor_service::target {
 CreateTargetRequest ParseCreateTargetRequest(
+    const userver::formats::json::Value &json);
+
+UpdateTargetRequest ParseUpdateTargetRequest(
     const userver::formats::json::Value &json);
 
 userver::formats::json::Value SerializeTarget(const Target &target);

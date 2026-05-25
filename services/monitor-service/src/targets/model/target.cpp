@@ -1,4 +1,4 @@
-#include "target.hpp"
+#include <targets/model/target.hpp>
 
 #include <stdexcept>
 

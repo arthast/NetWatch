@@ -1,4 +1,4 @@
-#include "target_validator.hpp"
+#include <targets/validation/target_validator.hpp>
 
 #include <userver/utest/utest.hpp>
 

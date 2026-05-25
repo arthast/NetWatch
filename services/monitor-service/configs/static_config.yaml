@@ -65,7 +65,7 @@ components_manager:
 
         handler-target-by-id:
             path: /api/v1/targets/{id}
-            method: GET
+            method: GET,PATCH,DELETE
             task_processor: main-task-processor
 
         postgres-db-1:

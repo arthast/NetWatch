@@ -39,6 +39,21 @@ struct CreateTargetRequest {
     int timeout_ms;
 };
 
+struct UpdateTargetRequest {
+    std::optional<std::string> name;
+    std::optional<TargetType> type;
+
+    std::optional<std::string> url;
+    std::optional<std::string> method;
+    std::optional<int> expected_status_code;
+
+    std::optional<std::string> host;
+    std::optional<int> port;
+
+    std::optional<int> interval_seconds;
+    std::optional<int> timeout_ms;
+};
+
 TargetType TargetTypeFromString(const std::string &value);
 
 std::string TargetTypeToString(TargetType type);

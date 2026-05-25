@@ -12,8 +12,8 @@
 
 #include <userver/utils/daemon_run.hpp>
 
-#include <targets/target_by_id_handler.hpp>
-#include <targets/targets_handler.hpp>
+#include <targets/handlers/target_by_id_handler.hpp>
+#include <targets/handlers/targets_handler.hpp>
 
 int main(int argc, char *argv[]) {
     auto component_list =

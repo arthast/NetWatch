@@ -21,13 +21,13 @@ userver_setup_environment()
 
 add_library(
         ${PROJECT_NAME}_objs OBJECT
-        src/targets/target.cpp
-        src/targets/target_by_id_handler.cpp
-        src/targets/target_http_response.cpp
-        src/targets/target_json.cpp
-        src/targets/target_repository.cpp
-        src/targets/target_validator.cpp
-        src/targets/targets_handler.cpp
+        src/targets/handlers/target_by_id_handler.cpp
+        src/targets/handlers/target_http_response.cpp
+        src/targets/handlers/targets_handler.cpp
+        src/targets/json/target_json.cpp
+        src/targets/model/target.cpp
+        src/targets/storage/target_repository.cpp
+        src/targets/validation/target_validator.cpp
 )
 
 target_include_directories(
@@ -49,7 +49,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_NAME}_objs)
 # Unit Tests
 add_executable(
     ${PROJECT_NAME}_unittest
-    src/targets/target_validator_test.cpp
+    src/targets/validation/target_validator_test.cpp
 )
 target_link_libraries(${PROJECT_NAME}_unittest PRIVATE ${PROJECT_NAME}_objs userver::utest)
 add_google_tests(${PROJECT_NAME}_unittest)

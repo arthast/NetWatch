@@ -1,4 +1,4 @@
-#include "target_validator.hpp"
+#include <targets/validation/target_validator.hpp>
 
 #include <optional>
 #include <string_view>
@@ -76,5 +76,19 @@ std::optional<std::string> ValidateCreateTargetRequest(
     }
 
     return std::nullopt;
+}
+
+std::optional<std::string> ValidateTarget(const target::Target &target) {
+    return ValidateCreateTargetRequest(target::CreateTargetRequest{
+        .name = target.name,
+        .type = target.type,
+        .url = target.url,
+        .method = target.method,
+        .expected_status_code = target.expected_status_code,
+        .host = target.host,
+        .port = target.port,
+        .interval_seconds = target.interval_seconds,
+        .timeout_ms = target.timeout_ms,
+    });
 }
 } // namespace monitor_service::target_validator

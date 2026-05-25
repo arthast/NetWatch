@@ -1,4 +1,4 @@
-#include "targets_handler.hpp"
+#include <targets/handlers/targets_handler.hpp>
 
 #include <stdexcept>
 #include <userver/components/component_context.hpp>
@@ -8,9 +8,9 @@
 #include <userver/server/http/http_status.hpp>
 #include <userver/storages/postgres/component.hpp>
 
-#include "target_http_response.hpp"
-#include "target_json.hpp"
-#include "target_validator.hpp"
+#include <targets/handlers/target_http_response.hpp>
+#include <targets/json/target_json.hpp>
+#include <targets/validation/target_validator.hpp>
 
 namespace monitor_service::target {
 

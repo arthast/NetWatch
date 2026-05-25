@@ -1,9 +1,9 @@
-#include "target_http_response.hpp"
+#include <targets/handlers/target_http_response.hpp>
 
 #include <userver/formats/json/serialize.hpp>
 #include <userver/http/content_type.hpp>
 
-#include "target_json.hpp"
+#include <targets/json/target_json.hpp>
 
 namespace monitor_service::target {
 std::string JsonResponse(const userver::server::http::HttpRequest &request,

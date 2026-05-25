@@ -1,4 +1,4 @@
-#include "target_repository.hpp"
+#include <targets/storage/target_repository.hpp>
 
 #include <optional>
 #include <userver/storages/postgres/result_set.hpp>
@@ -6,7 +6,7 @@
 #include <utility>
 #include <vector>
 
-#include "target.hpp"
+#include <targets/model/target.hpp>
 
 namespace monitor_service::target {
 namespace {
@@ -127,5 +127,61 @@ std::optional<Target> TargetRepository::GetTargetById(
     }
 
     return TargetFromRow(result.Front());
+}
+
+std::optional<Target> TargetRepository::UpdateTarget(const Target &target) const {
+    const auto result = pg_cluster_->Execute(
+        userver::storages::postgres::ClusterHostType::kMaster,
+        R"(
+            UPDATE targets
+            SET
+                name = $2,
+                type = $3,
+                url = $4,
+                method = $5,
+                expected_status_code = $6,
+                host = $7,
+                port = $8,
+                interval_seconds = $9,
+                timeout_ms = $10,
+                updated_at = NOW()
+            WHERE id = $1 AND is_active = TRUE
+            RETURNING
+                id,
+                name,
+                type,
+                url,
+                method,
+                expected_status_code,
+                host,
+                port,
+                interval_seconds,
+                timeout_ms,
+                is_active
+        )",
+        target.id, target.name, TargetTypeToString(target.type), target.url,
+        target.method, target.expected_status_code, target.host, target.port,
+        target.interval_seconds, target.timeout_ms);
+
+    if (result.Size() == 0) {
+        return std::nullopt;
+    }
+
+    return TargetFromRow(result.Front());
+}
+
+bool TargetRepository::DeactivateTarget(std::int64_t target_id) const {
+    const auto result = pg_cluster_->Execute(
+        userver::storages::postgres::ClusterHostType::kMaster,
+        R"(
+            UPDATE targets
+            SET is_active = FALSE,
+                updated_at = NOW()
+            WHERE id = $1 AND is_active = TRUE
+            RETURNING id
+        )",
+        target_id);
+
+    return result.Size() != 0;
 }
 } // namespace monitor_service::target

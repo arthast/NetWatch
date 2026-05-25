@@ -5,7 +5,7 @@
 #include <userver/storages/postgres/postgres.hpp>
 #include <vector>
 
-#include "target.hpp"
+#include <targets/model/target.hpp>
 
 namespace monitor_service::target {
 class TargetRepository {
@@ -17,6 +17,10 @@ public:
     std::vector<Target> ListActiveTargets() const;
 
     std::optional<Target> GetTargetById(std::int64_t target_id) const;
+
+    std::optional<Target> UpdateTarget(const Target &target) const;
+
+    bool DeactivateTarget(std::int64_t target_id) const;
 
 private:
     userver::storages::postgres::ClusterPtr pg_cluster_;

@@ -1,4 +1,4 @@
-#include "target_json.hpp"
+#include <targets/json/target_json.hpp>
 
 #include <optional>
 #include <stdexcept>
@@ -26,6 +26,20 @@ namespace {
         const auto value = json[field];
         if (value.IsMissing() || value.IsNull()) {
             return std::nullopt;
+        }
+        return value.As<T>();
+    }
+
+    template<typename T>
+    std::optional<T> ReadPatchOptional(const userver::formats::json::Value &json,
+                                       std::string_view field) {
+        const auto value = json[field];
+        if (value.IsMissing()) {
+            return std::nullopt;
+        }
+        if (value.IsNull()) {
+            throw std::invalid_argument("field '" + std::string{field} +
+                                        "' must not be null");
         }
         return value.As<T>();
     }
@@ -72,6 +86,35 @@ CreateTargetRequest ParseCreateTargetRequest(
     }
 
     return request;
+}
+
+UpdateTargetRequest ParseUpdateTargetRequest(
+    const userver::formats::json::Value &json) {
+    if (!json.IsObject()) {
+        throw std::invalid_argument("request body must be a JSON object");
+    }
+
+    std::optional<TargetType> type;
+    if (const auto type_value = ReadPatchOptional<std::string>(json, "type")) {
+        type = TargetTypeFromString(*type_value);
+    }
+
+    auto expected_status_code = ReadPatchOptional<int>(json, "expected_status_code");
+    if (!expected_status_code) {
+        expected_status_code = ReadPatchOptional<int>(json, "expected_status");
+    }
+
+    return UpdateTargetRequest{
+        .name = ReadPatchOptional<std::string>(json, "name"),
+        .type = type,
+        .url = ReadPatchOptional<std::string>(json, "url"),
+        .method = ReadPatchOptional<std::string>(json, "method"),
+        .expected_status_code = expected_status_code,
+        .host = ReadPatchOptional<std::string>(json, "host"),
+        .port = ReadPatchOptional<int>(json, "port"),
+        .interval_seconds = ReadPatchOptional<int>(json, "interval_seconds"),
+        .timeout_ms = ReadPatchOptional<int>(json, "timeout_ms"),
+    };
 }
 
 userver::formats::json::Value SerializeTarget(const Target &target) {
