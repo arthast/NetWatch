@@ -6,9 +6,7 @@
 #include "target.hpp"
 
 namespace monitor_service::target_validator {
-
 std::optional<std::string> ValidateCreateTargetRequest(
-    const target::CreateTargetRequest& request
+    const target::CreateTargetRequest &request
 );
-
-}  // namespace monitor_service::target_validator
+} // namespace monitor_service::target_validator

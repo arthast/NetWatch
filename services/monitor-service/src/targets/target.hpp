@@ -5,7 +5,6 @@
 #include <string>
 
 namespace monitor_service::target {
-
 enum class TargetType { kHttp, kTcp };
 
 struct Target {
@@ -40,8 +39,7 @@ struct CreateTargetRequest {
     int timeout_ms;
 };
 
-TargetType TargetTypeFromString(const std::string& value);
+TargetType TargetTypeFromString(const std::string &value);
 
 std::string TargetTypeToString(TargetType type);
-
-}  // namespace monitor_service::target
+} // namespace monitor_service::target

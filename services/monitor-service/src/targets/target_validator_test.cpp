@@ -4,37 +4,35 @@
 
 namespace monitor_service::target {
 namespace {
+    CreateTargetRequest MakeHttpTarget() {
+        return CreateTargetRequest{
+            .name = "Main website",
+            .type = TargetType::kHttp,
+            .url = "https://example.com/health",
+            .method = "GET",
+            .expected_status_code = 200,
+            .host = std::nullopt,
+            .port = std::nullopt,
+            .interval_seconds = 30,
+            .timeout_ms = 1000,
+        };
+    }
 
-CreateTargetRequest MakeHttpTarget() {
-    return CreateTargetRequest{
-        .name = "Main website",
-        .type = TargetType::kHttp,
-        .url = "https://example.com/health",
-        .method = "GET",
-        .expected_status_code = 200,
-        .host = std::nullopt,
-        .port = std::nullopt,
-        .interval_seconds = 30,
-        .timeout_ms = 1000,
-    };
-}
-
-CreateTargetRequest MakeTcpTarget() {
-    return CreateTargetRequest{
-        .name = "Postgres",
-        .type = TargetType::kTcp,
-        .url = std::nullopt,
-        .method = std::nullopt,
-        .expected_status_code = std::nullopt,
-        .host = "localhost",
-        .port = 5432,
-        .interval_seconds = 10,
-        .timeout_ms = 500,
-    };
-}
-
-}  // namespace
-}  // namespace monitor_service::target
+    CreateTargetRequest MakeTcpTarget() {
+        return CreateTargetRequest{
+            .name = "Postgres",
+            .type = TargetType::kTcp,
+            .url = std::nullopt,
+            .method = std::nullopt,
+            .expected_status_code = std::nullopt,
+            .host = "localhost",
+            .port = 5432,
+            .interval_seconds = 10,
+            .timeout_ms = 500,
+        };
+    }
+} // namespace
+} // namespace monitor_service::target
 
 UTEST(TargetValidator, AcceptsValidHttpTarget) {
     const auto error = monitor_service::target_validator::ValidateCreateTargetRequest(

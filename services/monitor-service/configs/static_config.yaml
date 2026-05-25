@@ -63,6 +63,11 @@ components_manager:
             method: GET,POST
             task_processor: main-task-processor
 
+        handler-target-by-id:
+            path: /api/v1/targets/{id}
+            method: GET
+            task_processor: main-task-processor
+
         postgres-db-1:
             dbconnection: $pg-connection
             dbconnection#env: DB_CONNECTION

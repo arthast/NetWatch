@@ -90,10 +90,8 @@ userver::formats::json::Value SerializeTarget(const Target &target) {
     return builder.ExtractValue();
 }
 
-userver::formats::json::Value SerializeTargets(
-    const std::vector<Target> &targets) {
-    userver::formats::json::ValueBuilder builder(
-        userver::formats::common::Type::kArray);
+userver::formats::json::Value SerializeTargets(const std::vector<Target> &targets) {
+    userver::formats::json::ValueBuilder builder(userver::formats::common::Type::kArray);
     for (const auto &target: targets) {
         userver::formats::json::ValueBuilder item(SerializeTarget(target));
         builder.PushBack(std::move(item));

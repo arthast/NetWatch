@@ -4,21 +4,18 @@
 #include <string_view>
 
 namespace monitor_service::target_validator {
-
 namespace {
+    bool IsBlank(std::string_view value) {
+        return value.find_first_not_of(" \t\n\r") == std::string_view::npos;
+    }
 
-bool IsBlank(std::string_view value) {
-    return value.find_first_not_of(" \t\n\r") == std::string_view::npos;
-}
-
-bool IsValidPort(int port) {
-    return port >= 1 && port <= 65535;
-}
-
-}  // namespace
+    bool IsValidPort(int port) {
+        return port >= 1 && port <= 65535;
+    }
+} // namespace
 
 std::optional<std::string> ValidateCreateTargetRequest(
-    const target::CreateTargetRequest& request
+    const target::CreateTargetRequest &request
 ) {
     if (IsBlank(request.name)) {
         return "name must not be empty";
@@ -80,5 +77,4 @@ std::optional<std::string> ValidateCreateTargetRequest(
 
     return std::nullopt;
 }
-
-}  // namespace monitor_service::target_validator
+} // namespace monitor_service::target_validator

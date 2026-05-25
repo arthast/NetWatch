@@ -12,11 +12,12 @@
 
 #include <userver/utils/daemon_run.hpp>
 
+#include <targets/target_by_id_handler.hpp>
 #include <targets/targets_handler.hpp>
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     auto component_list =
-        userver::components::MinimalServerComponentList()
+            userver::components::MinimalServerComponentList()
             .Append<userver::server::handlers::Ping>()
             .Append<userver::components::TestsuiteSupport>()
             .AppendComponentList(userver::clients::http::ComponentList())
@@ -24,8 +25,8 @@ int main(int argc, char* argv[]) {
             .Append<userver::server::handlers::TestsControl>()
             .Append<userver::congestion_control::Component>()
             .Append<userver::components::Postgres>("postgres-db-1")
-            .Append<monitor_service::target::TargetsHandler>()
-        ;
+            .Append<monitor_service::target::TargetByIdHandler>()
+            .Append<monitor_service::target::TargetsHandler>();
 
     return userver::utils::DaemonMain(argc, argv, component_list);
 }

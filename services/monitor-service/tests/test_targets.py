@@ -88,6 +88,40 @@ async def test_list_targets(service_client):
     }
 
 
+async def test_get_target_by_id(service_client):
+    create_response = await service_client.post(
+        "/api/v1/targets",
+        json={
+            "name": "Main website",
+            "type": "http",
+            "url": "https://example.com/health",
+            "interval_seconds": 30,
+            "timeout_ms": 1000,
+        },
+    )
+    assert create_response.status == 201
+    created = create_response.json()
+
+    response = await service_client.get(f"/api/v1/targets/{created['id']}")
+
+    assert response.status == 200
+    assert response.json() == created
+
+
+async def test_get_target_by_id_not_found(service_client):
+    response = await service_client.get("/api/v1/targets/999999")
+
+    assert response.status == 404
+    assert response.json()["error"] == "target not found"
+
+
+async def test_get_target_by_id_rejects_invalid_id(service_client):
+    response = await service_client.get("/api/v1/targets/not-a-number")
+
+    assert response.status == 400
+    assert response.json()["error"] == "target id must be a positive integer"
+
+
 async def test_create_tcp_target(service_client):
     response = await service_client.post(
         "/api/v1/targets",
