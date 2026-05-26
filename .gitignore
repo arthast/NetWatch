@@ -1,0 +1,28 @@
+# macOS
+.DS_Store
+
+# IDEs
+.idea/
+.vscode/
+
+# CMake / build artifacts
+build-*/
+cmake-build-*/
+**/build-*/
+**/cmake-build-*/
+compile_commands.json
+
+# C/C++ caches
+.ccache/
+**/.ccache/
+
+# Python/test caches
+__pycache__/
+**/__pycache__/
+.pytest_cache/
+**/.pytest_cache/
+.ruff_cache/
+**/.ruff_cache/
+
+# Runtime logs
+*.log
