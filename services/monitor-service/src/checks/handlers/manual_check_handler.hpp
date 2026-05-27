@@ -5,26 +5,23 @@
 #include <userver/components/component.hpp>
 #include <userver/server/handlers/http_handler_base.hpp>
 
-#include <checks/runner/check_runner.hpp>
-#include <checks/storage/check_repository.hpp>
-#include <targets/storage/target_repository.hpp>
+#include <checks/service/check_service.hpp>
 
 namespace monitor_service::checks {
-class ManualCheckHandler final : public userver::server::handlers::HttpHandlerBase {
-public:
-    static constexpr std::string_view kName = "handler-manual-check";
+class ManualCheckHandler final
+    : public userver::server::handlers::HttpHandlerBase {
+ public:
+  static constexpr std::string_view kName = "handler-manual-check";
 
-    ManualCheckHandler(
-        const userver::components::ComponentConfig &config,
-        const userver::components::ComponentContext &component_context);
+  ManualCheckHandler(
+      const userver::components::ComponentConfig& config,
+      const userver::components::ComponentContext& component_context);
 
-    std::string HandleRequestThrow(
-        const userver::server::http::HttpRequest &request,
-        userver::server::request::RequestContext &context) const override;
+  std::string HandleRequestThrow(
+      const userver::server::http::HttpRequest& request,
+      userver::server::request::RequestContext& context) const override;
 
-private:
-    target::TargetRepository target_repository_;
-    CheckRepository check_repository_;
-    CheckRunner check_runner_;
+ private:
+  const CheckServiceComponent& check_service_;
 };
-} // namespace monitor_service::checks
+}  // namespace monitor_service::checks

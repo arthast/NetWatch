@@ -12,27 +12,39 @@
 
 #include <userver/utils/daemon_run.hpp>
 
+#include <alerts/handlers/active_alerts_handler.hpp>
+#include <alerts/handlers/alerts_handler.hpp>
 #include <checks/handlers/manual_check_handler.hpp>
 #include <checks/handlers/target_checks_handler.hpp>
 #include <checks/handlers/target_status_handler.hpp>
+#include <checks/scheduler/target_check_scheduler.hpp>
+#include <checks/service/check_service.hpp>
 #include <targets/handlers/target_by_id_handler.hpp>
 #include <targets/handlers/targets_handler.hpp>
+#include <web/handlers/openapi_handler.hpp>
+#include <web/handlers/swagger_ui_handler.hpp>
 
-int main(int argc, char *argv[]) {
-    auto component_list =
-            userver::components::MinimalServerComponentList()
-            .Append<userver::server::handlers::Ping>()
-            .Append<userver::components::TestsuiteSupport>()
-            .AppendComponentList(userver::clients::http::ComponentList())
-            .Append<userver::clients::dns::Component>()
-            .Append<userver::server::handlers::TestsControl>()
-            .Append<userver::congestion_control::Component>()
-            .Append<userver::components::Postgres>("postgres-db-1")
-            .Append<monitor_service::checks::ManualCheckHandler>()
-            .Append<monitor_service::checks::TargetChecksHandler>()
-            .Append<monitor_service::checks::TargetStatusHandler>()
-            .Append<monitor_service::target::TargetByIdHandler>()
-            .Append<monitor_service::target::TargetsHandler>();
+int main(int argc, char* argv[]) {
+  auto component_list =
+      userver::components::MinimalServerComponentList()
+          .Append<userver::server::handlers::Ping>()
+          .Append<userver::components::TestsuiteSupport>()
+          .AppendComponentList(userver::clients::http::ComponentList())
+          .Append<userver::clients::dns::Component>()
+          .Append<userver::server::handlers::TestsControl>()
+          .Append<userver::congestion_control::Component>()
+          .Append<userver::components::Postgres>("postgres-db-1")
+          .Append<monitor_service::checks::CheckServiceComponent>()
+          .Append<monitor_service::checks::TargetCheckScheduler>()
+          .Append<monitor_service::web::SwaggerUiHandler>()
+          .Append<monitor_service::web::OpenApiHandler>()
+          .Append<monitor_service::alerts::AlertsHandler>()
+          .Append<monitor_service::alerts::ActiveAlertsHandler>()
+          .Append<monitor_service::checks::ManualCheckHandler>()
+          .Append<monitor_service::checks::TargetChecksHandler>()
+          .Append<monitor_service::checks::TargetStatusHandler>()
+          .Append<monitor_service::target::TargetByIdHandler>()
+          .Append<monitor_service::target::TargetsHandler>();
 
-    return userver::utils::DaemonMain(argc, argv, component_list);
+  return userver::utils::DaemonMain(argc, argv, component_list);
 }

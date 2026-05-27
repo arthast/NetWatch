@@ -7,9 +7,9 @@
 
 namespace monitor_service::checks {
 
-userver::formats::json::Value SerializeCheckResult(const CheckResult &check);
+userver::formats::json::Value SerializeCheckResult(const CheckResult& check);
 
 userver::formats::json::Value SerializeCheckResults(
-    const std::vector<CheckResult> &checks);
+    const std::vector<CheckResult>& checks);
 
-} // namespace monitor_service::checks
+}  // namespace monitor_service::checks

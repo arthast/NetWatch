@@ -30,8 +30,8 @@ components_manager:
             defaults:
                 HTTP_CLIENT_CONNECTION_POOL_SIZE: 1000
                 POSTGRES_DEFAULT_COMMAND_CONTROL:
-                    network_timeout_ms: 750
-                    statement_timeout_ms: 500
+                    network_timeout_ms: 1000
+                    statement_timeout_ms: 1000
 
         testsuite-support: {}
 
@@ -39,7 +39,7 @@ components_manager:
 
         http-client:
         http-client-core:
-            load-enabled: $is-testing
+            load-enabled: true
             fs-task-processor: fs-task-processor
 
         dns-client:
@@ -56,6 +56,18 @@ components_manager:
             method: GET
             task_processor: main-task-processor
             throttling_enabled: false
+            url_trailing_slash: strict-match
+
+        handler-swagger-ui:
+            path: /docs
+            method: GET
+            task_processor: main-task-processor
+            url_trailing_slash: strict-match
+
+        handler-openapi:
+            path: /openapi.json
+            method: GET
+            task_processor: main-task-processor
             url_trailing_slash: strict-match
 
         handler-targets:
@@ -82,6 +94,22 @@ components_manager:
             path: /api/v1/targets/{id}/status
             method: GET
             task_processor: main-task-processor
+
+        handler-alerts:
+            path: /api/v1/alerts
+            method: GET
+            task_processor: main-task-processor
+
+        handler-active-alerts:
+            path: /api/v1/alerts/active
+            method: GET
+            task_processor: main-task-processor
+
+        check-service: {}
+
+        target-check-scheduler:
+            enabled: $scheduler-enabled
+            scan-period-ms: $scheduler-scan-period-ms
 
         postgres-db-1:
             dbconnection: $pg-connection

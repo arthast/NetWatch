@@ -8,15 +8,15 @@
 
 namespace monitor_service::target {
 CreateTargetRequest ParseCreateTargetRequest(
-    const userver::formats::json::Value &json);
+    const userver::formats::json::Value& json);
 
 UpdateTargetRequest ParseUpdateTargetRequest(
-    const userver::formats::json::Value &json);
+    const userver::formats::json::Value& json);
 
-userver::formats::json::Value SerializeTarget(const Target &target);
+userver::formats::json::Value SerializeTarget(const Target& target);
 
 userver::formats::json::Value SerializeTargets(
-    const std::vector<Target> &targets);
+    const std::vector<Target>& targets);
 
 userver::formats::json::Value SerializeError(std::string_view message);
-} // namespace monitor_service::target
+}  // namespace monitor_service::target

@@ -8,11 +8,11 @@
 
 namespace monitor_service::common {
 
-std::string JsonResponse(const userver::server::http::HttpRequest &request,
-                         const userver::formats::json::Value &body);
+std::string JsonResponse(const userver::server::http::HttpRequest& request,
+                         const userver::formats::json::Value& body);
 
-std::string ErrorResponse(const userver::server::http::HttpRequest &request,
+std::string ErrorResponse(const userver::server::http::HttpRequest& request,
                           userver::server::http::HttpStatus status,
                           std::string_view message);
 
-} // namespace monitor_service::common
+}  // namespace monitor_service::common

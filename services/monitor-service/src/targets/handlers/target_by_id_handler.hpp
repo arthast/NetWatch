@@ -8,31 +8,31 @@
 #include <targets/storage/target_repository.hpp>
 
 namespace monitor_service::target {
-class TargetByIdHandler final : public userver::server::handlers::HttpHandlerBase {
-public:
-    static constexpr std::string_view kName = "handler-target-by-id";
+class TargetByIdHandler final
+    : public userver::server::handlers::HttpHandlerBase {
+ public:
+  static constexpr std::string_view kName = "handler-target-by-id";
 
-    TargetByIdHandler(
-        const userver::components::ComponentConfig &config,
-        const userver::components::ComponentContext &component_context);
+  TargetByIdHandler(
+      const userver::components::ComponentConfig& config,
+      const userver::components::ComponentContext& component_context);
 
-    std::string HandleRequestThrow(
-        const userver::server::http::HttpRequest &request,
-        userver::server::request::RequestContext &context) const override;
+  std::string HandleRequestThrow(
+      const userver::server::http::HttpRequest& request,
+      userver::server::request::RequestContext& context) const override;
 
-private:
-    std::string HandleGetTarget(
-        const userver::server::http::HttpRequest &request,
-        std::int64_t target_id) const;
+ private:
+  std::string HandleGetTarget(const userver::server::http::HttpRequest& request,
+                              std::int64_t target_id) const;
 
-    std::string HandlePatchTarget(
-        const userver::server::http::HttpRequest &request,
-        std::int64_t target_id) const;
+  std::string HandlePatchTarget(
+      const userver::server::http::HttpRequest& request,
+      std::int64_t target_id) const;
 
-    std::string HandleDeleteTarget(
-        const userver::server::http::HttpRequest &request,
-        std::int64_t target_id) const;
+  std::string HandleDeleteTarget(
+      const userver::server::http::HttpRequest& request,
+      std::int64_t target_id) const;
 
-    TargetRepository repository_;
+  TargetRepository repository_;
 };
-} // namespace monitor_service::target
+}  // namespace monitor_service::target

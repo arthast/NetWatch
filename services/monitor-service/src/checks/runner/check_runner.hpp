@@ -8,18 +8,18 @@
 
 namespace monitor_service::checks {
 class CheckRunner {
-public:
-    CheckRunner(userver::clients::http::Client &http_client,
-                userver::clients::dns::Resolver &dns_resolver);
+ public:
+  CheckRunner(userver::clients::http::Client& http_client,
+              userver::clients::dns::Resolver& dns_resolver);
 
-    CheckResult RunCheck(const target::Target &target) const;
+  CheckResult RunCheck(const target::Target& target) const;
 
-private:
-    CheckResult RunHttpCheck(const target::Target &target) const;
+ private:
+  CheckResult RunHttpCheck(const target::Target& target) const;
 
-    CheckResult RunTcpCheck(const target::Target &target) const;
+  CheckResult RunTcpCheck(const target::Target& target) const;
 
-    userver::clients::http::Client &http_client_;
-    userver::clients::dns::Resolver &dns_resolver_;
+  userver::clients::http::Client& http_client_;
+  userver::clients::dns::Resolver& dns_resolver_;
 };
-} // namespace monitor_service::checks
+}  // namespace monitor_service::checks
