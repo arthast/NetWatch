@@ -9,7 +9,9 @@ services:
       - "15432:5432"
     volumes:
       - netwatch-postgres-data:/var/lib/postgresql/data
-      - ./services/monitor-service/postgresql/schemas/netwatch_db.sql:/docker-entrypoint-initdb.d/001_netwatch_db.sql:ro
+      - ./services/target-service/postgresql/migrations/001_create_targets.sql:/docker-entrypoint-initdb.d/001_target_service_create_targets.sql:ro
+      - ./services/monitor-service/postgresql/migrations/001_create_check_results.sql:/docker-entrypoint-initdb.d/002_monitor_service_create_check_results.sql:ro
+      - ./services/monitor-service/postgresql/migrations/002_create_alerts.sql:/docker-entrypoint-initdb.d/003_monitor_service_create_alerts.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U netwatch -d netwatch_db"]
       interval: 2s

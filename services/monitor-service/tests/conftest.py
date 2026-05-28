@@ -19,8 +19,12 @@ def allowed_url_prefixes_extra():
 @pytest.fixture(scope="session")
 def pgsql_local(service_source_dir, pgsql_local_create):
     """Create schemas databases for tests"""
+    repo_root = service_source_dir.parent.parent
     databases = discover.find_schemas(
         "monitor_service",
-        [service_source_dir.joinpath("postgresql/schemas")],
+        [
+            repo_root.joinpath("services/target-service/postgresql/migrations"),
+            service_source_dir.joinpath("postgresql/migrations"),
+        ],
     )
     return pgsql_local_create(list(databases.values()))

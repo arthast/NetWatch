@@ -18,7 +18,7 @@ alerts и scheduler находятся в `monitor-service`. Внутренне�
 - Alert lifecycle: `target_down` создается при падении и закрывается при восстановлении.
 - Scheduler, который периодически запускает проверки active targets.
 - `monitor-service` с gRPC API для checks и alerts.
-- PostgreSQL schema, unit-тесты и Docker Compose для demo-запуска.
+- Service-owned PostgreSQL migrations, unit-тесты и Docker Compose для demo-запуска.
 
 ## Архитектура текущей версии
 
@@ -53,6 +53,12 @@ target-service  ---- PostgreSQL
 Общие target-типы и валидация лежат в `libs/target-domain`, PostgreSQL storage
 для targets - в `libs/target-storage`, общие check/alert модели - в
 `libs/monitor-core`, gRPC контракты - в `proto/netwatch`.
+
+PostgreSQL DDL разнесен по service-owned migrations:
+
+- `services/target-service/postgresql/migrations` владеет таблицей `targets`.
+- `services/monitor-service/postgresql/migrations` владеет таблицами
+  `check_results` и `alerts`.
 
 В Docker Compose `api-gateway` вызывает `target-service` и `monitor-service`
 по gRPC. `monitor-service` тоже ходит в `target-service` по gRPC, чтобы получать
