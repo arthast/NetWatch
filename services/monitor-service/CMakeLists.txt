@@ -20,13 +20,13 @@ find_package(
     userver_setup_environment()
 endif()
 
-set(NETWATCH_TARGET_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/target-core")
+set(NETWATCH_TARGET_DOMAIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/target-domain")
 set(NETWATCH_MONITOR_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/monitor-core")
 set(NETWATCH_PROTO_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/netwatch-proto")
 set(NETWATCH_TARGET_CLIENT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/target-client")
 
-if(NOT TARGET netwatch_target_core)
-    add_subdirectory("${NETWATCH_TARGET_CORE_DIR}" netwatch_target_core)
+if(NOT TARGET netwatch_target_domain)
+    add_subdirectory("${NETWATCH_TARGET_DOMAIN_DIR}" netwatch_target_domain)
 endif()
 
 if(NOT TARGET netwatch_monitor_core)
@@ -63,7 +63,7 @@ target_link_libraries(
     PUBLIC userver::core
            userver::grpc
            userver::postgresql
-           netwatch_target_core
+           netwatch_target_domain
            netwatch_monitor_core
            netwatch_grpc_proto
            netwatch_target_client
@@ -74,11 +74,11 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_NAME}_objs)
 
 add_executable(
     ${PROJECT_NAME}_unittest
-    ${NETWATCH_TARGET_CORE_DIR}/src/targets/validation/target_validator_test.cpp
+    ${NETWATCH_TARGET_DOMAIN_DIR}/src/targets/validation/target_validator_test.cpp
 )
 target_link_libraries(
     ${PROJECT_NAME}_unittest
-    PRIVATE netwatch_target_core
+    PRIVATE netwatch_target_domain
             userver::utest
 )
 add_google_tests(${PROJECT_NAME}_unittest)

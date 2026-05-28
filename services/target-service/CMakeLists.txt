@@ -19,11 +19,16 @@ if(NOT TARGET userver::core)
     userver_setup_environment()
 endif()
 
-set(NETWATCH_TARGET_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/target-core")
+set(NETWATCH_TARGET_DOMAIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/target-domain")
+set(NETWATCH_TARGET_STORAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/target-storage")
 set(NETWATCH_PROTO_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/netwatch-proto")
 
-if(NOT TARGET netwatch_target_core)
-    add_subdirectory("${NETWATCH_TARGET_CORE_DIR}" netwatch_target_core)
+if(NOT TARGET netwatch_target_domain)
+    add_subdirectory("${NETWATCH_TARGET_DOMAIN_DIR}" netwatch_target_domain)
+endif()
+
+if(NOT TARGET netwatch_target_storage)
+    add_subdirectory("${NETWATCH_TARGET_STORAGE_DIR}" netwatch_target_storage)
 endif()
 
 if(NOT TARGET netwatch_grpc_proto)
@@ -45,7 +50,8 @@ target_link_libraries(
     PUBLIC userver::core
            userver::grpc
            userver::postgresql
-           netwatch_target_core
+           netwatch_target_domain
+           netwatch_target_storage
            netwatch_grpc_proto
 )
 

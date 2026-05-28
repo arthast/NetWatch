@@ -11,6 +11,4 @@ scheduler-enabled: true
 scheduler-scan-period-ms: 1000
 
 target-service-grpc-endpoint: target-service:8090
-target-client-transport: grpc
-
 pg-connection: postgresql://netwatch:netwatch@postgres:5432/netwatch_db

@@ -12,7 +12,6 @@ target_link_libraries(
     netwatch_target_client
     PUBLIC userver::core
            userver::grpc
-           userver::postgresql
            netwatch_grpc_proto
-           netwatch_target_core
+           netwatch_target_domain
 )

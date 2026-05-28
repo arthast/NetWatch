@@ -9,7 +9,6 @@
 
 #include <netwatch/target_service_client.usrv.pb.hpp>
 #include <targets/model/target.hpp>
-#include <targets/storage/target_repository.hpp>
 
 namespace userver::yaml_config {
 class Schema;
@@ -37,9 +36,7 @@ class TargetClient final : public userver::components::ComponentBase {
   bool DeactivateTarget(std::int64_t target_id) const;
 
  private:
-  bool use_grpc_;
   netwatch::target::v1::TargetServiceClient* grpc_client_;
-  std::optional<TargetRepository> repository_;
 };
 
 }  // namespace monitor_service::target

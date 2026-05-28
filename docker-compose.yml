@@ -34,6 +34,7 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
+      start_period: 120s
       interval: 2s
       timeout: 2s
       retries: 30
@@ -47,7 +48,6 @@ services:
         -G Ninja
         -DCMAKE_BUILD_TYPE=Debug
         -DUSERVER_FEATURE_GRPC=ON
-        -DUSERVER_FEATURE_POSTGRESQL=ON
         -DUSERVER_SANITIZE='addr;ub'
         -DCMAKE_EXPORT_COMPILE_COMMANDS=ON &&
         cmake --build build-compose-debug -j 4 --target api_gateway &&
@@ -72,6 +72,7 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
+      start_period: 120s
       interval: 2s
       timeout: 2s
       retries: 30
@@ -110,6 +111,7 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
+      start_period: 120s
       interval: 2s
       timeout: 2s
       retries: 30

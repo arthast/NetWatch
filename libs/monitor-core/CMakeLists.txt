@@ -11,5 +11,5 @@ target_include_directories(
 
 target_link_libraries(
     netwatch_monitor_core
-    PUBLIC netwatch_target_core
+    PUBLIC netwatch_target_domain
 )

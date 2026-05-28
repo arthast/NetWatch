@@ -4,14 +4,11 @@
 #include <optional>
 #include <stdexcept>
 #include <userver/components/component_context.hpp>
-#include <userver/storages/postgres/component.hpp>
 #include <userver/ugrpc/client/call_options.hpp>
 #include <userver/ugrpc/client/exceptions.hpp>
 #include <userver/ugrpc/client/simple_client_component.hpp>
 #include <userver/yaml_config/merge_schemas.hpp>
 #include <userver/yaml_config/schema.hpp>
-
-#include <targets/validation/target_validator.hpp>
 
 namespace monitor_service::target {
 namespace {
@@ -146,64 +143,38 @@ std::invalid_argument ToInvalidArgument(
   return std::invalid_argument{ex.GetStatus().error_message()};
 }
 
-bool ShouldUseGrpc(const userver::components::ComponentConfig& config) {
-  const auto transport = config["transport"].As<std::string>("grpc");
-  if (transport == "grpc") {
-    return true;
-  }
-  if (transport == "postgres") {
-    return false;
-  }
-
-  throw std::invalid_argument{
-      "target-client.transport must be either 'grpc' or 'postgres'"};
-}
-
 }  // namespace
 
 TargetClient::TargetClient(const userver::components::ComponentConfig& config,
                            const userver::components::ComponentContext& context)
     : ComponentBase(config, context),
-      use_grpc_(ShouldUseGrpc(config)),
-      grpc_client_(use_grpc_
-                       ? &context
-                              .FindComponent<
-                                  userver::ugrpc::client::SimpleClientComponent<
-                                      proto::TargetServiceClient>>(
-                                  "target-service-client")
-                              .GetClient()
-                       : nullptr),
-      repository_(use_grpc_
-                      ? std::nullopt
-                      : std::make_optional(TargetRepository{
-                            context
-                                .FindComponent<userver::components::Postgres>(
-                                    "postgres-db-1")
-                                .GetCluster()})) {}
+      grpc_client_(&context
+                        .FindComponent<
+                            userver::ugrpc::client::SimpleClientComponent<
+                                proto::TargetServiceClient>>(
+                            "target-service-client")
+                        .GetClient()) {
+  const auto transport = config["transport"].As<std::optional<std::string>>();
+  if (transport && *transport != "grpc") {
+    throw std::invalid_argument{"target-client.transport supports only 'grpc'"};
+  }
+}
 
 userver::yaml_config::Schema TargetClient::GetStaticConfigSchema() {
   return userver::yaml_config::MergeSchemas<userver::components::ComponentBase>(
       R"(
 type: object
-description: target storage client
+description: target-service grpc client
 additionalProperties: false
 properties:
     transport:
         type: string
-        description: target-service transport; use grpc in production and postgres in single-service tests
+        description: deprecated target-service transport option; only grpc is supported
         defaultDescription: grpc
 )");
 }
 
 Target TargetClient::CreateTarget(const CreateTargetRequest& request) const {
-  if (!use_grpc_) {
-    if (const auto error =
-            target_validator::ValidateCreateTargetRequest(request)) {
-      throw std::invalid_argument{*error};
-    }
-    return repository_->CreateTarget(request);
-  }
-
   try {
     return ToDomainTarget(
         grpc_client_
@@ -215,20 +186,12 @@ Target TargetClient::CreateTarget(const CreateTargetRequest& request) const {
 }
 
 std::vector<Target> TargetClient::ListActiveTargets() const {
-  if (!use_grpc_) {
-    return repository_->ListActiveTargets();
-  }
-
   return ToDomainTargets(grpc_client_->ListActiveTargets(
       proto::ListTargetsRequest{}, MakeCallOptions()));
 }
 
 std::optional<Target> TargetClient::GetTargetById(
     std::int64_t target_id) const {
-  if (!use_grpc_) {
-    return repository_->GetTargetById(target_id);
-  }
-
   try {
     return ToDomainTarget(
         grpc_client_
@@ -240,13 +203,6 @@ std::optional<Target> TargetClient::GetTargetById(
 }
 
 std::optional<Target> TargetClient::UpdateTarget(const Target& target) const {
-  if (!use_grpc_) {
-    if (const auto error = target_validator::ValidateTarget(target)) {
-      throw std::invalid_argument{*error};
-    }
-    return repository_->UpdateTarget(target);
-  }
-
   proto::UpdateTargetRequest request;
   FillProtoTarget(target, *request.mutable_target());
 
@@ -261,10 +217,6 @@ std::optional<Target> TargetClient::UpdateTarget(const Target& target) const {
 }
 
 bool TargetClient::DeactivateTarget(std::int64_t target_id) const {
-  if (!use_grpc_) {
-    return repository_->DeactivateTarget(target_id);
-  }
-
   try {
     grpc_client_->DeleteTarget(MakeTargetIdRequest(target_id),
                                MakeCallOptions());

@@ -1,0 +1,90 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: netwatch_db
+      POSTGRES_USER: netwatch
+      POSTGRES_PASSWORD: netwatch
+    ports:
+      - "15432:5432"
+    volumes:
+      - netwatch-postgres-data:/var/lib/postgresql/data
+      - ./services/monitor-service/postgresql/schemas/netwatch_db.sql:/docker-entrypoint-initdb.d/001_netwatch_db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U netwatch -d netwatch_db"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  api-gateway:
+    image: ${NETWATCH_API_GATEWAY_IMAGE:-netwatch/api-gateway:local}
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_TARGET: api_gateway
+    platform: linux/amd64
+    environment:
+      USERVER_ENABLE_STACK_USAGE_MONITOR: "0"
+    ports:
+      - "8081:8080"
+    depends_on:
+      target-service:
+        condition: service_healthy
+      monitor-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
+      start_period: 30s
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  monitor-service:
+    image: ${NETWATCH_MONITOR_SERVICE_IMAGE:-netwatch/monitor-service:local}
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_TARGET: monitor_service
+    platform: linux/amd64
+    environment:
+      DB_CONNECTION: postgresql://netwatch:netwatch@postgres:5432/netwatch_db
+      USERVER_ENABLE_STACK_USAGE_MONITOR: "0"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      target-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
+      start_period: 30s
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  target-service:
+    image: ${NETWATCH_TARGET_SERVICE_IMAGE:-netwatch/target-service:local}
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_TARGET: target_service
+    platform: linux/amd64
+    environment:
+      DB_CONNECTION: postgresql://netwatch:netwatch@postgres:5432/netwatch_db
+      USERVER_ENABLE_STACK_USAGE_MONITOR: "0"
+    ports:
+      - "8082:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
+      start_period: 30s
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+volumes:
+  netwatch-postgres-data:

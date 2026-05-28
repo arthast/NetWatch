@@ -10,7 +10,8 @@ alerts и scheduler находятся в `monitor-service`. Внутренне�
 
 - `api-gateway` с внешним HTTP API, Swagger UI и OpenAPI specification.
 - `target-service` с gRPC API для хранения и валидации targets.
-- Общая библиотека `target-core` для target-модели, валидации и PostgreSQL repository.
+- Общая библиотека `target-domain` для target-модели и валидации.
+- Отдельная библиотека `target-storage` для PostgreSQL repository target-service.
 - Общая библиотека `monitor-core` для check/alert доменных моделей.
 - Ручные HTTP/TCP проверки.
 - История checks и статус target по последней проверке.
@@ -49,7 +50,8 @@ monitor-service ---- PostgreSQL
 target-service  ---- PostgreSQL
 ```
 
-Общие target-типы лежат в `libs/target-core`, общие check/alert модели - в
+Общие target-типы и валидация лежат в `libs/target-domain`, PostgreSQL storage
+для targets - в `libs/target-storage`, общие check/alert модели - в
 `libs/monitor-core`, gRPC контракты - в `proto/netwatch`.
 
 В Docker Compose `api-gateway` вызывает `target-service` и `monitor-service`
@@ -73,6 +75,9 @@ targets для ручных проверок и scheduler.
 - `GET /api/v1/alerts/active`
 
 ## Demo через Docker Compose
+
+Dev Compose собирает сервисные бинарники внутри контейнеров при старте. Это
+удобно для локальной разработки:
 
 ```bash
 docker compose up --build
@@ -98,6 +103,28 @@ docker compose up --build
 ```
 
 Команда `down -v` удалит локальные demo-данные PostgreSQL.
+
+Production-like Compose использует уже собранные Docker images:
+
+```bash
+docker compose -f docker-compose.images.yml build
+docker compose -f docker-compose.images.yml up
+```
+
+По умолчанию локальные images называются:
+
+- `netwatch/api-gateway:local`
+- `netwatch/target-service:local`
+- `netwatch/monitor-service:local`
+
+Для запуска опубликованных images можно переопределить переменные:
+
+```bash
+NETWATCH_API_GATEWAY_IMAGE=ghcr.io/<owner>/<repo>/api-gateway:<tag> \
+NETWATCH_TARGET_SERVICE_IMAGE=ghcr.io/<owner>/<repo>/target-service:<tag> \
+NETWATCH_MONITOR_SERVICE_IMAGE=ghcr.io/<owner>/<repo>/monitor-service:<tag> \
+docker compose -f docker-compose.images.yml up
+```
 
 ## Demo сценарий через curl
 
@@ -171,9 +198,9 @@ curl -s "$BASE/api/v1/alerts" | jq
 
 ## Тесты
 
-Сейчас после выделения `api-gateway` автоматизированно запускается unit-тест
-валидации targets. Старые HTTP integration tests нужно перенести на новый
-gateway-контур отдельным шагом.
+Сейчас автоматизированно запускается unit-тест валидации targets и есть внешний
+integration flow, который поднимает Docker Compose и проверяет контур
+`api-gateway -> gRPC -> target-service/monitor-service -> PostgreSQL`.
 
 В контейнере devcontainer или userver-окружении:
 
@@ -197,3 +224,36 @@ docker compose run --rm --no-deps --user 1000:1000 \
 docker compose run --rm --no-deps --workdir /workspace monitor-service \
   bash -lc 'cmake -S . -B build-compose-root-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug -DUSERVER_FEATURE_GRPC=ON -DUSERVER_FEATURE_POSTGRESQL=ON -DUSERVER_SANITIZE="addr;ub" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build-compose-root-debug -j 1 --target api_gateway monitor_service target_service'
 ```
+
+Запустить внешний integration flow через gateway:
+
+```bash
+./tests/integration/run_api_gateway_flow.py
+```
+
+Запустить тот же flow против production-like images:
+
+```bash
+docker compose -f docker-compose.images.yml build
+./tests/integration/run_api_gateway_flow.py \
+  --compose-file docker-compose.images.yml \
+  --no-build
+```
+
+## CI/CD
+
+GitHub Actions workflow находится в `.github/workflows/ci.yml`.
+
+На pull request и push он выполняет:
+
+- root-сборку `api_gateway`, `target_service`, `monitor_service`;
+- `monitor_service_unittest` через CTest;
+- внешний integration flow через dev-compose;
+- сборку production-like Docker images;
+- integration flow через `docker-compose.images.yml`.
+
+На push в `main` или `dev/**` workflow дополнительно публикует images в GHCR:
+
+- `ghcr.io/<owner>/<repo>/api-gateway:<sha|branch>`
+- `ghcr.io/<owner>/<repo>/target-service:<sha|branch>`
+- `ghcr.io/<owner>/<repo>/monitor-service:<sha|branch>`

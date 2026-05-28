@@ -54,8 +54,7 @@ components_manager:
         target-service-client:
             endpoint: $target-service-grpc-endpoint
 
-        target-client:
-            transport: $target-client-transport
+        target-client: {}
 
         grpc-server:
             port: $grpc-server-port

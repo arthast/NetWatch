@@ -9,7 +9,6 @@ if(NOT TARGET userver::core)
         userver
         COMPONENTS core
                    grpc
-                   postgresql
         QUIET
     )
     if(NOT userver_FOUND)
@@ -19,13 +18,13 @@ if(NOT TARGET userver::core)
     userver_setup_environment()
 endif()
 
-set(NETWATCH_TARGET_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/target-core")
+set(NETWATCH_TARGET_DOMAIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/target-domain")
 set(NETWATCH_MONITOR_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/monitor-core")
 set(NETWATCH_PROTO_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/netwatch-proto")
 set(NETWATCH_TARGET_CLIENT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/target-client")
 
-if(NOT TARGET netwatch_target_core)
-    add_subdirectory("${NETWATCH_TARGET_CORE_DIR}" netwatch_target_core)
+if(NOT TARGET netwatch_target_domain)
+    add_subdirectory("${NETWATCH_TARGET_DOMAIN_DIR}" netwatch_target_domain)
 endif()
 
 if(NOT TARGET netwatch_monitor_core)
