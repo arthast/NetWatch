@@ -21,20 +21,31 @@ userver_setup_environment()
 
 add_library(
         ${PROJECT_NAME}_objs OBJECT
+        src/alerts/handlers/active_alerts_handler.cpp
+        src/alerts/handlers/alerts_handler.cpp
+        src/alerts/json/alert_json.cpp
+        src/alerts/model/alert.cpp
+        src/alerts/service/alert_service.cpp
+        src/alerts/storage/alert_repository.cpp
         src/checks/handlers/manual_check_handler.cpp
         src/checks/handlers/target_checks_handler.cpp
         src/checks/handlers/target_status_handler.cpp
         src/checks/json/check_json.cpp
         src/checks/model/check_result.cpp
         src/checks/runner/check_runner.cpp
+        src/checks/scheduler/target_check_scheduler.cpp
+        src/checks/service/check_service.cpp
         src/checks/storage/check_repository.cpp
         src/common/http_response.cpp
+        src/common/path_params.cpp
         src/targets/handlers/target_by_id_handler.cpp
         src/targets/handlers/targets_handler.cpp
         src/targets/json/target_json.cpp
         src/targets/model/target.cpp
         src/targets/storage/target_repository.cpp
         src/targets/validation/target_validator.cpp
+        src/web/handlers/openapi_handler.cpp
+        src/web/handlers/swagger_ui_handler.cpp
 )
 
 target_include_directories(

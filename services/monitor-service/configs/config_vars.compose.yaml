@@ -1,0 +1,12 @@
+worker-threads: 4
+worker-fs-threads: 2
+logger-level: info
+
+is-testing: false
+
+server-port: 8080
+
+scheduler-enabled: true
+scheduler-scan-period-ms: 1000
+
+pg-connection: postgresql://netwatch:netwatch@postgres:5432/netwatch_db
