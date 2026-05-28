@@ -5,9 +5,13 @@ logger-level: debug
 is-testing: true
 
 server-port: 8080
+grpc-server-port: 8091
 
 scheduler-enabled: true
 scheduler-scan-period-ms: 1000
+
+target-service-grpc-endpoint: localhost:8090
+target-client-transport: postgres
 
 # change to URI of your postgres database
 pg-connection: postgresql://testsuite@localhost:15433/monitor_service_netwatch_db

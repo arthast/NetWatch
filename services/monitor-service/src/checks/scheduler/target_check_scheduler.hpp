@@ -10,8 +10,8 @@
 #include <userver/utils/periodic_task.hpp>
 
 #include <checks/service/check_service.hpp>
+#include <targets/client/target_client.hpp>
 #include <targets/model/target.hpp>
-#include <targets/storage/target_repository.hpp>
 
 namespace monitor_service::checks {
 
@@ -36,7 +36,7 @@ class TargetCheckScheduler final : public userver::components::ComponentBase {
 
   void LaunchCheck(target::Target target);
 
-  target::TargetRepository target_repository_;
+  const target::TargetClient& target_client_;
   const CheckServiceComponent& check_service_;
   userver::utils::PeriodicTask periodic_task_;
   userver::engine::Mutex state_mutex_;

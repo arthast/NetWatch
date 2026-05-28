@@ -20,10 +20,7 @@ TargetCheckScheduler::TargetCheckScheduler(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& component_context)
     : ComponentBase(config, component_context),
-      target_repository_(
-          component_context
-              .FindComponent<userver::components::Postgres>("postgres-db-1")
-              .GetCluster()),
+      target_client_(component_context.FindComponent<target::TargetClient>()),
       check_service_(component_context.FindComponent<CheckServiceComponent>()),
       background_tasks_(
           component_context.GetTaskProcessor("main-task-processor")) {
@@ -72,7 +69,7 @@ properties:
 }
 
 void TargetCheckScheduler::Tick() {
-  const auto targets = target_repository_.ListActiveTargets();
+  const auto targets = target_client_.ListActiveTargets();
   const auto now = Clock::now();
 
   for (const auto& target : targets) {

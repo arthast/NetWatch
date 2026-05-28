@@ -12,10 +12,7 @@ CheckServiceComponent::CheckServiceComponent(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& component_context)
     : ComponentBase(config, component_context),
-      target_repository_(
-          component_context
-              .FindComponent<userver::components::Postgres>("postgres-db-1")
-              .GetCluster()),
+      target_client_(component_context.FindComponent<target::TargetClient>()),
       check_repository_(
           component_context
               .FindComponent<userver::components::Postgres>("postgres-db-1")
@@ -33,12 +30,30 @@ CheckServiceComponent::CheckServiceComponent(
 
 std::optional<CheckResult> CheckServiceComponent::RunCheckForTarget(
     std::int64_t target_id) const {
-  const auto target = target_repository_.GetTargetById(target_id);
+  const auto target = target_client_.GetTargetById(target_id);
   if (!target) {
     return std::nullopt;
   }
 
   return RunCheck(*target);
+}
+
+std::optional<std::vector<CheckResult>> CheckServiceComponent::ListTargetChecks(
+    std::int64_t target_id) const {
+  if (!target_client_.GetTargetById(target_id)) {
+    return std::nullopt;
+  }
+
+  return check_repository_.ListTargetChecks(target_id);
+}
+
+std::optional<CheckResult> CheckServiceComponent::GetTargetStatus(
+    std::int64_t target_id) const {
+  if (!target_client_.GetTargetById(target_id)) {
+    return std::nullopt;
+  }
+
+  return check_repository_.GetLatestTargetStatus(target_id);
 }
 
 CheckResult CheckServiceComponent::RunCheck(

@@ -16,21 +16,27 @@ services:
       timeout: 2s
       retries: 30
 
-  monitor-service:
+  api-gateway:
     image: ghcr.io/userver-framework/ubuntu-24.04-userver:latest
     platform: linux/amd64
-    working_dir: /workspace/services/monitor-service
+    working_dir: /workspace/services/api-gateway
     environment:
-      DB_CONNECTION: postgresql://netwatch:netwatch@postgres:5432/netwatch_db
       USERVER_ENABLE_STACK_USAGE_MONITOR: "0"
     ports:
       - "8081:8080"
     volumes:
       - .:/workspace
-      - netwatch-ccache:/workspace/services/monitor-service/.ccache
+      - netwatch-api-ccache:/workspace/services/api-gateway/.ccache
     depends_on:
-      postgres:
+      target-service:
         condition: service_healthy
+      monitor-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
     command:
       - bash
       - -lc
@@ -40,6 +46,45 @@ services:
         -B build-compose-debug
         -G Ninja
         -DCMAKE_BUILD_TYPE=Debug
+        -DUSERVER_FEATURE_GRPC=ON
+        -DUSERVER_FEATURE_POSTGRESQL=ON
+        -DUSERVER_SANITIZE='addr;ub'
+        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON &&
+        cmake --build build-compose-debug -j 4 --target api_gateway &&
+        ./build-compose-debug/api_gateway
+        --config configs/static_config.yaml
+        --config_vars configs/config_vars.compose.yaml
+
+  monitor-service:
+    image: ghcr.io/userver-framework/ubuntu-24.04-userver:latest
+    platform: linux/amd64
+    working_dir: /workspace/services/monitor-service
+    environment:
+      DB_CONNECTION: postgresql://netwatch:netwatch@postgres:5432/netwatch_db
+      USERVER_ENABLE_STACK_USAGE_MONITOR: "0"
+    volumes:
+      - .:/workspace
+      - netwatch-ccache:/workspace/services/monitor-service/.ccache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      target-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    command:
+      - bash
+      - -lc
+      - >
+        cmake
+        -S .
+        -B build-compose-debug
+        -G Ninja
+        -DCMAKE_BUILD_TYPE=Debug
+        -DUSERVER_FEATURE_GRPC=ON
         -DUSERVER_FEATURE_POSTGRESQL=ON
         -DUSERVER_SANITIZE='addr;ub'
         -DCMAKE_EXPORT_COMPILE_COMMANDS=ON &&
@@ -48,6 +93,46 @@ services:
         --config configs/static_config.yaml
         --config_vars configs/config_vars.compose.yaml
 
+  target-service:
+    image: ghcr.io/userver-framework/ubuntu-24.04-userver:latest
+    platform: linux/amd64
+    working_dir: /workspace/services/target-service
+    environment:
+      DB_CONNECTION: postgresql://netwatch:netwatch@postgres:5432/netwatch_db
+      USERVER_ENABLE_STACK_USAGE_MONITOR: "0"
+    ports:
+      - "8082:8080"
+    volumes:
+      - .:/workspace
+      - netwatch-target-ccache:/workspace/services/target-service/.ccache
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    command:
+      - bash
+      - -lc
+      - >
+        cmake
+        -S .
+        -B build-compose-debug
+        -G Ninja
+        -DCMAKE_BUILD_TYPE=Debug
+        -DUSERVER_FEATURE_GRPC=ON
+        -DUSERVER_FEATURE_POSTGRESQL=ON
+        -DUSERVER_SANITIZE='addr;ub'
+        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON &&
+        cmake --build build-compose-debug -j 4 --target target_service &&
+        ./build-compose-debug/target_service
+        --config configs/static_config.yaml
+        --config_vars configs/config_vars.compose.yaml
+
 volumes:
   netwatch-postgres-data:
+  netwatch-api-ccache:
   netwatch-ccache:
+  netwatch-target-ccache:

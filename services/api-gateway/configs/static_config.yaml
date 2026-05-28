@@ -1,0 +1,114 @@
+components_manager:
+    task_processors:
+        main-task-processor:
+            worker_threads: $worker-threads
+
+        fs-task-processor:
+            worker_threads: $worker-fs-threads
+
+    default_task_processor: main-task-processor
+
+    components:
+        server:
+            listener:
+                port: $server-port
+                task_processor: main-task-processor
+
+        logging:
+            fs-task-processor: fs-task-processor
+            loggers:
+                default:
+                    file_path: '@stderr'
+                    level: $logger-level
+                    overflow_behavior: discard
+
+        dynamic-config:
+            defaults:
+                HTTP_CLIENT_CONNECTION_POOL_SIZE: 1000
+
+        testsuite-support: {}
+
+        congestion-control:
+
+        grpc-client-common:
+            blocking-task-processor: fs-task-processor
+            completion-queue-count: 2
+
+        grpc-client-factory:
+            channel-count: 1
+
+        target-service-client:
+            endpoint: $target-service-grpc-endpoint
+
+        check-service-client:
+            endpoint: $monitor-service-grpc-endpoint
+
+        alert-service-client:
+            endpoint: $monitor-service-grpc-endpoint
+
+        target-client:
+            transport: grpc
+
+        check-client: {}
+
+        alert-client: {}
+
+        tests-control:
+            load-enabled: $is-testing
+            path: /tests/{action}
+            method: POST
+            task_processor: main-task-processor
+
+        handler-ping:
+            path: /ping
+            method: GET
+            task_processor: main-task-processor
+            throttling_enabled: false
+            url_trailing_slash: strict-match
+
+        handler-swagger-ui:
+            path: /docs
+            method: GET
+            task_processor: main-task-processor
+            url_trailing_slash: strict-match
+
+        handler-openapi:
+            path: /openapi.json
+            method: GET
+            task_processor: main-task-processor
+            url_trailing_slash: strict-match
+
+        handler-targets:
+            path: /api/v1/targets
+            method: GET,POST
+            task_processor: main-task-processor
+
+        handler-target-by-id:
+            path: /api/v1/targets/{id}
+            method: GET,PATCH,DELETE
+            task_processor: main-task-processor
+
+        handler-manual-check:
+            path: /api/v1/targets/{id}/check
+            method: POST
+            task_processor: main-task-processor
+
+        handler-target-checks:
+            path: /api/v1/targets/{id}/checks
+            method: GET
+            task_processor: main-task-processor
+
+        handler-target-status:
+            path: /api/v1/targets/{id}/status
+            method: GET
+            task_processor: main-task-processor
+
+        handler-alerts:
+            path: /api/v1/alerts
+            method: GET
+            task_processor: main-task-processor
+
+        handler-active-alerts:
+            path: /api/v1/alerts/active
+            method: GET
+            task_processor: main-task-processor
