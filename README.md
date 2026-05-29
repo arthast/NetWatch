@@ -11,10 +11,7 @@ userver. Проект разделен на четыре runtime-сервиса:
 - `api-gateway` с внешним HTTP API, Swagger UI и OpenAPI specification.
 - `target-service` с gRPC API для хранения и валидации targets.
 - Общая библиотека `target-domain` для target-модели и валидации.
-- Отдельная библиотека `target-storage` для PostgreSQL repository target-service.
 - Общая библиотека `monitor-core` для check/alert доменных моделей.
-- Отдельная библиотека `monitor-application` для check runner.
-- Отдельные библиотеки `alert-application` и `alert-storage` для alert lifecycle.
 - Ручные HTTP/TCP проверки.
 - История checks и статус target по последней проверке.
 - Alert lifecycle: `target_down` создается при падении и закрывается при восстановлении.
@@ -55,13 +52,14 @@ monitor-service ---- monitor-postgres
 alert-service   ---- alert-postgres
 ```
 
-Общие target-типы и валидация лежат в `libs/target-domain`, PostgreSQL storage
-для targets - в `libs/target-storage`, общие check/alert модели - в
-`libs/monitor-core`, PostgreSQL storage для checks - в `libs/monitor-storage`,
-check runner - в `libs/monitor-application`, alert storage - в
-`libs/alert-storage`, alert lifecycle - в `libs/alert-application`, gRPC clients
-для monitor/alert API - в `libs/monitor-client`, gRPC контракты - в
-`proto/netwatch`.
+Общие target-типы и валидация лежат в `libs/target-domain`, общие check/alert
+модели - в `libs/monitor-core`, gRPC clients - в `libs/target-client` и
+`libs/monitor-client`, gRPC контракты - в `proto/netwatch`.
+
+Service-owned код теперь лежит внутри владельцев: target repository - в
+`services/target-service/src`, check storage и runner - в
+`services/monitor-service/src`, alert storage и lifecycle - в
+`services/alert-service/src`.
 
 PostgreSQL DDL разнесен по service-owned migrations:
 

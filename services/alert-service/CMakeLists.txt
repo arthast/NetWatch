@@ -21,8 +21,6 @@ endif()
 
 set(NETWATCH_TARGET_DOMAIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/target-domain")
 set(NETWATCH_MONITOR_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/monitor-core")
-set(NETWATCH_ALERT_STORAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/alert-storage")
-set(NETWATCH_ALERT_APPLICATION_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/alert-application")
 set(NETWATCH_PROTO_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/netwatch-proto")
 
 if(NOT TARGET netwatch_target_domain)
@@ -37,17 +35,11 @@ if(NOT TARGET netwatch_grpc_proto)
     add_subdirectory("${NETWATCH_PROTO_LIB_DIR}" netwatch_grpc_proto)
 endif()
 
-if(NOT TARGET netwatch_alert_storage)
-    add_subdirectory("${NETWATCH_ALERT_STORAGE_DIR}" netwatch_alert_storage)
-endif()
-
-if(NOT TARGET netwatch_alert_application)
-    add_subdirectory("${NETWATCH_ALERT_APPLICATION_DIR}" netwatch_alert_application)
-endif()
-
 add_library(
     ${PROJECT_NAME}_objs OBJECT
     src/alerts/grpc/alert_grpc_service.cpp
+    src/alerts/service/alert_service.cpp
+    src/alerts/storage/alert_repository.cpp
 )
 
 target_include_directories(
@@ -62,8 +54,6 @@ target_link_libraries(
            userver::postgresql
            netwatch_grpc_proto
            netwatch_monitor_core
-           netwatch_alert_storage
-           netwatch_alert_application
 )
 
 add_executable(${PROJECT_NAME} src/main.cpp)
