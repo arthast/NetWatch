@@ -7,4 +7,4 @@ is-testing: false
 server-port: 8080
 grpc-server-port: 8090
 
-pg-connection: postgresql://netwatch:netwatch@postgres:5432/netwatch_db
+pg-connection: postgresql://target_service:target_service@target-postgres:5432/target_service_db

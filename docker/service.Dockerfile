@@ -5,6 +5,7 @@ FROM --platform=${NETWATCH_IMAGE_PLATFORM} ${USERVER_IMAGE} AS builder
 
 ARG SERVICE_TARGET
 ARG BUILD_TYPE=Release
+ARG BUILD_JOBS=1
 
 WORKDIR /workspace
 COPY . /workspace
@@ -19,7 +20,7 @@ RUN cmake \
       -DUSERVER_FEATURE_POSTGRESQL=ON \
       -DCMAKE_INSTALL_PREFIX=/opt/netwatch \
       -DCMAKE_EXPORT_COMPILE_COMMANDS=OFF \
-    && cmake --build /tmp/netwatch-build -j "$(nproc)" --target "${SERVICE_TARGET}" \
+    && cmake --build /tmp/netwatch-build -j "${BUILD_JOBS}" --target "${SERVICE_TARGET}" \
     && cmake --install /tmp/netwatch-build --component "${SERVICE_TARGET}"
 
 FROM --platform=${NETWATCH_IMAGE_PLATFORM} ${USERVER_IMAGE} AS runtime

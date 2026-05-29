@@ -46,8 +46,8 @@ target-service        monitor-service
                  target-service
 
 api-gateway     ---- no direct DB access
-monitor-service ---- PostgreSQL
-target-service  ---- PostgreSQL
+monitor-service ---- monitor-postgres
+target-service  ---- target-postgres
 ```
 
 Общие target-типы и валидация лежат в `libs/target-domain`, PostgreSQL storage
@@ -59,6 +59,10 @@ PostgreSQL DDL разнесен по service-owned migrations:
 - `services/target-service/postgresql/migrations` владеет таблицей `targets`.
 - `services/monitor-service/postgresql/migrations` владеет таблицами
   `check_results` и `alerts`.
+
+В Docker Compose это уже отдельные runtime databases: `target-service`
+подключается к `target-postgres/target_service_db`, а `monitor-service` - к
+`monitor-postgres/monitor_service_db`. Между этими базами нет FK и общих таблиц.
 
 В Docker Compose `api-gateway` вызывает `target-service` и `monitor-service`
 по gRPC. `monitor-service` тоже ходит в `target-service` по gRPC, чтобы получать
@@ -94,7 +98,8 @@ docker compose up --build
 - `api-gateway`: `http://localhost:8081` - внешний HTTP API, Swagger, checks, alerts.
 - `target-service`: `http://localhost:8082/ping` - healthcheck; бизнес API у него gRPC на внутреннем `target-service:8090`.
 - `monitor-service`: внутренний сервис checks/alerts; HTTP наружу не публикуется, gRPC внутри Compose на `monitor-service:8091`.
-- PostgreSQL: `localhost:15432`.
+- `target-postgres`: `localhost:15432`, база `target_service_db`.
+- `monitor-postgres`: `localhost:15434`, база `monitor_service_db`.
 
 Полезные страницы:
 
