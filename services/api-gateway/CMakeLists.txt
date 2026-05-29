@@ -20,6 +20,7 @@ endif()
 
 set(NETWATCH_TARGET_DOMAIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/target-domain")
 set(NETWATCH_MONITOR_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/monitor-core")
+set(NETWATCH_MONITOR_CLIENT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/monitor-client")
 set(NETWATCH_PROTO_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/netwatch-proto")
 set(NETWATCH_TARGET_CLIENT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/target-client")
 
@@ -35,17 +36,19 @@ if(NOT TARGET netwatch_grpc_proto)
     add_subdirectory("${NETWATCH_PROTO_LIB_DIR}" netwatch_grpc_proto)
 endif()
 
+if(NOT TARGET netwatch_monitor_client)
+    add_subdirectory("${NETWATCH_MONITOR_CLIENT_DIR}" netwatch_monitor_client)
+endif()
+
 if(NOT TARGET netwatch_target_client)
     add_subdirectory("${NETWATCH_TARGET_CLIENT_DIR}" netwatch_target_client)
 endif()
 
 add_library(
     ${PROJECT_NAME}_objs OBJECT
-    src/alerts/client/alert_client.cpp
     src/alerts/handlers/active_alerts_handler.cpp
     src/alerts/handlers/alerts_handler.cpp
     src/alerts/json/alert_json.cpp
-    src/checks/client/check_client.cpp
     src/checks/handlers/manual_check_handler.cpp
     src/checks/handlers/target_checks_handler.cpp
     src/checks/handlers/target_status_handler.cpp
@@ -70,6 +73,7 @@ target_link_libraries(
            userver::grpc
            netwatch_grpc_proto
            netwatch_monitor_core
+           netwatch_monitor_client
            netwatch_target_client
 )
 
