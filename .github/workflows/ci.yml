@@ -22,24 +22,51 @@ env:
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
 jobs:
-  build-and-unit:
-    name: Build and Unit Tests
+  api-gateway-build:
+    name: api-gateway build
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build services and run CTest
+      - name: Build api-gateway
         run: |
           docker compose run --rm --no-deps --workdir /workspace monitor-service \
-            bash -lc 'cmake -S . -B build-ci-debug ${{ env.CMAKE_ARGS }} \
-              && cmake --build build-ci-debug -j 2 --target api_gateway monitor_service target_service monitor_service_unittest \
-              && cd build-ci-debug \
-              && ctest --output-on-failure'
+            bash -lc 'cmake -S . -B build-ci-api-gateway-debug ${{ env.CMAKE_ARGS }} \
+              && cmake --build build-ci-api-gateway-debug -j 1 --target api_gateway'
+
+  target-service-tests:
+    name: target-service build and tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build target-service and run target-domain unit tests
+        run: |
+          docker compose run --rm --no-deps --workdir /workspace monitor-service \
+            bash -lc 'cmake -S . -B build-ci-target-service-debug ${{ env.CMAKE_ARGS }} \
+              && cmake --build build-ci-target-service-debug -j 1 --target target_service netwatch_target_domain_unittest \
+              && cd build-ci-target-service-debug \
+              && ctest --output-on-failure -R netwatch_target_domain_unittest'
+
+  monitor-service-build:
+    name: monitor-service build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build monitor-service
+        run: |
+          docker compose run --rm --no-deps --workdir /workspace monitor-service \
+            bash -lc 'cmake -S . -B build-ci-monitor-service-debug ${{ env.CMAKE_ARGS }} \
+              && cmake --build build-ci-monitor-service-debug -j 1 --target monitor_service'
 
   integration-dev-compose:
     name: Integration Flow (dev compose)
     runs-on: ubuntu-24.04
-    needs: build-and-unit
+    needs:
+      - api-gateway-build
+      - target-service-tests
+      - monitor-service-build
     steps:
       - uses: actions/checkout@v4
 
@@ -49,7 +76,10 @@ jobs:
   integration-runtime-images:
     name: Integration Flow (runtime images)
     runs-on: ubuntu-24.04
-    needs: build-and-unit
+    needs:
+      - api-gateway-build
+      - target-service-tests
+      - monitor-service-build
     steps:
       - uses: actions/checkout@v4
 
@@ -99,6 +129,7 @@ jobs:
             --platform linux/amd64 \
             --file docker/service.Dockerfile \
             --build-arg SERVICE_TARGET=${{ matrix.target }} \
+            --build-arg BUILD_JOBS="${NETWATCH_BUILD_JOBS:-1}" \
             --tag "${image}:${sha}" \
             --tag "${image}:${ref}" \
             .

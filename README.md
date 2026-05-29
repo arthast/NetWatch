@@ -209,8 +209,10 @@ curl -s "$BASE/api/v1/alerts" | jq
 
 ## Тесты
 
-Сейчас автоматизированно запускается unit-тест валидации targets и есть внешний
-integration flow, который поднимает Docker Compose и проверяет контур
+Сейчас автоматизированные тесты разделены по ownership: target validation живет в
+`libs/target-domain` как `netwatch_target_domain_unittest`, monitor acceptance
+сценарии остаются в `services/monitor-service/tests`, а внешний HTTP/API gateway
+контракт проверяется integration flow. Flow поднимает Docker Compose и проверяет контур
 `api-gateway -> gRPC -> target-service/monitor-service -> PostgreSQL`.
 
 В контейнере devcontainer или userver-окружении:
@@ -226,7 +228,7 @@ make test-debug
 docker compose run --rm --no-deps --user 1000:1000 \
   --workdir /workspace/services/monitor-service \
   monitor-service \
-  bash -lc 'cmake -S . -B build-compose-test-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug -DUSERVER_FEATURE_GRPC=ON -DUSERVER_FEATURE_POSTGRESQL=ON -DUSERVER_SANITIZE="addr;ub" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build-compose-test-debug -j 4 --target monitor_service_unittest monitor_service && cd build-compose-test-debug && ctest --output-on-failure'
+  bash -lc 'cmake -S . -B build-compose-test-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug -DUSERVER_FEATURE_GRPC=ON -DUSERVER_FEATURE_POSTGRESQL=ON -DUSERVER_SANITIZE="addr;ub" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build-compose-test-debug -j 1 --target netwatch_target_domain_unittest monitor_service && cd build-compose-test-debug && ctest --output-on-failure -R netwatch_target_domain_unittest'
 ```
 
 Собрать все сервисы из корня репозитория:
@@ -258,7 +260,9 @@ GitHub Actions workflow находится в `.github/workflows/ci.yml`.
 На pull request и push он выполняет:
 
 - root-сборку `api_gateway`, `target_service`, `monitor_service`;
-- `monitor_service_unittest` через CTest;
+- `netwatch_target_domain_unittest` через отдельный target-service job;
+- отдельные service build jobs для `api-gateway`, `target-service`,
+  `monitor-service`;
 - внешний integration flow через dev-compose;
 - сборку production-like Docker images;
 - integration flow через `docker-compose.images.yml`.

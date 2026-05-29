@@ -139,6 +139,84 @@ def test_target_crud(base_url: str) -> int:
     return int(target["id"])
 
 
+def test_target_crud_edges(base_url: str) -> None:
+    invalid_id = request("GET", "/api/v1/targets/not-a-number", base_url=base_url)
+    assert_status(invalid_id, 400)
+
+    invalid_tcp = request(
+        "POST",
+        "/api/v1/targets",
+        base_url=base_url,
+        payload={
+            "name": "Broken TCP target",
+            "type": "tcp",
+            "host": "localhost",
+            "port": 70000,
+            "interval_seconds": 30,
+            "timeout_ms": 1000,
+        },
+    )
+    assert_status(invalid_tcp, 400)
+
+    tcp_create = request(
+        "POST",
+        "/api/v1/targets",
+        base_url=base_url,
+        payload={
+            "name": "Gateway integration TCP target",
+            "type": "tcp",
+            "host": "localhost",
+            "port": 5432,
+            "interval_seconds": 30,
+            "timeout_ms": 1000,
+        },
+    )
+    assert_status(tcp_create, 201)
+    tcp_target = tcp_create.json()
+    assert tcp_target["type"] == "tcp"
+    assert tcp_target["host"] == "localhost"
+    assert tcp_target["port"] == 5432
+
+    empty_patch = request(
+        "PATCH",
+        f"/api/v1/targets/{tcp_target['id']}",
+        base_url=base_url,
+        payload={},
+    )
+    assert_status(empty_patch, 400)
+
+    protocol_patch = request(
+        "PATCH",
+        f"/api/v1/targets/{tcp_target['id']}",
+        base_url=base_url,
+        payload={
+            "type": "http",
+            "url": "http://localhost:8080/ping",
+            "method": "HEAD",
+            "expected_status_code": 200,
+        },
+    )
+    assert_status(protocol_patch, 200)
+    patched = protocol_patch.json()
+    assert patched["type"] == "http"
+    assert patched["url"] == "http://localhost:8080/ping"
+    assert patched["method"] == "HEAD"
+
+    delete_response = request(
+        "DELETE",
+        f"/api/v1/targets/{tcp_target['id']}",
+        base_url=base_url,
+    )
+    assert_status(delete_response, 204)
+
+    deleted_get = request(
+        "GET",
+        f"/api/v1/targets/{tcp_target['id']}",
+        base_url=base_url,
+    )
+    assert_status(deleted_get, 404)
+
+
 def test_checks(base_url: str, target_id: int) -> None:
     check_response = request(
         "POST",
@@ -235,10 +313,19 @@ def test_alert_lifecycle(base_url: str) -> None:
 def run_flow(base_url: str) -> None:
     docs = request("GET", "/docs", base_url=base_url)
     assert_status(docs, 200)
+    assert "SwaggerUIBundle" in docs.body
+    assert "/openapi.json" in docs.body
+
     openapi = request("GET", "/openapi.json", base_url=base_url)
     assert_status(openapi, 200)
+    spec = openapi.json()
+    assert spec["openapi"] == "3.0.3"
+    assert spec["info"]["title"] == "NetWatch API"
+    assert "/api/v1/targets" in spec["paths"]
+    assert "/api/v1/alerts/active" in spec["paths"]
 
     target_id = test_target_crud(base_url)
+    test_target_crud_edges(base_url)
     test_checks(base_url, target_id)
     test_alert_lifecycle(base_url)
 

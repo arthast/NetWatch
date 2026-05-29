@@ -72,17 +72,6 @@ target_link_libraries(
 add_executable(${PROJECT_NAME} src/main.cpp)
 target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_NAME}_objs)
 
-add_executable(
-    ${PROJECT_NAME}_unittest
-    ${NETWATCH_TARGET_DOMAIN_DIR}/src/targets/validation/target_validator_test.cpp
-)
-target_link_libraries(
-    ${PROJECT_NAME}_unittest
-    PRIVATE netwatch_target_domain
-            userver::utest
-)
-add_google_tests(${PROJECT_NAME}_unittest)
-
 include(GNUInstallDirs)
 
 if(DEFINED ENV{PREFIX})

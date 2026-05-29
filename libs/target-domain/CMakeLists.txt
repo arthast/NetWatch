@@ -13,3 +13,14 @@ target_link_libraries(
     netwatch_target_domain
     PUBLIC userver::core
 )
+
+add_executable(
+    netwatch_target_domain_unittest
+    tests/target_validator_test.cpp
+)
+target_link_libraries(
+    netwatch_target_domain_unittest
+    PRIVATE netwatch_target_domain
+            userver::utest
+)
+add_google_tests(netwatch_target_domain_unittest)
