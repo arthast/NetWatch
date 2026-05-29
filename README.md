@@ -13,6 +13,7 @@ alerts и scheduler находятся в `monitor-service`. Внутренне�
 - Общая библиотека `target-domain` для target-модели и валидации.
 - Отдельная библиотека `target-storage` для PostgreSQL repository target-service.
 - Общая библиотека `monitor-core` для check/alert доменных моделей.
+- Отдельная библиотека `monitor-application` для monitor business logic: alert lifecycle и check runner.
 - Ручные HTTP/TCP проверки.
 - История checks и статус target по последней проверке.
 - Alert lifecycle: `target_down` создается при падении и закрывается при восстановлении.
@@ -53,8 +54,9 @@ target-service  ---- target-postgres
 Общие target-типы и валидация лежат в `libs/target-domain`, PostgreSQL storage
 для targets - в `libs/target-storage`, общие check/alert модели - в
 `libs/monitor-core`, PostgreSQL storage для checks/alerts - в
-`libs/monitor-storage`, gRPC clients для monitor API - в `libs/monitor-client`,
-gRPC контракты - в `proto/netwatch`.
+`libs/monitor-storage`, monitor business logic - в `libs/monitor-application`,
+gRPC clients для monitor API - в `libs/monitor-client`, gRPC контракты - в
+`proto/netwatch`.
 
 PostgreSQL DDL разнесен по service-owned migrations:
 
