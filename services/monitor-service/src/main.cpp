@@ -17,7 +17,9 @@
 
 #include <userver/utils/daemon_run.hpp>
 
-#include <alerts/grpc/alert_grpc_service.hpp>
+#include <netwatch/monitor_service_client.usrv.pb.hpp>
+
+#include <alerts/client/alert_client.hpp>
 #include <checks/grpc/check_grpc_service.hpp>
 #include <checks/scheduler/target_check_scheduler.hpp>
 #include <checks/service/check_service.hpp>
@@ -38,12 +40,15 @@ int main(int argc, char* argv[]) {
           .Append<userver::ugrpc::client::SimpleClientComponent<
               netwatch::target::v1::TargetServiceClient>>(
               "target-service-client")
+          .Append<userver::ugrpc::client::SimpleClientComponent<
+              netwatch::monitor::v1::AlertServiceClient>>(
+              "alert-service-client")
           .AppendComponentList(userver::ugrpc::server::MinimalComponentList())
           .Append<monitor_service::target::TargetClient>()
+          .Append<monitor_service::alerts::AlertClient>()
           .Append<monitor_service::checks::CheckServiceComponent>()
           .Append<monitor_service::checks::TargetCheckScheduler>()
-          .Append<monitor_service::checks::CheckGrpcService>()
-          .Append<monitor_service::alerts::AlertGrpcService>();
+          .Append<monitor_service::checks::CheckGrpcService>();
 
   return userver::utils::DaemonMain(argc, argv, component_list);
 }

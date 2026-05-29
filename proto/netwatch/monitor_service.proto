@@ -69,7 +69,16 @@ message ListAlertsResponse {
   repeated Alert alerts = 1;
 }
 
+message ProcessCheckResultRequest {
+  netwatch.target.v1.Target target = 1;
+  CheckResult previous_check = 2;
+  CheckResult current_check = 3;
+}
+
+message ProcessCheckResultResponse {}
+
 service AlertService {
   rpc ListAlerts(ListAlertsRequest) returns (ListAlertsResponse) {}
   rpc ListActiveAlerts(ListAlertsRequest) returns (ListAlertsResponse) {}
+  rpc ProcessCheckResult(ProcessCheckResultRequest) returns (ProcessCheckResultResponse) {}
 }

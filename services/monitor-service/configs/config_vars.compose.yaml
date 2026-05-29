@@ -11,4 +11,5 @@ scheduler-enabled: true
 scheduler-scan-period-ms: 1000
 
 target-service-grpc-endpoint: target-service:8090
+alert-service-grpc-endpoint: alert-service:8092
 pg-connection: postgresql://monitor_service:monitor_service@monitor-postgres:5432/monitor_service_db

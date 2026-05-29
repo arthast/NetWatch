@@ -4,8 +4,6 @@
 #include <userver/components/component_context.hpp>
 #include <userver/storages/postgres/component.hpp>
 
-#include <alerts/storage/alert_repository.hpp>
-
 namespace monitor_service::checks {
 
 CheckServiceComponent::CheckServiceComponent(
@@ -13,6 +11,7 @@ CheckServiceComponent::CheckServiceComponent(
     const userver::components::ComponentContext& component_context)
     : ComponentBase(config, component_context),
       target_client_(component_context.FindComponent<target::TargetClient>()),
+      alert_client_(component_context.FindComponent<alerts::AlertClient>()),
       check_repository_(
           component_context
               .FindComponent<userver::components::Postgres>("postgres-db-1")
@@ -22,10 +21,6 @@ CheckServiceComponent::CheckServiceComponent(
               .GetHttpClient(),
           component_context.FindComponent<userver::clients::dns::Component>()
               .GetResolver()),
-      alert_service_(alerts::AlertRepository{
-          component_context
-              .FindComponent<userver::components::Postgres>("postgres-db-1")
-              .GetCluster()}),
       target_mutexes_(64, 8) {}
 
 std::optional<CheckResult> CheckServiceComponent::RunCheckForTarget(
@@ -80,7 +75,7 @@ CheckResult CheckServiceComponent::RunCheckLocked(
       check_repository_.GetLatestTargetStatus(target.id);
   const auto saved_check =
       check_repository_.SaveCheckResult(check_runner_.RunCheck(target));
-  alert_service_.ProcessCheckResult(target, previous_check, saved_check);
+  alert_client_.ProcessCheckResult(target, previous_check, saved_check);
   return saved_check;
 }
 

@@ -24,6 +24,7 @@ set(NETWATCH_TARGET_DOMAIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/target-do
 set(NETWATCH_MONITOR_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/monitor-core")
 set(NETWATCH_MONITOR_STORAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/monitor-storage")
 set(NETWATCH_MONITOR_APPLICATION_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/monitor-application")
+set(NETWATCH_MONITOR_CLIENT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/monitor-client")
 set(NETWATCH_PROTO_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/netwatch-proto")
 set(NETWATCH_TARGET_CLIENT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/target-client")
 
@@ -47,13 +48,16 @@ if(NOT TARGET netwatch_monitor_application)
     add_subdirectory("${NETWATCH_MONITOR_APPLICATION_DIR}" netwatch_monitor_application)
 endif()
 
+if(NOT TARGET netwatch_monitor_client)
+    add_subdirectory("${NETWATCH_MONITOR_CLIENT_DIR}" netwatch_monitor_client)
+endif()
+
 if(NOT TARGET netwatch_target_client)
     add_subdirectory("${NETWATCH_TARGET_CLIENT_DIR}" netwatch_target_client)
 endif()
 
 add_library(
     ${PROJECT_NAME}_objs OBJECT
-    src/alerts/grpc/alert_grpc_service.cpp
     src/checks/grpc/check_grpc_service.cpp
     src/checks/scheduler/target_check_scheduler.cpp
     src/checks/service/check_service.cpp
@@ -73,6 +77,7 @@ target_link_libraries(
            netwatch_monitor_core
            netwatch_monitor_storage
            netwatch_monitor_application
+           netwatch_monitor_client
            netwatch_grpc_proto
            netwatch_target_client
 )

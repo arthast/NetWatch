@@ -1,10 +1,10 @@
 # NetWatch
 
 NetWatch - платформа мониторинга сетевых сервисов на C++ с использованием
-userver. Проект уже разделен на первые микросервисы: внешний HTTP API живет в
-`api-gateway`, targets обслуживаются отдельным `target-service`, а checks,
-alerts и scheduler находятся в `monitor-service`. Внутреннее взаимодействие
-между сервисами идет по gRPC.
+userver. Проект разделен на четыре runtime-сервиса: внешний HTTP API живет в
+`api-gateway`, targets обслуживаются в `target-service`, checks и scheduler - в
+`monitor-service`, а alert lifecycle вынесен в отдельный `alert-service`.
+Внутреннее взаимодействие между сервисами идет по gRPC.
 
 ## Сейчас реализовано
 
@@ -13,12 +13,14 @@ alerts и scheduler находятся в `monitor-service`. Внутренне�
 - Общая библиотека `target-domain` для target-модели и валидации.
 - Отдельная библиотека `target-storage` для PostgreSQL repository target-service.
 - Общая библиотека `monitor-core` для check/alert доменных моделей.
-- Отдельная библиотека `monitor-application` для monitor business logic: alert lifecycle и check runner.
+- Отдельная библиотека `monitor-application` для check runner.
+- Отдельные библиотеки `alert-application` и `alert-storage` для alert lifecycle.
 - Ручные HTTP/TCP проверки.
 - История checks и статус target по последней проверке.
 - Alert lifecycle: `target_down` создается при падении и закрывается при восстановлении.
 - Scheduler, который периодически запускает проверки active targets.
-- `monitor-service` с gRPC API для checks и alerts.
+- `monitor-service` с gRPC API для checks.
+- `alert-service` с gRPC API для alerts и собственной PostgreSQL базой.
 - Service-owned PostgreSQL migrations, unit-тесты и Docker Compose для demo-запуска.
 
 ## Архитектура текущей версии
@@ -33,44 +35,50 @@ api-gateway
   |-- Swagger UI and OpenAPI spec
   |-- common: shared HTTP/JSON/path helpers
         | gRPC
-        +--------------------+
-        |                    |
-        v                    v
-target-service        monitor-service
-  |-- targets CRUD      |-- manual checks
-  |-- validation        |-- scheduler
-  |-- repository        |-- check history/status
-                       |-- alert lifecycle
+        +--------------------+--------------------+
+        |                    |                    |
+        v                    v                    v
+target-service        monitor-service        alert-service
+  |-- targets CRUD      |-- manual checks      |-- alert lifecycle
+  |-- validation        |-- scheduler          |-- active/resolved alerts
+  |-- repository        |-- check history      |-- repository
                        |
                        | gRPC
-                       v
-                 target-service
+                       +--------------------+
+                       |                    |
+                       v                    v
+                 target-service        alert-service
 
 api-gateway     ---- no direct DB access
-monitor-service ---- monitor-postgres
 target-service  ---- target-postgres
+monitor-service ---- monitor-postgres
+alert-service   ---- alert-postgres
 ```
 
 Общие target-типы и валидация лежат в `libs/target-domain`, PostgreSQL storage
 для targets - в `libs/target-storage`, общие check/alert модели - в
-`libs/monitor-core`, PostgreSQL storage для checks/alerts - в
-`libs/monitor-storage`, monitor business logic - в `libs/monitor-application`,
-gRPC clients для monitor API - в `libs/monitor-client`, gRPC контракты - в
+`libs/monitor-core`, PostgreSQL storage для checks - в `libs/monitor-storage`,
+check runner - в `libs/monitor-application`, alert storage - в
+`libs/alert-storage`, alert lifecycle - в `libs/alert-application`, gRPC clients
+для monitor/alert API - в `libs/monitor-client`, gRPC контракты - в
 `proto/netwatch`.
 
 PostgreSQL DDL разнесен по service-owned migrations:
 
 - `services/target-service/postgresql/migrations` владеет таблицей `targets`.
-- `services/monitor-service/postgresql/migrations` владеет таблицами
-  `check_results` и `alerts`.
+- `services/monitor-service/postgresql/migrations` владеет таблицей
+  `check_results`.
+- `services/alert-service/postgresql/migrations` владеет таблицей `alerts`.
 
 В Docker Compose это уже отдельные runtime databases: `target-service`
 подключается к `target-postgres/target_service_db`, а `monitor-service` - к
-`monitor-postgres/monitor_service_db`. Между этими базами нет FK и общих таблиц.
+`monitor-postgres/monitor_service_db`, `alert-service` - к
+`alert-postgres/alert_service_db`. Между этими базами нет FK и общих таблиц.
 
-В Docker Compose `api-gateway` вызывает `target-service` и `monitor-service`
-по gRPC. `monitor-service` тоже ходит в `target-service` по gRPC, чтобы получать
-targets для ручных проверок и scheduler.
+В Docker Compose `api-gateway` вызывает `target-service`, `monitor-service` и
+`alert-service` по gRPC. `monitor-service` ходит в `target-service`, чтобы
+получать targets для ручных проверок и scheduler, и в `alert-service`, чтобы
+передавать результат проверки в alert lifecycle.
 
 ## Основные endpoint'ы
 
@@ -101,9 +109,11 @@ docker compose up --build
 
 - `api-gateway`: `http://localhost:8081` - внешний HTTP API, Swagger, checks, alerts.
 - `target-service`: `http://localhost:8082/ping` - healthcheck; бизнес API у него gRPC на внутреннем `target-service:8090`.
-- `monitor-service`: внутренний сервис checks/alerts; HTTP наружу не публикуется, gRPC внутри Compose на `monitor-service:8091`.
+- `monitor-service`: внутренний сервис checks/scheduler; HTTP наружу не публикуется, gRPC внутри Compose на `monitor-service:8091`.
+- `alert-service`: внутренний сервис alert lifecycle; HTTP наружу не публикуется, gRPC внутри Compose на `alert-service:8092`.
 - `target-postgres`: `localhost:15432`, база `target_service_db`.
 - `monitor-postgres`: `localhost:15434`, база `monitor_service_db`.
+- `alert-postgres`: `localhost:15435`, база `alert_service_db`.
 
 Полезные страницы:
 
@@ -131,6 +141,7 @@ docker compose -f docker-compose.images.yml up
 - `netwatch/api-gateway:local`
 - `netwatch/target-service:local`
 - `netwatch/monitor-service:local`
+- `netwatch/alert-service:local`
 
 Для запуска опубликованных images можно переопределить переменные:
 
@@ -138,6 +149,7 @@ docker compose -f docker-compose.images.yml up
 NETWATCH_API_GATEWAY_IMAGE=ghcr.io/<owner>/<repo>/api-gateway:<tag> \
 NETWATCH_TARGET_SERVICE_IMAGE=ghcr.io/<owner>/<repo>/target-service:<tag> \
 NETWATCH_MONITOR_SERVICE_IMAGE=ghcr.io/<owner>/<repo>/monitor-service:<tag> \
+NETWATCH_ALERT_SERVICE_IMAGE=ghcr.io/<owner>/<repo>/alert-service:<tag> \
 docker compose -f docker-compose.images.yml up
 ```
 
@@ -217,7 +229,7 @@ curl -s "$BASE/api/v1/alerts" | jq
 `libs/target-domain` как `netwatch_target_domain_unittest`, monitor acceptance
 сценарии остаются в `services/monitor-service/tests`, а внешний HTTP/API gateway
 контракт проверяется integration flow. Flow поднимает Docker Compose и проверяет контур
-`api-gateway -> gRPC -> target-service/monitor-service -> PostgreSQL`.
+`api-gateway -> gRPC -> target-service/monitor-service/alert-service -> PostgreSQL`.
 
 В контейнере devcontainer или userver-окружении:
 
@@ -239,7 +251,7 @@ docker compose run --rm --no-deps --user 1000:1000 \
 
 ```bash
 docker compose run --rm --no-deps --workdir /workspace monitor-service \
-  bash -lc 'cmake -S . -B build-compose-root-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug -DUSERVER_FEATURE_GRPC=ON -DUSERVER_FEATURE_POSTGRESQL=ON -DUSERVER_SANITIZE="addr;ub" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build-compose-root-debug -j 1 --target api_gateway monitor_service target_service'
+  bash -lc 'cmake -S . -B build-compose-root-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug -DUSERVER_FEATURE_GRPC=ON -DUSERVER_FEATURE_POSTGRESQL=ON -DUSERVER_SANITIZE="addr;ub" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build-compose-root-debug -j 1 --target api_gateway monitor_service alert_service target_service'
 ```
 
 Запустить внешний integration flow через gateway:
@@ -263,10 +275,10 @@ GitHub Actions workflow находится в `.github/workflows/ci.yml`.
 
 На pull request и push он выполняет:
 
-- root-сборку `api_gateway`, `target_service`, `monitor_service`;
+- root-сборку `api_gateway`, `target_service`, `monitor_service`, `alert_service`;
 - `netwatch_target_domain_unittest` через отдельный target-service job;
 - отдельные service build jobs для `api-gateway`, `target-service`,
-  `monitor-service`;
+  `monitor-service`, `alert-service`;
 - внешний integration flow через dev-compose;
 - сборку production-like Docker images;
 - integration flow через `docker-compose.images.yml`.
@@ -276,3 +288,4 @@ GitHub Actions workflow находится в `.github/workflows/ci.yml`.
 - `ghcr.io/<owner>/<repo>/api-gateway:<sha|branch>`
 - `ghcr.io/<owner>/<repo>/target-service:<sha|branch>`
 - `ghcr.io/<owner>/<repo>/monitor-service:<sha|branch>`
+- `ghcr.io/<owner>/<repo>/alert-service:<sha|branch>`

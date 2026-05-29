@@ -19,5 +19,6 @@ endif()
 userver_setup_environment()
 
 add_subdirectory(services/monitor-service)
+add_subdirectory(services/alert-service)
 add_subdirectory(services/target-service)
 add_subdirectory(services/api-gateway)

@@ -9,7 +9,7 @@
 #include <userver/concurrent/mutex_set.hpp>
 #include <vector>
 
-#include <alerts/service/alert_service.hpp>
+#include <alerts/client/alert_client.hpp>
 #include <checks/model/check_result.hpp>
 #include <checks/runner/check_runner.hpp>
 #include <checks/storage/check_repository.hpp>
@@ -41,9 +41,9 @@ class CheckServiceComponent final : public userver::components::ComponentBase {
   CheckResult RunCheckLocked(const target::Target& target) const;
 
   const target::TargetClient& target_client_;
+  const alerts::AlertClient& alert_client_;
   CheckRepository check_repository_;
   CheckRunner check_runner_;
-  alerts::AlertService alert_service_;
   mutable userver::concurrent::MutexSet<std::int64_t> target_mutexes_;
 };
 

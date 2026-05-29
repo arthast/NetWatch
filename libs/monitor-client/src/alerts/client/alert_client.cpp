@@ -12,6 +12,7 @@ namespace monitor_service::alerts {
 namespace {
 
 namespace proto = netwatch::monitor::v1;
+namespace target_proto = netwatch::target::v1;
 
 userver::ugrpc::client::CallOptions MakeCallOptions() {
   userver::ugrpc::client::CallOptions options;
@@ -52,6 +53,26 @@ AlertSeverity ToDomainAlertSeverity(proto::AlertSeverity severity) {
   throw std::invalid_argument("unknown alert severity");
 }
 
+proto::CheckStatus ToProtoCheckStatus(checks::CheckStatus status) {
+  switch (status) {
+    case checks::CheckStatus::kUp:
+      return proto::CHECK_STATUS_UP;
+    case checks::CheckStatus::kDown:
+      return proto::CHECK_STATUS_DOWN;
+  }
+  return proto::CHECK_STATUS_UNSPECIFIED;
+}
+
+target_proto::TargetType ToProtoTargetType(target::TargetType type) {
+  switch (type) {
+    case target::TargetType::kHttp:
+      return target_proto::TARGET_TYPE_HTTP;
+    case target::TargetType::kTcp:
+      return target_proto::TARGET_TYPE_TCP;
+  }
+  return target_proto::TARGET_TYPE_UNSPECIFIED;
+}
+
 Alert ToDomainAlert(const proto::Alert& alert) {
   return Alert{
       .id = alert.id(),
@@ -64,6 +85,51 @@ Alert ToDomainAlert(const proto::Alert& alert) {
                          ? std::make_optional(alert.resolved_at())
                          : std::nullopt,
   };
+}
+
+void FillProtoTarget(const target::Target& source, target_proto::Target& result) {
+  result.set_id(source.id);
+  result.set_name(source.name);
+  result.set_type(ToProtoTargetType(source.type));
+
+  if (source.url) {
+    result.set_url(*source.url);
+  }
+  if (source.method) {
+    result.set_method(*source.method);
+  }
+  if (source.expected_status_code) {
+    result.set_expected_status_code(*source.expected_status_code);
+  }
+  if (source.host) {
+    result.set_host(*source.host);
+  }
+  if (source.port) {
+    result.set_port(*source.port);
+  }
+
+  result.set_interval_seconds(source.interval_seconds);
+  result.set_timeout_ms(source.timeout_ms);
+  result.set_is_active(source.is_active);
+}
+
+void FillProtoCheck(const checks::CheckResult& source, proto::CheckResult& result) {
+  result.set_id(source.id);
+  result.set_target_id(source.target_id);
+  result.set_status(ToProtoCheckStatus(source.status));
+  result.set_protocol(ToProtoTargetType(source.protocol));
+
+  if (source.http_status) {
+    result.set_http_status(*source.http_status);
+  }
+  if (source.latency_ms) {
+    result.set_latency_ms(*source.latency_ms);
+  }
+  if (source.error_message) {
+    result.set_error_message(*source.error_message);
+  }
+
+  result.set_checked_at(source.checked_at);
 }
 
 std::vector<Alert> ToDomainAlerts(const proto::ListAlertsResponse& response) {
@@ -93,6 +159,20 @@ std::vector<Alert> AlertClient::ListAlerts() const {
 std::vector<Alert> AlertClient::ListActiveAlerts() const {
   return ToDomainAlerts(
       client_.ListActiveAlerts(proto::ListAlertsRequest{}, MakeCallOptions()));
+}
+
+void AlertClient::ProcessCheckResult(
+    const target::Target& target,
+    const std::optional<checks::CheckResult>& previous_check,
+    const checks::CheckResult& current_check) const {
+  proto::ProcessCheckResultRequest request;
+  FillProtoTarget(target, *request.mutable_target());
+  if (previous_check) {
+    FillProtoCheck(*previous_check, *request.mutable_previous_check());
+  }
+  FillProtoCheck(current_check, *request.mutable_current_check());
+
+  client_.ProcessCheckResult(request, MakeCallOptions());
 }
 
 }  // namespace monitor_service::alerts

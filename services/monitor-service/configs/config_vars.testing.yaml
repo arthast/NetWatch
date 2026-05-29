@@ -11,5 +11,6 @@ scheduler-enabled: true
 scheduler-scan-period-ms: 1000
 
 target-service-grpc-endpoint: localhost:8090
+alert-service-grpc-endpoint: localhost:8092
 # change to URI of your postgres database
 pg-connection: postgresql://testsuite@localhost:15433/monitor_service_netwatch_db

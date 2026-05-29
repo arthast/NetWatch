@@ -1,0 +1,85 @@
+cmake_minimum_required(VERSION 3.12...3.31)
+project(alert_service CXX)
+
+if(NOT TARGET userver::core)
+    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../monitor-service/cmake")
+    include(DownloadUserver)
+
+    find_package(
+        userver
+        COMPONENTS core
+                   grpc
+                   postgresql
+        QUIET
+    )
+    if(NOT userver_FOUND)
+        download_userver(TRY_DIR third_party/userver)
+    endif()
+
+    userver_setup_environment()
+endif()
+
+set(NETWATCH_TARGET_DOMAIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/target-domain")
+set(NETWATCH_MONITOR_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/monitor-core")
+set(NETWATCH_ALERT_STORAGE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/alert-storage")
+set(NETWATCH_ALERT_APPLICATION_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/alert-application")
+set(NETWATCH_PROTO_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/netwatch-proto")
+
+if(NOT TARGET netwatch_target_domain)
+    add_subdirectory("${NETWATCH_TARGET_DOMAIN_DIR}" netwatch_target_domain)
+endif()
+
+if(NOT TARGET netwatch_monitor_core)
+    add_subdirectory("${NETWATCH_MONITOR_CORE_DIR}" netwatch_monitor_core)
+endif()
+
+if(NOT TARGET netwatch_grpc_proto)
+    add_subdirectory("${NETWATCH_PROTO_LIB_DIR}" netwatch_grpc_proto)
+endif()
+
+if(NOT TARGET netwatch_alert_storage)
+    add_subdirectory("${NETWATCH_ALERT_STORAGE_DIR}" netwatch_alert_storage)
+endif()
+
+if(NOT TARGET netwatch_alert_application)
+    add_subdirectory("${NETWATCH_ALERT_APPLICATION_DIR}" netwatch_alert_application)
+endif()
+
+add_library(
+    ${PROJECT_NAME}_objs OBJECT
+    src/alerts/grpc/alert_grpc_service.cpp
+)
+
+target_include_directories(
+    ${PROJECT_NAME}_objs
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(
+    ${PROJECT_NAME}_objs
+    PUBLIC userver::core
+           userver::grpc
+           userver::postgresql
+           netwatch_grpc_proto
+           netwatch_monitor_core
+           netwatch_alert_storage
+           netwatch_alert_application
+)
+
+add_executable(${PROJECT_NAME} src/main.cpp)
+target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_NAME}_objs)
+
+include(GNUInstallDirs)
+
+file(GLOB CONFIGS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/configs/*.yaml)
+
+install(
+    TARGETS ${PROJECT_NAME}
+    DESTINATION ${CMAKE_INSTALL_BINDIR}
+    COMPONENT ${PROJECT_NAME}
+)
+install(
+    FILES ${CONFIGS_FILES}
+    DESTINATION ${CMAKE_INSTALL_SYSCONFDIR}/${PROJECT_NAME}
+    COMPONENT ${PROJECT_NAME}
+)

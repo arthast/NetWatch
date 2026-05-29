@@ -54,16 +54,18 @@ components_manager:
         target-service-client:
             endpoint: $target-service-grpc-endpoint
 
+        alert-service-client:
+            endpoint: $alert-service-grpc-endpoint
+
         target-client: {}
+
+        alert-client: {}
 
         grpc-server:
             port: $grpc-server-port
             completion-queue-count: 3
 
         check-grpc-service:
-            task-processor: main-task-processor
-
-        alert-grpc-service:
             task-processor: main-task-processor
 
         tests-control:

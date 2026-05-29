@@ -1,6 +1,5 @@
 add_library(
     netwatch_monitor_application STATIC
-    src/alerts/service/alert_service.cpp
     src/checks/runner/check_runner.cpp
 )
 
@@ -13,5 +12,4 @@ target_link_libraries(
     netwatch_monitor_application
     PUBLIC userver::core
            netwatch_monitor_core
-           netwatch_monitor_storage
 )

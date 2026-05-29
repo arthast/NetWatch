@@ -8,3 +8,4 @@ server-port: 8080
 
 target-service-grpc-endpoint: target-service:8090
 monitor-service-grpc-endpoint: monitor-service:8091
+alert-service-grpc-endpoint: alert-service:8092

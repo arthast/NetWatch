@@ -44,7 +44,7 @@ components_manager:
             endpoint: $monitor-service-grpc-endpoint
 
         alert-service-client:
-            endpoint: $monitor-service-grpc-endpoint
+            endpoint: $alert-service-grpc-endpoint
 
         target-client:
             transport: grpc

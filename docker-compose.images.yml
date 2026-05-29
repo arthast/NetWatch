@@ -27,9 +27,25 @@ services:
     volumes:
       - netwatch-monitor-postgres-data:/var/lib/postgresql/data
       - ./services/monitor-service/postgresql/migrations/001_create_check_results.sql:/docker-entrypoint-initdb.d/002_monitor_service_create_check_results.sql:ro
-      - ./services/monitor-service/postgresql/migrations/002_create_alerts.sql:/docker-entrypoint-initdb.d/003_monitor_service_create_alerts.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U monitor_service -d monitor_service_db"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  alert-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: alert_service_db
+      POSTGRES_USER: alert_service
+      POSTGRES_PASSWORD: alert_service
+    ports:
+      - "15435:5432"
+    volumes:
+      - netwatch-alert-postgres-data:/var/lib/postgresql/data
+      - ./services/alert-service/postgresql/migrations/001_create_alerts.sql:/docker-entrypoint-initdb.d/001_alert_service_create_alerts.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alert_service -d alert_service_db"]
       interval: 2s
       timeout: 2s
       retries: 30
@@ -51,6 +67,8 @@ services:
       target-service:
         condition: service_healthy
       monitor-service:
+        condition: service_healthy
+      alert-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
@@ -75,6 +93,30 @@ services:
       monitor-postgres:
         condition: service_healthy
       target-service:
+        condition: service_healthy
+      alert-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
+      start_period: 30s
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  alert-service:
+    image: ${NETWATCH_ALERT_SERVICE_IMAGE:-netwatch/alert-service:local}
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_TARGET: alert_service
+        BUILD_JOBS: ${NETWATCH_BUILD_JOBS:-1}
+    platform: linux/amd64
+    environment:
+      DB_CONNECTION: postgresql://alert_service:alert_service@alert-postgres:5432/alert_service_db
+      USERVER_ENABLE_STACK_USAGE_MONITOR: "0"
+    depends_on:
+      alert-postgres:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
@@ -110,3 +152,4 @@ services:
 volumes:
   netwatch-target-postgres-data:
   netwatch-monitor-postgres-data:
+  netwatch-alert-postgres-data:

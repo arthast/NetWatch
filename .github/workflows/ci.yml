@@ -60,6 +60,18 @@ jobs:
             bash -lc 'cmake -S . -B build-ci-monitor-service-debug ${{ env.CMAKE_ARGS }} \
               && cmake --build build-ci-monitor-service-debug -j 1 --target monitor_service'
 
+  alert-service-build:
+    name: alert-service build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build alert-service
+        run: |
+          docker compose run --rm --no-deps --workdir /workspace monitor-service \
+            bash -lc 'cmake -S . -B build-ci-alert-service-debug ${{ env.CMAKE_ARGS }} \
+              && cmake --build build-ci-alert-service-debug -j 1 --target alert_service'
+
   integration-dev-compose:
     name: Integration Flow (dev compose)
     runs-on: ubuntu-24.04
@@ -67,6 +79,7 @@ jobs:
       - api-gateway-build
       - target-service-tests
       - monitor-service-build
+      - alert-service-build
     steps:
       - uses: actions/checkout@v4
 
@@ -80,6 +93,7 @@ jobs:
       - api-gateway-build
       - target-service-tests
       - monitor-service-build
+      - alert-service-build
     steps:
       - uses: actions/checkout@v4
 
@@ -109,6 +123,8 @@ jobs:
             target: api_gateway
           - service: monitor-service
             target: monitor_service
+          - service: alert-service
+            target: alert_service
           - service: target-service
             target: target_service
     steps:

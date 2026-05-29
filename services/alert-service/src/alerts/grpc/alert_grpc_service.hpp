@@ -6,6 +6,7 @@
 #include <userver/components/component.hpp>
 
 #include <alerts/storage/alert_repository.hpp>
+#include <alerts/service/alert_service.hpp>
 
 namespace monitor_service::alerts {
 
@@ -25,8 +26,13 @@ class AlertGrpcService final
       CallContext& context,
       netwatch::monitor::v1::ListAlertsRequest&& request) override;
 
+  ProcessCheckResultResult ProcessCheckResult(
+      CallContext& context,
+      netwatch::monitor::v1::ProcessCheckResultRequest&& request) override;
+
  private:
   AlertRepository repository_;
+  AlertService alert_service_;
 };
 
 }  // namespace monitor_service::alerts
