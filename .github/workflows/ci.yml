@@ -1,0 +1,154 @@
+name: CI/CD
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - dev/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  CMAKE_ARGS: >-
+    -G Ninja
+    -DCMAKE_BUILD_TYPE=Debug
+    -DUSERVER_FEATURE_GRPC=ON
+    -DUSERVER_FEATURE_POSTGRESQL=ON
+    -DUSERVER_SANITIZE="addr;ub"
+    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+jobs:
+  api-gateway-build:
+    name: api-gateway build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build api-gateway
+        run: |
+          docker compose run --rm --no-deps --workdir /workspace monitor-service \
+            bash -lc 'cmake -S . -B build-ci-api-gateway-debug ${{ env.CMAKE_ARGS }} \
+              && cmake --build build-ci-api-gateway-debug -j 1 --target api_gateway'
+
+  target-service-tests:
+    name: target-service build and tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build target-service and run target-service unit tests
+        run: |
+          docker compose run --rm --no-deps --workdir /workspace monitor-service \
+            bash -lc 'cmake -S . -B build-ci-target-service-debug ${{ env.CMAKE_ARGS }} \
+              && cmake --build build-ci-target-service-debug -j 1 --target target_service netwatch_target_service_unittest \
+              && cd build-ci-target-service-debug \
+              && ctest --output-on-failure -R netwatch_target_service_unittest'
+
+  monitor-service-build:
+    name: monitor-service build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build monitor-service
+        run: |
+          docker compose run --rm --no-deps --workdir /workspace monitor-service \
+            bash -lc 'cmake -S . -B build-ci-monitor-service-debug ${{ env.CMAKE_ARGS }} \
+              && cmake --build build-ci-monitor-service-debug -j 1 --target monitor_service'
+
+  alert-service-build:
+    name: alert-service build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build alert-service
+        run: |
+          docker compose run --rm --no-deps --workdir /workspace monitor-service \
+            bash -lc 'cmake -S . -B build-ci-alert-service-debug ${{ env.CMAKE_ARGS }} \
+              && cmake --build build-ci-alert-service-debug -j 1 --target alert_service'
+
+  integration-dev-compose:
+    name: Integration Flow (dev compose)
+    runs-on: ubuntu-24.04
+    needs:
+      - api-gateway-build
+      - target-service-tests
+      - monitor-service-build
+      - alert-service-build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run gateway integration flow
+        run: ./tests/integration/run_api_gateway_flow.py --project-name netwatch-ci-dev-${{ github.run_id }}
+
+  integration-runtime-images:
+    name: Integration Flow (runtime images)
+    runs-on: ubuntu-24.04
+    needs:
+      - api-gateway-build
+      - target-service-tests
+      - monitor-service-build
+      - alert-service-build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build local runtime images
+        run: |
+          docker compose -f docker-compose.images.yml build
+
+      - name: Run gateway integration flow against runtime images
+        run: |
+          ./tests/integration/run_api_gateway_flow.py \
+            --project-name netwatch-ci-images-${{ github.run_id }} \
+            --compose-file docker-compose.images.yml \
+            --no-build
+
+  publish-images:
+    name: Publish Images
+    runs-on: ubuntu-24.04
+    needs:
+      - integration-dev-compose
+      - integration-runtime-images
+    if: github.event_name == 'push'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: api-gateway
+            target: api_gateway
+          - service: monitor-service
+            target: monitor_service
+          - service: alert-service
+            target: alert_service
+          - service: target-service
+            target: target_service
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push ${{ matrix.service }}
+        run: |
+          set -euo pipefail
+          repo="$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+          ref="$(echo "${GITHUB_REF_NAME}" | tr '[:upper:]/' '[:lower:]-')"
+          sha="${GITHUB_SHA::12}"
+          image="ghcr.io/${repo}/${{ matrix.service }}"
+
+          docker build \
+            --platform linux/amd64 \
+            --file docker/service.Dockerfile \
+            --build-arg SERVICE_TARGET=${{ matrix.target }} \
+            --build-arg BUILD_JOBS="${NETWATCH_BUILD_JOBS:-1}" \
+            --tag "${image}:${sha}" \
+            --tag "${image}:${ref}" \
+            .
+
+          docker push "${image}:${sha}"
+          docker push "${image}:${ref}"

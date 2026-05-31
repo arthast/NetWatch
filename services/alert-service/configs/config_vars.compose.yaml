@@ -1,0 +1,10 @@
+worker-threads: 4
+worker-fs-threads: 2
+logger-level: info
+
+is-testing: false
+
+server-port: 8080
+grpc-server-port: 8092
+
+pg-connection: postgresql://alert_service:alert_service@alert-postgres:5432/alert_service_db

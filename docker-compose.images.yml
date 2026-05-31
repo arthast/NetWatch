@@ -1,0 +1,155 @@
+services:
+  target-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: target_service_db
+      POSTGRES_USER: target_service
+      POSTGRES_PASSWORD: target_service
+    ports:
+      - "15432:5432"
+    volumes:
+      - netwatch-target-postgres-data:/var/lib/postgresql/data
+      - ./services/target-service/postgresql/migrations/001_create_targets.sql:/docker-entrypoint-initdb.d/001_target_service_create_targets.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U target_service -d target_service_db"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  monitor-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: monitor_service_db
+      POSTGRES_USER: monitor_service
+      POSTGRES_PASSWORD: monitor_service
+    ports:
+      - "15434:5432"
+    volumes:
+      - netwatch-monitor-postgres-data:/var/lib/postgresql/data
+      - ./services/monitor-service/postgresql/migrations/001_create_check_results.sql:/docker-entrypoint-initdb.d/002_monitor_service_create_check_results.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U monitor_service -d monitor_service_db"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  alert-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: alert_service_db
+      POSTGRES_USER: alert_service
+      POSTGRES_PASSWORD: alert_service
+    ports:
+      - "15435:5432"
+    volumes:
+      - netwatch-alert-postgres-data:/var/lib/postgresql/data
+      - ./services/alert-service/postgresql/migrations/001_create_alerts.sql:/docker-entrypoint-initdb.d/001_alert_service_create_alerts.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alert_service -d alert_service_db"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  api-gateway:
+    image: ${NETWATCH_API_GATEWAY_IMAGE:-netwatch/api-gateway:local}
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_TARGET: api_gateway
+        BUILD_JOBS: ${NETWATCH_BUILD_JOBS:-1}
+    platform: linux/amd64
+    environment:
+      USERVER_ENABLE_STACK_USAGE_MONITOR: "0"
+    ports:
+      - "8081:8080"
+    depends_on:
+      target-service:
+        condition: service_healthy
+      monitor-service:
+        condition: service_healthy
+      alert-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
+      start_period: 30s
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  monitor-service:
+    image: ${NETWATCH_MONITOR_SERVICE_IMAGE:-netwatch/monitor-service:local}
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_TARGET: monitor_service
+        BUILD_JOBS: ${NETWATCH_BUILD_JOBS:-1}
+    platform: linux/amd64
+    environment:
+      DB_CONNECTION: postgresql://monitor_service:monitor_service@monitor-postgres:5432/monitor_service_db
+      USERVER_ENABLE_STACK_USAGE_MONITOR: "0"
+    depends_on:
+      monitor-postgres:
+        condition: service_healthy
+      target-service:
+        condition: service_healthy
+      alert-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
+      start_period: 30s
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  alert-service:
+    image: ${NETWATCH_ALERT_SERVICE_IMAGE:-netwatch/alert-service:local}
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_TARGET: alert_service
+        BUILD_JOBS: ${NETWATCH_BUILD_JOBS:-1}
+    platform: linux/amd64
+    environment:
+      DB_CONNECTION: postgresql://alert_service:alert_service@alert-postgres:5432/alert_service_db
+      USERVER_ENABLE_STACK_USAGE_MONITOR: "0"
+    depends_on:
+      alert-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
+      start_period: 30s
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  target-service:
+    image: ${NETWATCH_TARGET_SERVICE_IMAGE:-netwatch/target-service:local}
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_TARGET: target_service
+        BUILD_JOBS: ${NETWATCH_BUILD_JOBS:-1}
+    platform: linux/amd64
+    environment:
+      DB_CONNECTION: postgresql://target_service:target_service@target-postgres:5432/target_service_db
+      USERVER_ENABLE_STACK_USAGE_MONITOR: "0"
+    ports:
+      - "8082:8080"
+    depends_on:
+      target-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
+      start_period: 30s
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+volumes:
+  netwatch-target-postgres-data:
+  netwatch-monitor-postgres-data:
+  netwatch-alert-postgres-data:

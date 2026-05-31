@@ -21,6 +21,6 @@ def pgsql_local(service_source_dir, pgsql_local_create):
     """Create schemas databases for tests"""
     databases = discover.find_schemas(
         "monitor_service",
-        [service_source_dir.joinpath("postgresql/schemas")],
+        [service_source_dir.joinpath("postgresql/migrations")],
     )
     return pgsql_local_create(list(databases.values()))

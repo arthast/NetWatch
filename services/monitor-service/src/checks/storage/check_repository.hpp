@@ -8,7 +8,7 @@
 
 #include <checks/model/check_result.hpp>
 
-namespace monitor_service::checks {
+namespace netwatch::monitor_service::checks {
 
 class CheckRepository {
  public:
@@ -25,4 +25,4 @@ class CheckRepository {
   userver::storages::postgres::ClusterPtr pg_cluster_;
 };
 
-}  // namespace monitor_service::checks
+}  // namespace netwatch::monitor_service::checks

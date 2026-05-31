@@ -11,7 +11,7 @@
 #include <userver/yaml_config/merge_schemas.hpp>
 #include <userver/yaml_config/schema.hpp>
 
-namespace monitor_service::checks {
+namespace netwatch::monitor_service::checks {
 namespace {
 constexpr auto kDefaultScanPeriod = std::chrono::milliseconds{1000};
 }  // namespace
@@ -20,10 +20,9 @@ TargetCheckScheduler::TargetCheckScheduler(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& component_context)
     : ComponentBase(config, component_context),
-      target_repository_(
+      target_client_(
           component_context
-              .FindComponent<userver::components::Postgres>("postgres-db-1")
-              .GetCluster()),
+              .FindComponent<netwatch::target_client::TargetClient>()),
       check_service_(component_context.FindComponent<CheckServiceComponent>()),
       background_tasks_(
           component_context.GetTaskProcessor("main-task-processor")) {
@@ -72,7 +71,7 @@ properties:
 }
 
 void TargetCheckScheduler::Tick() {
-  const auto targets = target_repository_.ListActiveTargets();
+  const auto targets = target_client_.ListActiveTargets();
   const auto now = Clock::now();
 
   for (const auto& target : targets) {
@@ -82,8 +81,8 @@ void TargetCheckScheduler::Tick() {
   }
 }
 
-bool TargetCheckScheduler::MarkIfDue(const target::Target& target,
-                                     Clock::time_point now) {
+bool TargetCheckScheduler::MarkIfDue(
+    const netwatch::target_client::Target& target, Clock::time_point now) {
   std::lock_guard lock(state_mutex_);
 
   const auto next_check_it = next_check_at_.find(target.id);
@@ -96,7 +95,7 @@ bool TargetCheckScheduler::MarkIfDue(const target::Target& target,
   return true;
 }
 
-void TargetCheckScheduler::LaunchCheck(target::Target target) {
+void TargetCheckScheduler::LaunchCheck(netwatch::target_client::Target target) {
   background_tasks_.AsyncDetach(
       "target-check-" + std::to_string(target.id),
       [this, target = std::move(target)] {
@@ -118,4 +117,4 @@ void TargetCheckScheduler::LaunchCheck(target::Target target) {
         }
       });
 }
-}  // namespace monitor_service::checks
+}  // namespace netwatch::monitor_service::checks

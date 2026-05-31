@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+package netwatch.target.v1;
+
+enum TargetType {
+  TARGET_TYPE_UNSPECIFIED = 0;
+  TARGET_TYPE_HTTP = 1;
+  TARGET_TYPE_TCP = 2;
+}
+
+message Target {
+  int64 id = 1;
+  string name = 2;
+  TargetType type = 3;
+
+  optional string url = 4;
+  optional string method = 5;
+  optional int32 expected_status_code = 6;
+
+  optional string host = 7;
+  optional int32 port = 8;
+
+  int32 interval_seconds = 9;
+  int32 timeout_ms = 10;
+  bool is_active = 11;
+}
+
+message CreateTargetRequest {
+  string name = 1;
+  TargetType type = 2;
+
+  optional string url = 3;
+  optional string method = 4;
+  optional int32 expected_status_code = 5;
+
+  optional string host = 6;
+  optional int32 port = 7;
+
+  int32 interval_seconds = 8;
+  int32 timeout_ms = 9;
+}
+
+message UpdateTargetRequest {
+  int64 id = 1;
+
+  optional string name = 2;
+  optional TargetType type = 3;
+
+  optional string url = 4;
+  optional string method = 5;
+  optional int32 expected_status_code = 6;
+
+  optional string host = 7;
+  optional int32 port = 8;
+
+  optional int32 interval_seconds = 9;
+  optional int32 timeout_ms = 10;
+}
+
+message TargetIdRequest {
+  int64 id = 1;
+}
+
+message TargetResponse {
+  Target target = 1;
+}
+
+message DeleteTargetResponse {}
+
+message ListTargetsRequest {}
+
+message ListTargetsResponse {
+  repeated Target targets = 1;
+}
+
+service TargetService {
+  rpc CreateTarget(CreateTargetRequest) returns (TargetResponse) {}
+  rpc UpdateTarget(UpdateTargetRequest) returns (TargetResponse) {}
+  rpc DeleteTarget(TargetIdRequest) returns (DeleteTargetResponse) {}
+  rpc GetTarget(TargetIdRequest) returns (TargetResponse) {}
+  rpc ListTargets(ListTargetsRequest) returns (ListTargetsResponse) {}
+  rpc ListActiveTargets(ListTargetsRequest) returns (ListTargetsResponse) {}
+}

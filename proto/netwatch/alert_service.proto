@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package netwatch.alert.v1;
+
+enum AlertType {
+  ALERT_TYPE_UNSPECIFIED = 0;
+  ALERT_TYPE_TARGET_DOWN = 1;
+  ALERT_TYPE_TARGET_RECOVERED = 2;
+  ALERT_TYPE_HIGH_LATENCY = 3;
+}
+
+enum AlertSeverity {
+  ALERT_SEVERITY_UNSPECIFIED = 0;
+  ALERT_SEVERITY_WARNING = 1;
+  ALERT_SEVERITY_CRITICAL = 2;
+}
+
+message Alert {
+  int64 id = 1;
+  int64 target_id = 2;
+  AlertType type = 3;
+  AlertSeverity severity = 4;
+  string message = 5;
+  string created_at = 6;
+  optional string resolved_at = 7;
+}
+
+message ListAlertsRequest {}
+
+message ListAlertsResponse {
+  repeated Alert alerts = 1;
+}
+
+enum TargetType {
+  TARGET_TYPE_UNSPECIFIED = 0;
+  TARGET_TYPE_HTTP = 1;
+  TARGET_TYPE_TCP = 2;
+}
+
+message TargetSnapshot {
+  int64 id = 1;
+  string name = 2;
+  TargetType type = 3;
+
+  optional string url = 4;
+  optional string method = 5;
+  optional int32 expected_status_code = 6;
+
+  optional string host = 7;
+  optional int32 port = 8;
+
+  int32 interval_seconds = 9;
+  int32 timeout_ms = 10;
+  bool is_active = 11;
+}
+
+enum CheckStatus {
+  CHECK_STATUS_UNSPECIFIED = 0;
+  CHECK_STATUS_UP = 1;
+  CHECK_STATUS_DOWN = 2;
+}
+
+message CheckResultSnapshot {
+  int64 id = 1;
+  int64 target_id = 2;
+  CheckStatus status = 3;
+  TargetType protocol = 4;
+
+  optional int32 http_status = 5;
+  optional int32 latency_ms = 6;
+  optional string error_message = 7;
+  string checked_at = 8;
+}
+
+message ProcessCheckResultRequest {
+  TargetSnapshot target = 1;
+  CheckResultSnapshot previous_check = 2;
+  CheckResultSnapshot current_check = 3;
+}
+
+message ProcessCheckResultResponse {}
+
+service AlertService {
+  rpc ListAlerts(ListAlertsRequest) returns (ListAlertsResponse) {}
+  rpc ListActiveAlerts(ListAlertsRequest) returns (ListAlertsResponse) {}
+  rpc ProcessCheckResult(ProcessCheckResultRequest) returns (ProcessCheckResultResponse) {}
+}

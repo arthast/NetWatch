@@ -5,15 +5,14 @@
 #include <userver/storages/postgres/row.hpp>
 #include <utility>
 
-namespace monitor_service::checks {
+namespace netwatch::monitor_service::checks {
 namespace {
 CheckResult CheckResultFromRow(const userver::storages::postgres::Row& row) {
   return CheckResult{
       .id = row["id"].As<std::int64_t>(),
       .target_id = row["target_id"].As<std::int64_t>(),
       .status = CheckStatusFromString(row["status"].As<std::string>()),
-      .protocol =
-          target::TargetTypeFromString(row["protocol"].As<std::string>()),
+      .protocol = CheckProtocolFromString(row["protocol"].As<std::string>()),
       .http_status = row["http_status"].As<std::optional<int> >(),
       .latency_ms = row["latency_ms"].As<std::optional<int> >(),
       .error_message = row["error_message"].As<std::optional<std::string> >(),
@@ -50,7 +49,7 @@ CheckResult CheckRepository::SaveCheckResult(const CheckResult& check) const {
                 to_char(checked_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS checked_at
         )",
       check.target_id, CheckStatusToString(check.status),
-      target::TargetTypeToString(check.protocol), check.http_status,
+      CheckProtocolToString(check.protocol), check.http_status,
       check.latency_ms, check.error_message);
 
   return CheckResultFromRow(result.Front());
@@ -113,4 +112,4 @@ std::optional<CheckResult> CheckRepository::GetLatestTargetStatus(
   return CheckResultFromRow(result.Front());
 }
 
-}  // namespace monitor_service::checks
+}  // namespace netwatch::monitor_service::checks

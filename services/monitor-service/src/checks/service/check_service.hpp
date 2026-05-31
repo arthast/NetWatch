@@ -7,15 +7,16 @@
 #include <userver/clients/http/component.hpp>
 #include <userver/components/component_base.hpp>
 #include <userver/concurrent/mutex_set.hpp>
+#include <vector>
 
-#include <alerts/service/alert_service.hpp>
+#include <alerts/client/alert_client.hpp>
 #include <checks/model/check_result.hpp>
 #include <checks/runner/check_runner.hpp>
 #include <checks/storage/check_repository.hpp>
+#include <targets/client/target_client.hpp>
 #include <targets/model/target.hpp>
-#include <targets/storage/target_repository.hpp>
 
-namespace monitor_service::checks {
+namespace netwatch::monitor_service::checks {
 
 class CheckServiceComponent final : public userver::components::ComponentBase {
  public:
@@ -27,18 +28,25 @@ class CheckServiceComponent final : public userver::components::ComponentBase {
 
   std::optional<CheckResult> RunCheckForTarget(std::int64_t target_id) const;
 
-  CheckResult RunCheck(const target::Target& target) const;
+  std::optional<std::vector<CheckResult>> ListTargetChecks(
+      std::int64_t target_id) const;
 
-  std::optional<CheckResult> TryRunCheck(const target::Target& target) const;
+  std::optional<CheckResult> GetTargetStatus(std::int64_t target_id) const;
+
+  CheckResult RunCheck(const netwatch::target_client::Target& target) const;
+
+  std::optional<CheckResult> TryRunCheck(
+      const netwatch::target_client::Target& target) const;
 
  private:
-  CheckResult RunCheckLocked(const target::Target& target) const;
+  CheckResult RunCheckLocked(
+      const netwatch::target_client::Target& target) const;
 
-  target::TargetRepository target_repository_;
+  const netwatch::target_client::TargetClient& target_client_;
+  const netwatch::alert_client::AlertClient& alert_client_;
   CheckRepository check_repository_;
   CheckRunner check_runner_;
-  alerts::AlertService alert_service_;
   mutable userver::concurrent::MutexSet<std::int64_t> target_mutexes_;
 };
 
-}  // namespace monitor_service::checks
+}  // namespace netwatch::monitor_service::checks
