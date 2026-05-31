@@ -1,310 +1,235 @@
 # NetWatch
 
-NetWatch - платформа мониторинга сетевых сервисов на C++ с использованием
-userver. Проект разделен на четыре runtime-сервиса: внешний HTTP API живет в
-`api-gateway`, targets обслуживаются в `target-service`, checks и scheduler - в
-`monitor-service`, а alert lifecycle вынесен в отдельный `alert-service`.
-Внутреннее взаимодействие между сервисами идет по gRPC.
+NetWatch - платформа для мониторинга HTTP/TCP сервисов, написанная на
+C++ и userver. Проект построен как микросервисная система: внешний HTTP API
+отделен от доменных сервисов, каждый сервис владеет своей базой данных,
+а внутреннее взаимодействие идет по gRPC.
 
-## Сейчас реализовано
+## Стек
 
-- `api-gateway` с внешним HTTP API, Swagger UI и OpenAPI specification.
-- `target-service` с gRPC API для хранения и валидации targets.
-- `target-service` владеет target-моделью и валидацией.
-- `monitor-service` владеет check-моделью.
-- Ручные HTTP/TCP проверки.
-- История checks и статус target по последней проверке.
-- Alert lifecycle: `target_down` создается при падении и закрывается при восстановлении.
-- Scheduler, который периодически запускает проверки active targets.
-- `monitor-service` с gRPC API для checks.
-- `alert-service` с gRPC API для alerts и собственной PostgreSQL базой.
-- Service-owned PostgreSQL migrations, unit-тесты и Docker Compose для demo-запуска.
+- C++ / userver;
+- gRPC / Protocol Buffers;
+- PostgreSQL;
+- Docker / Docker Compose;
+- CMake / Ninja;
+- Swagger / OpenAPI;
+- GitHub Actions.
 
-## Архитектура текущей версии
+## Что умеет NetWatch
+
+- хранить HTTP и TCP targets
+- запускать ручные проверки target через API
+- выполнять периодические проверки active targets через scheduler
+- сохранять историю check results
+- возвращать текущий статус target
+- создавать active alert при падении target
+- закрывать alert при восстановлении target
+- отдавать Swagger UI и OpenAPI contract
+- собираться и проверяться через CI/CD
+
+## Архитектура
+
+```mermaid
+flowchart LR
+    client["Client / Swagger / curl"] -->|HTTP JSON| gateway["api-gateway"]
+
+    gateway -->|gRPC| target["target-service"]
+    gateway -->|gRPC| monitor["monitor-service"]
+    gateway -->|gRPC| alert["alert-service"]
+
+    monitor -->|gRPC: read targets| target
+    monitor -->|gRPC: check snapshots| alert
+
+    target --> target_db[("target-postgres<br/>targets")]
+    monitor --> monitor_db[("monitor-postgres<br/>check_results")]
+    alert --> alert_db[("alert-postgres<br/>alerts")]
+```
+
+Снаружи открыт только `api-gateway`. Остальные сервисы считаются внутренними и
+доступны друг другу по gRPC внутри runtime-сети.
+
+## Сервисы
+
+| Service | Ответственность | Storage |
+| --- | --- | --- |
+| `api-gateway` | HTTP API, Swagger UI, OpenAPI, JSON/gRPC mapping | нет |
+| `target-service` | target domain, CRUD, PATCH, validation | `target_service_db` |
+| `monitor-service` | check runner, scheduler, check history, target status | `monitor_service_db` |
+| `alert-service` | alert lifecycle, active/resolved alerts | `alert_service_db` |
+
+### `api-gateway`
+
+Единая публичная точка входа. Gateway принимает HTTP/JSON, вызывает внутренние
+gRPC-сервисы и возвращает клиенту нормальные HTTP-ответы. Он не подключается к
+PostgreSQL и не содержит доменных правил.
+
+### `target-service`
+
+Владелец target domain. Сервис хранит targets, валидирует HTTP/TCP параметры и
+сам применяет PATCH к текущему состоянию target.
+
+### `monitor-service`
+
+Владелец check domain. Сервис получает targets через `target-service`, выполняет
+HTTP/TCP проверки, сохраняет историю и возвращает последний статус target.
+Scheduler периодически обходит active targets и запускает проверки без участия
+внешнего клиента.
+
+### `alert-service`
+
+Владелец alert lifecycle. Сервис получает snapshot target и previous/current
+check results, открывает `target_down` alert при падении и закрывает его после
+восстановления.
+
+## Границы владения в коде
 
 ```text
-Client / Swagger / curl
-        |
-        | HTTP
-        v
-api-gateway
-  |-- HTTP JSON API
-  |-- Swagger UI and OpenAPI spec
-  |-- common: shared HTTP/JSON/path helpers
-        | gRPC
-        +--------------------+--------------------+
-        |                    |                    |
-        v                    v                    v
-target-service        monitor-service        alert-service
-  |-- targets CRUD      |-- manual checks      |-- alert lifecycle
-  |-- validation        |-- scheduler          |-- active/resolved alerts
-  |-- repository        |-- check history      |-- repository
-                       |
-                       | gRPC
-                       +--------------------+
-                       |                    |
-                       v                    v
-                 target-service        alert-service
+services/
+  api-gateway/       public HTTP API, Swagger, OpenAPI, JSON mapping
+  target-service/    target domain, validation, storage, gRPC service
+  monitor-service/   check domain, runner, scheduler, storage, gRPC service
+  alert-service/     alert domain, lifecycle, storage, gRPC service
 
-api-gateway     ---- no direct DB access
-target-service  ---- target-postgres
-monitor-service ---- monitor-postgres
-alert-service   ---- alert-postgres
+libs/
+  netwatch-proto/    generated gRPC code
+  target-client/     typed gRPC client for target-service
+  monitor-client/    typed gRPC client for monitor-service
+  alert-client/      typed gRPC client for alert-service
+
+proto/netwatch/      service contracts
+tests/integration/   end-to-end gateway flow
+docker/              production-like service image build
+scripts/             local verification helpers
 ```
 
-Target-типы и валидация принадлежат `target-service`, check-модель принадлежит
-`monitor-service`, gRPC clients - в `libs/target-client`,
-`libs/monitor-client` и `libs/alert-client`, gRPC контракты - в
-`proto/netwatch`. Alert domain теперь принадлежит `alert-service`, клиентский
-alert DTO живет рядом с `alert-client`, а alert lifecycle принимает собственные
-snapshot-сообщения из `alert_service.proto` без импорта target/check контрактов.
-`target-client` теперь содержит только клиентские DTO и gRPC mapping, а PATCH
-target применяется и валидируется внутри `target-service`.
-`monitor-client` содержит клиентские check DTO и gRPC mapping, а check domain
-остается внутри `monitor-service`.
+## Данные
 
-Service-owned код теперь лежит внутри владельцев: target repository - в
-`services/target-service/src`, check storage и runner - в
-`services/monitor-service/src`, alert storage и lifecycle - в
-`services/alert-service/src`.
+У каждого сервиса отдельная PostgreSQL база:
 
-PostgreSQL DDL разнесен по service-owned migrations:
+- `target-service` владеет таблицей `targets`;
+- `monitor-service` владеет таблицей `check_results`;
+- `alert-service` владеет таблицей `alerts`.
 
-- `services/target-service/postgresql/migrations` владеет таблицей `targets`.
-- `services/monitor-service/postgresql/migrations` владеет таблицей
-  `check_results`.
-- `services/alert-service/postgresql/migrations` владеет таблицей `alerts`.
+Между базами нет shared tables, foreign keys и прямых SQL-запросов из чужого
+сервиса. Связи между доменами проходят через gRPC contracts.
 
-В Docker Compose это уже отдельные runtime databases: `target-service`
-подключается к `target-postgres/target_service_db`, а `monitor-service` - к
-`monitor-postgres/monitor_service_db`, `alert-service` - к
-`alert-postgres/alert_service_db`. Между этими базами нет FK и общих таблиц.
+## Внутренние gRPC contracts
 
-В Docker Compose `api-gateway` вызывает `target-service`, `monitor-service` и
-`alert-service` по gRPC. `monitor-service` ходит в `target-service`, чтобы
-получать targets для ручных проверок и scheduler, и в `alert-service`, чтобы
-передавать результат проверки в alert lifecycle.
+- `proto/netwatch/target_service.proto` - `TargetService`;
+- `proto/netwatch/monitor_service.proto` - `CheckService`;
+- `proto/netwatch/alert_service.proto` - `AlertService`.
 
-## Основные endpoint'ы
+Контракты версионируются через package names:
 
-- `GET /ping`
-- `GET /docs`
-- `GET /openapi.json`
-- `POST /api/v1/targets`
-- `GET /api/v1/targets`
-- `GET /api/v1/targets/{id}`
-- `PATCH /api/v1/targets/{id}`
-- `DELETE /api/v1/targets/{id}`
-- `POST /api/v1/targets/{id}/check`
-- `GET /api/v1/targets/{id}/checks`
-- `GET /api/v1/targets/{id}/status`
-- `GET /api/v1/alerts`
-- `GET /api/v1/alerts/active`
+- `netwatch.target.v1`;
+- `netwatch.monitor.v1`;
+- `netwatch.alert.v1`.
 
-## Demo через Docker Compose
+`alert-service` принимает собственные snapshot messages, чтобы не зависеть от
+внутренних моделей target/check сервисов.
 
-Dev Compose собирает сервисные бинарники внутри контейнеров при старте. Это
-удобно для локальной разработки:
+## Основной runtime flow
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant G as api-gateway
+    participant T as target-service
+    participant M as monitor-service
+    participant A as alert-service
+
+    C->>G: POST /api/v1/targets
+    G->>T: CreateTarget gRPC
+    T-->>G: Target
+    G-->>C: 201 Created
+
+    C->>G: POST /api/v1/targets/{id}/check
+    G->>M: RunCheck gRPC
+    M->>T: GetTarget gRPC
+    T-->>M: Target
+    M->>M: HTTP/TCP check + save result
+    M->>A: ProcessCheckResult gRPC
+    A->>A: open/resolve alert
+    M-->>G: CheckResult
+    G-->>C: 201 Created
+```
+
+## Public HTTP API
+
+Локально `api-gateway` доступен на `http://localhost:8081`.
+
+Документация:
+
+- Swagger UI: `http://localhost:8081/docs`;
+- OpenAPI JSON: `http://localhost:8081/openapi.json`;
+- healthcheck: `http://localhost:8081/ping`.
+
+Основные endpoint'ы:
+
+- `POST /api/v1/targets`;
+- `GET /api/v1/targets`;
+- `GET /api/v1/targets/{id}`;
+- `PATCH /api/v1/targets/{id}`;
+- `DELETE /api/v1/targets/{id}`;
+- `POST /api/v1/targets/{id}/check`;
+- `GET /api/v1/targets/{id}/checks`;
+- `GET /api/v1/targets/{id}/status`;
+- `GET /api/v1/alerts`;
+- `GET /api/v1/alerts/active`.
+
+## Локальные адреса
+
+| Component | Address |
+| --- | --- |
+| API Gateway | `http://localhost:8081` |
+| Swagger UI | `http://localhost:8081/docs` |
+| OpenAPI JSON | `http://localhost:8081/openapi.json` |
+| Target service healthcheck | `http://localhost:8082/ping` |
+| Target PostgreSQL | `localhost:15432` |
+| Monitor PostgreSQL | `localhost:15434` |
+| Alert PostgreSQL | `localhost:15435` |
+
+Внутренние gRPC endpoints внутри Docker Compose:
+
+- `target-service:8090`;
+- `monitor-service:8091`;
+- `alert-service:8092`.
+
+## Быстрый запуск
 
 ```bash
 docker compose up --build
 ```
 
-Сервисы будут доступны так:
+После старта можно открыть Swagger UI:
 
-- `api-gateway`: `http://localhost:8081` - внешний HTTP API, Swagger, checks, alerts.
-- `target-service`: `http://localhost:8082/ping` - healthcheck; бизнес API у него gRPC на внутреннем `target-service:8090`.
-- `monitor-service`: внутренний сервис checks/scheduler; HTTP наружу не публикуется, gRPC внутри Compose на `monitor-service:8091`.
-- `alert-service`: внутренний сервис alert lifecycle; HTTP наружу не публикуется, gRPC внутри Compose на `alert-service:8092`.
-- `target-postgres`: `localhost:15432`, база `target_service_db`.
-- `monitor-postgres`: `localhost:15434`, база `monitor_service_db`.
-- `alert-postgres`: `localhost:15435`, база `alert_service_db`.
-
-Полезные страницы:
-
-- `http://localhost:8081/docs` - Swagger UI.
-- `http://localhost:8081/openapi.json` - OpenAPI JSON.
-
-Если нужно полностью пересоздать demo-базу:
-
-```bash
-docker compose down -v
-docker compose up --build
+```text
+http://localhost:8081/docs
 ```
 
-Команда `down -v` удалит локальные demo-данные PostgreSQL.
+## Быстрая проверка
 
-Production-like Compose использует уже собранные Docker images:
-
-```bash
-docker compose -f docker-compose.images.yml build
-docker compose -f docker-compose.images.yml up
-```
-
-По умолчанию локальные images называются:
-
-- `netwatch/api-gateway:local`
-- `netwatch/target-service:local`
-- `netwatch/monitor-service:local`
-- `netwatch/alert-service:local`
-
-Для запуска опубликованных images можно переопределить переменные:
-
-```bash
-NETWATCH_API_GATEWAY_IMAGE=ghcr.io/<owner>/<repo>/api-gateway:<tag> \
-NETWATCH_TARGET_SERVICE_IMAGE=ghcr.io/<owner>/<repo>/target-service:<tag> \
-NETWATCH_MONITOR_SERVICE_IMAGE=ghcr.io/<owner>/<repo>/monitor-service:<tag> \
-NETWATCH_ALERT_SERVICE_IMAGE=ghcr.io/<owner>/<repo>/alert-service:<tag> \
-docker compose -f docker-compose.images.yml up
-```
-
-## Demo сценарий через curl
-
-```bash
-BASE=http://localhost:8081
-```
-
-Проверить, что сервис жив:
-
-```bash
-curl -i "$BASE/ping"
-```
-
-Создать HTTP target, который проверяет `monitor-service` изнутри контейнера:
-
-```bash
-HTTP_ID=$(
-  curl -s -X POST "$BASE/api/v1/targets" \
-    -H 'Content-Type: application/json' \
-    -d '{
-      "name": "NetWatch self ping",
-      "type": "http",
-      "url": "http://localhost:8080/ping",
-      "method": "GET",
-      "expected_status_code": 200,
-      "interval_seconds": 30,
-      "timeout_ms": 1000
-    }' | jq -r '.id'
-)
-```
-
-Запустить ручную проверку и посмотреть историю:
-
-```bash
-curl -s -X POST "$BASE/api/v1/targets/$HTTP_ID/check" | jq
-curl -s "$BASE/api/v1/targets/$HTTP_ID/status" | jq
-curl -s "$BASE/api/v1/targets/$HTTP_ID/checks" | jq
-```
-
-Создать TCP target на закрытый порт, чтобы получить `down` и active alert:
-
-```bash
-TCP_ID=$(
-  curl -s -X POST "$BASE/api/v1/targets" \
-    -H 'Content-Type: application/json' \
-    -d '{
-      "name": "Broken TCP target",
-      "type": "tcp",
-      "host": "localhost",
-      "port": 1,
-      "interval_seconds": 30,
-      "timeout_ms": 500
-    }' | jq -r '.id'
-)
-
-curl -s -X POST "$BASE/api/v1/targets/$TCP_ID/check" | jq
-curl -s "$BASE/api/v1/alerts/active" | jq
-```
-
-Починить TCP target, направив его на открытый порт сервиса, и закрыть alert:
-
-```bash
-curl -s -X PATCH "$BASE/api/v1/targets/$TCP_ID" \
-  -H 'Content-Type: application/json' \
-  -d '{"port": 8080}' | jq
-
-curl -s -X POST "$BASE/api/v1/targets/$TCP_ID/check" | jq
-curl -s "$BASE/api/v1/alerts/active" | jq
-curl -s "$BASE/api/v1/alerts" | jq
-```
-
-## Тесты
-
-Сейчас автоматизированные тесты разделены по ownership: target validation живет в
-`services/target-service` как `netwatch_target_service_unittest`, monitor acceptance
-сценарии остаются в `services/monitor-service/tests`, а внешний HTTP/API gateway
-контракт проверяется integration flow. Flow поднимает Docker Compose и проверяет контур
-`api-gateway -> gRPC -> target-service/monitor-service/alert-service -> PostgreSQL`.
-
-В контейнере devcontainer или userver-окружении:
-
-```bash
-cd services/monitor-service
-make test-debug
-```
-
-Через Docker Compose:
-
-```bash
-docker compose run --rm --no-deps --user 1000:1000 \
-  --workdir /workspace \
-  monitor-service \
-  bash -lc 'cmake -S . -B build-compose-test-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug -DUSERVER_FEATURE_GRPC=ON -DUSERVER_FEATURE_POSTGRESQL=ON -DUSERVER_SANITIZE="addr;ub" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build-compose-test-debug -j 1 --target netwatch_target_service_unittest monitor_service && cd build-compose-test-debug && ctest --output-on-failure -R netwatch_target_service_unittest'
-```
-
-Собрать все сервисы из корня репозитория:
-
-```bash
-docker compose run --rm --no-deps --workdir /workspace monitor-service \
-  bash -lc 'cmake -S . -B build-compose-root-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug -DUSERVER_FEATURE_GRPC=ON -DUSERVER_FEATURE_POSTGRESQL=ON -DUSERVER_SANITIZE="addr;ub" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build-compose-root-debug -j 1 --target api_gateway monitor_service alert_service target_service'
-```
-
-Запустить внешний integration flow через gateway:
-
-```bash
-./tests/integration/run_api_gateway_flow.py
-```
-
-Быстрая локальная проверка во время разделения сервисов:
+Собрать все сервисы:
 
 ```bash
 ./scripts/quick_check.sh build
 ```
 
-Для повторной проверки HTTP/gRPC flow без пересоздания Compose на каждый прогон:
+Запустить end-to-end flow через `api-gateway`:
 
 ```bash
-./scripts/quick_check.sh flow-keep
-./scripts/quick_check.sh flow-skip
-./scripts/quick_check.sh down
-```
-
-Запустить тот же flow против production-like images:
-
-```bash
-docker compose -f docker-compose.images.yml build
-./tests/integration/run_api_gateway_flow.py \
-  --compose-file docker-compose.images.yml \
-  --no-build
+./tests/integration/run_api_gateway_flow.py
 ```
 
 ## CI/CD
 
-GitHub Actions workflow находится в `.github/workflows/ci.yml`.
+GitHub Actions workflow собирает сервисы отдельно, запускает unit/integration
+checks, собирает production-like Docker images и публикует их в GHCR.
 
-На pull request и push он выполняет:
+Публикуемые images:
 
-- root-сборку `api_gateway`, `target_service`, `monitor_service`, `alert_service`;
-- `netwatch_target_service_unittest` через отдельный target-service job;
-- отдельные service build jobs для `api-gateway`, `target-service`,
-  `monitor-service`, `alert-service`;
-- внешний integration flow через dev-compose;
-- сборку production-like Docker images;
-- integration flow через `docker-compose.images.yml`.
+- `ghcr.io/<owner>/<repo>/api-gateway:<sha|branch>`;
+- `ghcr.io/<owner>/<repo>/target-service:<sha|branch>`;
+- `ghcr.io/<owner>/<repo>/monitor-service:<sha|branch>`;
+- `ghcr.io/<owner>/<repo>/alert-service:<sha|branch>`.
 
-На push в `main` или `dev/**` workflow дополнительно публикует images в GHCR:
-
-- `ghcr.io/<owner>/<repo>/api-gateway:<sha|branch>`
-- `ghcr.io/<owner>/<repo>/target-service:<sha|branch>`
-- `ghcr.io/<owner>/<repo>/monitor-service:<sha|branch>`
-- `ghcr.io/<owner>/<repo>/alert-service:<sha|branch>`
