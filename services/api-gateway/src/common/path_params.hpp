@@ -4,8 +4,8 @@
 #include <optional>
 #include <string_view>
 
-namespace monitor_service::common {
+namespace netwatch::api_gateway::common {
 
 std::optional<std::int64_t> ParsePositiveInt64(std::string_view value);
 
-}  // namespace monitor_service::common
+}  // namespace netwatch::api_gateway::common

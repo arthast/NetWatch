@@ -9,11 +9,10 @@
 #include <userver/ugrpc/client/simple_client_component.hpp>
 #include <vector>
 
-namespace monitor_service::checks {
+namespace netwatch::monitor_client {
 namespace {
 
 namespace proto = netwatch::monitor::v1;
-namespace target_proto = netwatch::target::v1;
 
 userver::ugrpc::client::CallOptions MakeCallOptions() {
   userver::ugrpc::client::CallOptions options;
@@ -43,19 +42,19 @@ CheckStatus ToDomainCheckStatus(proto::CheckStatus status) {
   throw std::invalid_argument("check status must be up or down");
 }
 
-target::TargetType ToDomainTargetType(target_proto::TargetType type) {
-  switch (type) {
-    case target_proto::TARGET_TYPE_HTTP:
-      return target::TargetType::kHttp;
-    case target_proto::TARGET_TYPE_TCP:
-      return target::TargetType::kTcp;
-    case target_proto::TARGET_TYPE_UNSPECIFIED:
-    case target_proto::TargetType_INT_MIN_SENTINEL_DO_NOT_USE_:
-    case target_proto::TargetType_INT_MAX_SENTINEL_DO_NOT_USE_:
+CheckProtocol ToDomainCheckProtocol(proto::CheckProtocol protocol) {
+  switch (protocol) {
+    case proto::CHECK_PROTOCOL_HTTP:
+      return CheckProtocol::kHttp;
+    case proto::CHECK_PROTOCOL_TCP:
+      return CheckProtocol::kTcp;
+    case proto::CHECK_PROTOCOL_UNSPECIFIED:
+    case proto::CheckProtocol_INT_MIN_SENTINEL_DO_NOT_USE_:
+    case proto::CheckProtocol_INT_MAX_SENTINEL_DO_NOT_USE_:
       break;
   }
 
-  throw std::invalid_argument("target type must be http or tcp");
+  throw std::invalid_argument("check protocol must be http or tcp");
 }
 
 CheckResult ToDomainCheck(const proto::CheckResult& check) {
@@ -63,7 +62,7 @@ CheckResult ToDomainCheck(const proto::CheckResult& check) {
       .id = check.id(),
       .target_id = check.target_id(),
       .status = ToDomainCheckStatus(check.status()),
-      .protocol = ToDomainTargetType(check.protocol()),
+      .protocol = ToDomainCheckProtocol(check.protocol()),
       .http_status = check.has_http_status()
                          ? std::make_optional(check.http_status())
                          : std::nullopt,
@@ -129,4 +128,4 @@ std::optional<CheckResult> CheckClient::GetTargetStatus(
   }
 }
 
-}  // namespace monitor_service::checks
+}  // namespace netwatch::monitor_client

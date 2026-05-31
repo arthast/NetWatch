@@ -1,7 +1,7 @@
 add_library(
     netwatch_monitor_client STATIC
-    src/alerts/client/alert_client.cpp
     src/checks/client/check_client.cpp
+    src/checks/model/check_result.cpp
 )
 
 target_include_directories(
@@ -14,5 +14,4 @@ target_link_libraries(
     PUBLIC userver::core
            userver::grpc
            netwatch_grpc_proto
-           netwatch_monitor_core
 )

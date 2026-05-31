@@ -8,14 +8,18 @@
 #include <common/http_response.hpp>
 #include <common/path_params.hpp>
 
-namespace monitor_service::checks {
+namespace netwatch::api_gateway::checks {
 
 TargetStatusHandler::TargetStatusHandler(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& component_context)
     : HttpHandlerBase(config, component_context),
-      check_client_(component_context.FindComponent<CheckClient>()),
-      target_client_(component_context.FindComponent<target::TargetClient>()) {}
+      check_client_(
+          component_context
+              .FindComponent<netwatch::monitor_client::CheckClient>()),
+      target_client_(
+          component_context
+              .FindComponent<netwatch::target_client::TargetClient>()) {}
 
 std::string TargetStatusHandler::HandleRequestThrow(
     const userver::server::http::HttpRequest& request,
@@ -42,4 +46,4 @@ std::string TargetStatusHandler::HandleRequestThrow(
 
   return common::JsonResponse(request, SerializeCheckResult(*status));
 }
-}  // namespace monitor_service::checks
+}  // namespace netwatch::api_gateway::checks

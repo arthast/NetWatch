@@ -14,7 +14,7 @@ namespace userver::yaml_config {
 class Schema;
 }  // namespace userver::yaml_config
 
-namespace monitor_service::target {
+namespace netwatch::target_client {
 
 class TargetClient final : public userver::components::ComponentBase {
  public:
@@ -31,7 +31,8 @@ class TargetClient final : public userver::components::ComponentBase {
 
   std::optional<Target> GetTargetById(std::int64_t target_id) const;
 
-  std::optional<Target> UpdateTarget(const Target& target) const;
+  std::optional<Target> UpdateTarget(std::int64_t target_id,
+                                     const UpdateTargetRequest& request) const;
 
   bool DeactivateTarget(std::int64_t target_id) const;
 
@@ -39,4 +40,4 @@ class TargetClient final : public userver::components::ComponentBase {
   netwatch::target::v1::TargetServiceClient* grpc_client_;
 };
 
-}  // namespace monitor_service::target
+}  // namespace netwatch::target_client

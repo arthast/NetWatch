@@ -1,18 +1,16 @@
 #include <alerts/client/alert_client.hpp>
 
 #include <chrono>
-#include <optional>
 #include <stdexcept>
 #include <userver/components/component_context.hpp>
 #include <userver/ugrpc/client/call_options.hpp>
 #include <userver/ugrpc/client/simple_client_component.hpp>
 #include <vector>
 
-namespace monitor_service::alerts {
+namespace netwatch::alert_client {
 namespace {
 
-namespace proto = netwatch::monitor::v1;
-namespace target_proto = netwatch::target::v1;
+namespace proto = netwatch::alert::v1;
 
 userver::ugrpc::client::CallOptions MakeCallOptions() {
   userver::ugrpc::client::CallOptions options;
@@ -53,24 +51,24 @@ AlertSeverity ToDomainAlertSeverity(proto::AlertSeverity severity) {
   throw std::invalid_argument("unknown alert severity");
 }
 
-proto::CheckStatus ToProtoCheckStatus(checks::CheckStatus status) {
+proto::CheckStatus ToProtoCheckStatus(CheckStatus status) {
   switch (status) {
-    case checks::CheckStatus::kUp:
+    case CheckStatus::kUp:
       return proto::CHECK_STATUS_UP;
-    case checks::CheckStatus::kDown:
+    case CheckStatus::kDown:
       return proto::CHECK_STATUS_DOWN;
   }
   return proto::CHECK_STATUS_UNSPECIFIED;
 }
 
-target_proto::TargetType ToProtoTargetType(target::TargetType type) {
+proto::TargetType ToProtoTargetType(TargetType type) {
   switch (type) {
-    case target::TargetType::kHttp:
-      return target_proto::TARGET_TYPE_HTTP;
-    case target::TargetType::kTcp:
-      return target_proto::TARGET_TYPE_TCP;
+    case TargetType::kHttp:
+      return proto::TARGET_TYPE_HTTP;
+    case TargetType::kTcp:
+      return proto::TARGET_TYPE_TCP;
   }
-  return target_proto::TARGET_TYPE_UNSPECIFIED;
+  return proto::TARGET_TYPE_UNSPECIFIED;
 }
 
 Alert ToDomainAlert(const proto::Alert& alert) {
@@ -87,7 +85,8 @@ Alert ToDomainAlert(const proto::Alert& alert) {
   };
 }
 
-void FillProtoTarget(const target::Target& source, target_proto::Target& result) {
+void FillProtoTarget(const TargetSnapshot& source,
+                     proto::TargetSnapshot& result) {
   result.set_id(source.id);
   result.set_name(source.name);
   result.set_type(ToProtoTargetType(source.type));
@@ -113,7 +112,8 @@ void FillProtoTarget(const target::Target& source, target_proto::Target& result)
   result.set_is_active(source.is_active);
 }
 
-void FillProtoCheck(const checks::CheckResult& source, proto::CheckResult& result) {
+void FillProtoCheck(const CheckResultSnapshot& source,
+                    proto::CheckResultSnapshot& result) {
   result.set_id(source.id);
   result.set_target_id(source.target_id);
   result.set_status(ToProtoCheckStatus(source.status));
@@ -162,9 +162,9 @@ std::vector<Alert> AlertClient::ListActiveAlerts() const {
 }
 
 void AlertClient::ProcessCheckResult(
-    const target::Target& target,
-    const std::optional<checks::CheckResult>& previous_check,
-    const checks::CheckResult& current_check) const {
+    const TargetSnapshot& target,
+    const std::optional<CheckResultSnapshot>& previous_check,
+    const CheckResultSnapshot& current_check) const {
   proto::ProcessCheckResultRequest request;
   FillProtoTarget(target, *request.mutable_target());
   if (previous_check) {
@@ -175,4 +175,4 @@ void AlertClient::ProcessCheckResult(
   client_.ProcessCheckResult(request, MakeCallOptions());
 }
 
-}  // namespace monitor_service::alerts
+}  // namespace netwatch::alert_client

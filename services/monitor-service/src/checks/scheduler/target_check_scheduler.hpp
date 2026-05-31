@@ -13,7 +13,7 @@
 #include <targets/client/target_client.hpp>
 #include <targets/model/target.hpp>
 
-namespace monitor_service::checks {
+namespace netwatch::monitor_service::checks {
 
 class TargetCheckScheduler final : public userver::components::ComponentBase {
  public:
@@ -32,11 +32,12 @@ class TargetCheckScheduler final : public userver::components::ComponentBase {
 
   void Tick();
 
-  bool MarkIfDue(const target::Target& target, Clock::time_point now);
+  bool MarkIfDue(const netwatch::target_client::Target& target,
+                 Clock::time_point now);
 
-  void LaunchCheck(target::Target target);
+  void LaunchCheck(netwatch::target_client::Target target);
 
-  const target::TargetClient& target_client_;
+  const netwatch::target_client::TargetClient& target_client_;
   const CheckServiceComponent& check_service_;
   userver::utils::PeriodicTask periodic_task_;
   userver::engine::Mutex state_mutex_;
@@ -44,4 +45,4 @@ class TargetCheckScheduler final : public userver::components::ComponentBase {
   userver::concurrent::BackgroundTaskStorage background_tasks_;
 };
 
-}  // namespace monitor_service::checks
+}  // namespace netwatch::monitor_service::checks

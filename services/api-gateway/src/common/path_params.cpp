@@ -3,7 +3,7 @@
 #include <charconv>
 #include <system_error>
 
-namespace monitor_service::common {
+namespace netwatch::api_gateway::common {
 
 std::optional<std::int64_t> ParsePositiveInt64(std::string_view value) {
   std::int64_t id = 0;
@@ -18,4 +18,4 @@ std::optional<std::int64_t> ParsePositiveInt64(std::string_view value) {
   return id;
 }
 
-}  // namespace monitor_service::common
+}  // namespace netwatch::api_gateway::common

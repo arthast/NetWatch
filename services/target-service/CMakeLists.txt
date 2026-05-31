@@ -19,12 +19,7 @@ if(NOT TARGET userver::core)
     userver_setup_environment()
 endif()
 
-set(NETWATCH_TARGET_DOMAIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/target-domain")
 set(NETWATCH_PROTO_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/netwatch-proto")
-
-if(NOT TARGET netwatch_target_domain)
-    add_subdirectory("${NETWATCH_TARGET_DOMAIN_DIR}" netwatch_target_domain)
-endif()
 
 if(NOT TARGET netwatch_grpc_proto)
     add_subdirectory("${NETWATCH_PROTO_LIB_DIR}" netwatch_grpc_proto)
@@ -33,7 +28,9 @@ endif()
 add_library(
     ${PROJECT_NAME}_objs OBJECT
     src/target_service.cpp
+    src/targets/model/target.cpp
     src/targets/storage/target_repository.cpp
+    src/targets/validation/target_validator.cpp
 )
 
 target_include_directories(
@@ -46,12 +43,22 @@ target_link_libraries(
     PUBLIC userver::core
            userver::grpc
            userver::postgresql
-           netwatch_target_domain
            netwatch_grpc_proto
 )
 
 add_executable(${PROJECT_NAME} src/main.cpp)
 target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_NAME}_objs)
+
+add_executable(
+    netwatch_target_service_unittest
+    tests/target_validator_test.cpp
+)
+target_link_libraries(
+    netwatch_target_service_unittest
+    PRIVATE ${PROJECT_NAME}_objs
+            userver::utest
+)
+add_google_tests(netwatch_target_service_unittest)
 
 include(GNUInstallDirs)
 

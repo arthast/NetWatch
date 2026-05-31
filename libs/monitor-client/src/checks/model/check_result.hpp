@@ -4,17 +4,17 @@
 #include <optional>
 #include <string>
 
-#include <targets/model/target.hpp>
-
-namespace monitor_service::checks {
+namespace netwatch::monitor_client {
 
 enum class CheckStatus { kUp, kDown };
+
+enum class CheckProtocol { kHttp, kTcp };
 
 struct CheckResult {
   std::int64_t id{0};
   std::int64_t target_id{0};
   CheckStatus status{CheckStatus::kDown};
-  target::TargetType protocol{target::TargetType::kHttp};
+  CheckProtocol protocol{CheckProtocol::kHttp};
 
   std::optional<int> http_status;
   std::optional<int> latency_ms;
@@ -24,6 +24,6 @@ struct CheckResult {
 
 std::string CheckStatusToString(CheckStatus status);
 
-CheckStatus CheckStatusFromString(const std::string& value);
+std::string CheckProtocolToString(CheckProtocol protocol);
 
-}  // namespace monitor_service::checks
+}  // namespace netwatch::monitor_client

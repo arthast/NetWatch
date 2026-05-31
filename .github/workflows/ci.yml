@@ -40,13 +40,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build target-service and run target-domain unit tests
+      - name: Build target-service and run target-service unit tests
         run: |
           docker compose run --rm --no-deps --workdir /workspace monitor-service \
             bash -lc 'cmake -S . -B build-ci-target-service-debug ${{ env.CMAKE_ARGS }} \
-              && cmake --build build-ci-target-service-debug -j 1 --target target_service netwatch_target_domain_unittest \
+              && cmake --build build-ci-target-service-debug -j 1 --target target_service netwatch_target_service_unittest \
               && cd build-ci-target-service-debug \
-              && ctest --output-on-failure -R netwatch_target_domain_unittest'
+              && ctest --output-on-failure -R netwatch_target_service_unittest'
 
   monitor-service-build:
     name: monitor-service build

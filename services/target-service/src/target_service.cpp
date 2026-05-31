@@ -13,7 +13,7 @@ namespace netwatch::target_service {
 namespace {
 
 namespace proto = netwatch::target::v1;
-namespace domain = monitor_service::target;
+namespace domain = netwatch::target_service;
 
 grpc::Status InvalidArgument(std::string message) {
   return grpc::Status{grpc::StatusCode::INVALID_ARGUMENT, std::move(message)};
@@ -122,25 +122,39 @@ domain::CreateTargetRequest ToDomainCreateRequest(
   return result;
 }
 
-domain::Target ToDomainTarget(const proto::Target& target) {
-  return domain::Target{
-      .id = target.id(),
-      .name = target.name(),
-      .type = ToDomainTargetType(target.type()),
-      .url = target.has_url() ? std::make_optional(target.url()) : std::nullopt,
-      .method = target.has_method() ? std::make_optional(target.method())
-                                    : std::nullopt,
+bool HasPatchFields(const proto::UpdateTargetRequest& request) {
+  return request.has_name() || request.has_type() || request.has_url() ||
+         request.has_method() || request.has_expected_status_code() ||
+         request.has_host() || request.has_port() ||
+         request.has_interval_seconds() || request.has_timeout_ms();
+}
+
+domain::UpdateTargetRequest ToDomainUpdateRequest(
+    const proto::UpdateTargetRequest& request) {
+  return domain::UpdateTargetRequest{
+      .name = request.has_name() ? std::make_optional(request.name())
+                                 : std::nullopt,
+      .type = request.has_type()
+                  ? std::make_optional(ToDomainTargetType(request.type()))
+                  : std::nullopt,
+      .url =
+          request.has_url() ? std::make_optional(request.url()) : std::nullopt,
+      .method = request.has_method() ? std::make_optional(request.method())
+                                     : std::nullopt,
       .expected_status_code =
-          target.has_expected_status_code()
-              ? std::make_optional(target.expected_status_code())
+          request.has_expected_status_code()
+              ? std::make_optional(request.expected_status_code())
               : std::nullopt,
-      .host =
-          target.has_host() ? std::make_optional(target.host()) : std::nullopt,
-      .port =
-          target.has_port() ? std::make_optional(target.port()) : std::nullopt,
-      .interval_seconds = target.interval_seconds(),
-      .timeout_ms = target.timeout_ms(),
-      .is_active = target.is_active(),
+      .host = request.has_host() ? std::make_optional(request.host())
+                                 : std::nullopt,
+      .port = request.has_port() ? std::make_optional(request.port())
+                                 : std::nullopt,
+      .interval_seconds = request.has_interval_seconds()
+                              ? std::make_optional(request.interval_seconds())
+                              : std::nullopt,
+      .timeout_ms = request.has_timeout_ms()
+                        ? std::make_optional(request.timeout_ms())
+                        : std::nullopt,
   };
 }
 
@@ -159,7 +173,7 @@ TargetService::CreateTargetResult TargetService::CreateTarget(
   try {
     const auto create_request = ToDomainCreateRequest(request);
     if (const auto error =
-            monitor_service::target_validator::ValidateCreateTargetRequest(
+            netwatch::target_service::validator::ValidateCreateTargetRequest(
                 create_request)) {
       return InvalidArgument(*error);
     }
@@ -173,9 +187,22 @@ TargetService::CreateTargetResult TargetService::CreateTarget(
 TargetService::UpdateTargetResult TargetService::UpdateTarget(
     CallContext&, proto::UpdateTargetRequest&& request) {
   try {
-    const auto target = ToDomainTarget(request.target());
+    if (request.id() <= 0) {
+      return InvalidArgument("target id must be a positive integer");
+    }
+    if (!HasPatchFields(request)) {
+      return InvalidArgument("patch body must contain at least one field");
+    }
+
+    const auto current_target = repository_.GetTargetById(request.id());
+    if (!current_target) {
+      return NotFound("target not found");
+    }
+
+    const auto target =
+        domain::ApplyUpdate(*current_target, ToDomainUpdateRequest(request));
     if (const auto error =
-            monitor_service::target_validator::ValidateTarget(target)) {
+            netwatch::target_service::validator::ValidateTarget(target)) {
       return InvalidArgument(*error);
     }
 

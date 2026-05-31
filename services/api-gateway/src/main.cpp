@@ -10,6 +10,7 @@
 #include <userver/ugrpc/client/simple_client_component.hpp>
 #include <userver/utils/daemon_run.hpp>
 
+#include <netwatch/alert_service_client.usrv.pb.hpp>
 #include <netwatch/monitor_service_client.usrv.pb.hpp>
 #include <netwatch/target_service_client.usrv.pb.hpp>
 
@@ -42,20 +43,19 @@ int main(int argc, char* argv[]) {
               netwatch::monitor::v1::CheckServiceClient>>(
               "check-service-client")
           .Append<userver::ugrpc::client::SimpleClientComponent<
-              netwatch::monitor::v1::AlertServiceClient>>(
-              "alert-service-client")
-          .Append<monitor_service::target::TargetClient>()
-          .Append<monitor_service::checks::CheckClient>()
-          .Append<monitor_service::alerts::AlertClient>()
-          .Append<monitor_service::web::SwaggerUiHandler>()
-          .Append<monitor_service::web::OpenApiHandler>()
-          .Append<monitor_service::alerts::AlertsHandler>()
-          .Append<monitor_service::alerts::ActiveAlertsHandler>()
-          .Append<monitor_service::checks::ManualCheckHandler>()
-          .Append<monitor_service::checks::TargetChecksHandler>()
-          .Append<monitor_service::checks::TargetStatusHandler>()
-          .Append<monitor_service::target::TargetByIdHandler>()
-          .Append<monitor_service::target::TargetsHandler>();
+              netwatch::alert::v1::AlertServiceClient>>("alert-service-client")
+          .Append<netwatch::target_client::TargetClient>()
+          .Append<netwatch::monitor_client::CheckClient>()
+          .Append<netwatch::alert_client::AlertClient>()
+          .Append<netwatch::api_gateway::web::SwaggerUiHandler>()
+          .Append<netwatch::api_gateway::web::OpenApiHandler>()
+          .Append<netwatch::api_gateway::alerts::AlertsHandler>()
+          .Append<netwatch::api_gateway::alerts::ActiveAlertsHandler>()
+          .Append<netwatch::api_gateway::checks::ManualCheckHandler>()
+          .Append<netwatch::api_gateway::checks::TargetChecksHandler>()
+          .Append<netwatch::api_gateway::checks::TargetStatusHandler>()
+          .Append<netwatch::api_gateway::targets::TargetByIdHandler>()
+          .Append<netwatch::api_gateway::targets::TargetsHandler>();
 
   return userver::utils::DaemonMain(argc, argv, component_list);
 }

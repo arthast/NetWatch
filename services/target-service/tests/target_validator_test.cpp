@@ -2,7 +2,7 @@
 
 #include <userver/utest/utest.hpp>
 
-namespace monitor_service::target {
+namespace netwatch::target_service {
 namespace {
 CreateTargetRequest MakeHttpTarget() {
   return CreateTargetRequest{
@@ -32,53 +32,53 @@ CreateTargetRequest MakeTcpTarget() {
   };
 }
 }  // namespace
-}  // namespace monitor_service::target
+}  // namespace netwatch::target_service
 
 UTEST(TargetValidator, AcceptsValidHttpTarget) {
   const auto error =
-      monitor_service::target_validator::ValidateCreateTargetRequest(
-          monitor_service::target::MakeHttpTarget());
+      netwatch::target_service::validator::ValidateCreateTargetRequest(
+          netwatch::target_service::MakeHttpTarget());
 
   EXPECT_FALSE(error.has_value());
 }
 
 UTEST(TargetValidator, AcceptsValidTcpTarget) {
   const auto error =
-      monitor_service::target_validator::ValidateCreateTargetRequest(
-          monitor_service::target::MakeTcpTarget());
+      netwatch::target_service::validator::ValidateCreateTargetRequest(
+          netwatch::target_service::MakeTcpTarget());
 
   EXPECT_FALSE(error.has_value());
 }
 
 UTEST(TargetValidator, RejectsHttpTargetWithoutUrl) {
-  auto request = monitor_service::target::MakeHttpTarget();
+  auto request = netwatch::target_service::MakeHttpTarget();
   request.url = std::nullopt;
 
   const auto error =
-      monitor_service::target_validator::ValidateCreateTargetRequest(request);
+      netwatch::target_service::validator::ValidateCreateTargetRequest(request);
 
   ASSERT_TRUE(error.has_value());
   EXPECT_EQ(*error, "http target requires url");
 }
 
 UTEST(TargetValidator, RejectsTcpTargetWithInvalidPort) {
-  auto request = monitor_service::target::MakeTcpTarget();
+  auto request = netwatch::target_service::MakeTcpTarget();
   request.port = 70000;
 
   const auto error =
-      monitor_service::target_validator::ValidateCreateTargetRequest(request);
+      netwatch::target_service::validator::ValidateCreateTargetRequest(request);
 
   ASSERT_TRUE(error.has_value());
   EXPECT_EQ(*error, "tcp target port must be between 1 and 65535");
 }
 
 UTEST(TargetValidator, RejectsTimeoutGreaterThanInterval) {
-  auto request = monitor_service::target::MakeHttpTarget();
+  auto request = netwatch::target_service::MakeHttpTarget();
   request.interval_seconds = 5;
   request.timeout_ms = 5000;
 
   const auto error =
-      monitor_service::target_validator::ValidateCreateTargetRequest(request);
+      netwatch::target_service::validator::ValidateCreateTargetRequest(request);
 
   ASSERT_TRUE(error.has_value());
   EXPECT_EQ(*error,

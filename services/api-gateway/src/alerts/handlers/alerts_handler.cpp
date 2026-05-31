@@ -6,13 +6,15 @@
 #include <alerts/json/alert_json.hpp>
 #include <common/http_response.hpp>
 
-namespace monitor_service::alerts {
+namespace netwatch::api_gateway::alerts {
 
 AlertsHandler::AlertsHandler(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& component_context)
     : HttpHandlerBase(config, component_context),
-      alert_client_(component_context.FindComponent<AlertClient>()) {}
+      alert_client_(component_context
+                        .FindComponent<netwatch::alert_client::AlertClient>()) {
+}
 
 std::string AlertsHandler::HandleRequestThrow(
     const userver::server::http::HttpRequest& request,
@@ -21,4 +23,4 @@ std::string AlertsHandler::HandleRequestThrow(
                               SerializeAlerts(alert_client_.ListAlerts()));
 }
 
-}  // namespace monitor_service::alerts
+}  // namespace netwatch::api_gateway::alerts

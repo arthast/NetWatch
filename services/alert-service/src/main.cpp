@@ -22,7 +22,7 @@ int main(int argc, char* argv[]) {
           .Append<userver::clients::dns::Component>()
           .Append<userver::components::Postgres>("postgres-db-1")
           .AppendComponentList(userver::ugrpc::server::MinimalComponentList())
-          .Append<monitor_service::alerts::AlertGrpcService>();
+          .Append<netwatch::alert_service::alerts::AlertGrpcService>();
 
   return userver::utils::DaemonMain(argc, argv, component_list);
 }

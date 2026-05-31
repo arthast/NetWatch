@@ -10,7 +10,7 @@
 
 #include <checks/model/check_result.hpp>
 
-namespace monitor_service::checks {
+namespace netwatch::monitor_client {
 
 class CheckClient final : public userver::components::ComponentBase {
  public:
@@ -30,4 +30,4 @@ class CheckClient final : public userver::components::ComponentBase {
   netwatch::monitor::v1::CheckServiceClient& client_;
 };
 
-}  // namespace monitor_service::checks
+}  // namespace netwatch::monitor_client

@@ -10,7 +10,7 @@
 #include <common/http_response.hpp>
 #include <targets/json/target_json.hpp>
 
-namespace monitor_service::target {
+namespace netwatch::api_gateway::targets {
 using common::ErrorResponse;
 using common::JsonResponse;
 
@@ -18,7 +18,9 @@ TargetsHandler::TargetsHandler(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& component_context)
     : HttpHandlerBase(config, component_context),
-      target_client_(component_context.FindComponent<TargetClient>()) {}
+      target_client_(
+          component_context
+              .FindComponent<netwatch::target_client::TargetClient>()) {}
 
 std::string TargetsHandler::HandleRequestThrow(
     const userver::server::http::HttpRequest& request,
@@ -62,4 +64,4 @@ std::string TargetsHandler::HandleListTargets(
   return JsonResponse(request,
                       SerializeTargets(target_client_.ListActiveTargets()));
 }
-}  // namespace monitor_service::target
+}  // namespace netwatch::api_gateway::targets

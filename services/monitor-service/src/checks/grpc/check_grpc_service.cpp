@@ -6,11 +6,10 @@
 #include <utility>
 #include <vector>
 
-namespace monitor_service::checks {
+namespace netwatch::monitor_service::checks {
 namespace {
 
 namespace proto = netwatch::monitor::v1;
-namespace target_proto = netwatch::target::v1;
 
 grpc::Status NotFound(std::string message) {
   return grpc::Status{grpc::StatusCode::NOT_FOUND, std::move(message)};
@@ -26,21 +25,21 @@ proto::CheckStatus ToProtoCheckStatus(CheckStatus status) {
   return proto::CHECK_STATUS_UNSPECIFIED;
 }
 
-target_proto::TargetType ToProtoTargetType(target::TargetType type) {
-  switch (type) {
-    case target::TargetType::kHttp:
-      return target_proto::TARGET_TYPE_HTTP;
-    case target::TargetType::kTcp:
-      return target_proto::TARGET_TYPE_TCP;
+proto::CheckProtocol ToProtoCheckProtocol(CheckProtocol protocol) {
+  switch (protocol) {
+    case CheckProtocol::kHttp:
+      return proto::CHECK_PROTOCOL_HTTP;
+    case CheckProtocol::kTcp:
+      return proto::CHECK_PROTOCOL_TCP;
   }
-  return target_proto::TARGET_TYPE_UNSPECIFIED;
+  return proto::CHECK_PROTOCOL_UNSPECIFIED;
 }
 
 void FillProtoCheck(const CheckResult& source, proto::CheckResult& target) {
   target.set_id(source.id);
   target.set_target_id(source.target_id);
   target.set_status(ToProtoCheckStatus(source.status));
-  target.set_protocol(ToProtoTargetType(source.protocol));
+  target.set_protocol(ToProtoCheckProtocol(source.protocol));
 
   if (source.http_status) {
     target.set_http_status(*source.http_status);
@@ -108,4 +107,4 @@ CheckGrpcService::GetTargetStatusResult CheckGrpcService::GetTargetStatus(
   return MakeCheckResponse(*status);
 }
 
-}  // namespace monitor_service::checks
+}  // namespace netwatch::monitor_service::checks

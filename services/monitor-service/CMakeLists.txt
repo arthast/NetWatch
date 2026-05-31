@@ -20,19 +20,10 @@ find_package(
     userver_setup_environment()
 endif()
 
-set(NETWATCH_TARGET_DOMAIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/target-domain")
-set(NETWATCH_MONITOR_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/monitor-core")
+set(NETWATCH_ALERT_CLIENT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/alert-client")
 set(NETWATCH_MONITOR_CLIENT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/monitor-client")
 set(NETWATCH_PROTO_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/netwatch-proto")
 set(NETWATCH_TARGET_CLIENT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/target-client")
-
-if(NOT TARGET netwatch_target_domain)
-    add_subdirectory("${NETWATCH_TARGET_DOMAIN_DIR}" netwatch_target_domain)
-endif()
-
-if(NOT TARGET netwatch_monitor_core)
-    add_subdirectory("${NETWATCH_MONITOR_CORE_DIR}" netwatch_monitor_core)
-endif()
 
 if(NOT TARGET netwatch_grpc_proto)
     add_subdirectory("${NETWATCH_PROTO_LIB_DIR}" netwatch_grpc_proto)
@@ -42,6 +33,10 @@ if(NOT TARGET netwatch_monitor_client)
     add_subdirectory("${NETWATCH_MONITOR_CLIENT_DIR}" netwatch_monitor_client)
 endif()
 
+if(NOT TARGET netwatch_alert_client)
+    add_subdirectory("${NETWATCH_ALERT_CLIENT_DIR}" netwatch_alert_client)
+endif()
+
 if(NOT TARGET netwatch_target_client)
     add_subdirectory("${NETWATCH_TARGET_CLIENT_DIR}" netwatch_target_client)
 endif()
@@ -49,6 +44,7 @@ endif()
 add_library(
     ${PROJECT_NAME}_objs OBJECT
     src/checks/grpc/check_grpc_service.cpp
+    src/checks/model/check_result.cpp
     src/checks/runner/check_runner.cpp
     src/checks/scheduler/target_check_scheduler.cpp
     src/checks/service/check_service.cpp
@@ -65,8 +61,7 @@ target_link_libraries(
     PUBLIC userver::core
            userver::grpc
            userver::postgresql
-           netwatch_target_domain
-           netwatch_monitor_core
+           netwatch_alert_client
            netwatch_monitor_client
            netwatch_grpc_proto
            netwatch_target_client

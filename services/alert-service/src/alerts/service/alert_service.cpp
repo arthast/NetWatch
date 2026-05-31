@@ -3,26 +3,26 @@
 #include <string>
 #include <utility>
 
-namespace monitor_service::alerts {
+namespace netwatch::alert_service::alerts {
 
 AlertService::AlertService(AlertRepository repository)
     : repository_(std::move(repository)) {}
 
 void AlertService::ProcessCheckResult(
-    const target::Target& target,
-    const std::optional<checks::CheckResult>& previous_check,
-    const checks::CheckResult& current_check) const {
-  if (current_check.status == checks::CheckStatus::kDown) {
+    const TargetSnapshot& target,
+    const std::optional<CheckResultSnapshot>& previous_check,
+    const CheckResultSnapshot& current_check) const {
+  if (current_check.status == CheckStatus::kDown) {
     ProcessTargetDown(target);
     return;
   }
 
-  if (!previous_check || previous_check->status == checks::CheckStatus::kDown) {
+  if (!previous_check || previous_check->status == CheckStatus::kDown) {
     ProcessTargetRecovered(target);
   }
 }
 
-void AlertService::ProcessTargetDown(const target::Target& target) const {
+void AlertService::ProcessTargetDown(const TargetSnapshot& target) const {
   if (repository_.FindActiveAlert(target.id, AlertType::kTargetDown)) {
     return;
   }
@@ -35,8 +35,8 @@ void AlertService::ProcessTargetDown(const target::Target& target) const {
   });
 }
 
-void AlertService::ProcessTargetRecovered(const target::Target& target) const {
+void AlertService::ProcessTargetRecovered(const TargetSnapshot& target) const {
   repository_.ResolveActiveAlert(target.id, AlertType::kTargetDown);
 }
 
-}  // namespace monitor_service::alerts
+}  // namespace netwatch::alert_service::alerts

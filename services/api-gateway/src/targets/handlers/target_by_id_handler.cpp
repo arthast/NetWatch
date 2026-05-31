@@ -12,67 +12,17 @@
 #include <common/http_response.hpp>
 #include <common/path_params.hpp>
 #include <targets/json/target_json.hpp>
-#include <targets/validation/target_validator.hpp>
 
-namespace monitor_service::target {
+namespace netwatch::api_gateway::targets {
 using common::ErrorResponse;
 using common::JsonResponse;
 
 namespace {
-bool HasPatchFields(const UpdateTargetRequest& request) {
+bool HasPatchFields(
+    const netwatch::target_client::UpdateTargetRequest& request) {
   return request.name || request.type || request.url || request.method ||
          request.expected_status_code || request.host || request.port ||
          request.interval_seconds || request.timeout_ms;
-}
-
-Target ApplyUpdate(Target target, const UpdateTargetRequest& request) {
-  const auto previous_type = target.type;
-  if (request.type) {
-    target.type = *request.type;
-  }
-
-  if (target.type != previous_type) {
-    if (target.type == TargetType::kHttp) {
-      target.url = std::nullopt;
-      target.method = "GET";
-      target.expected_status_code = 200;
-      target.host = std::nullopt;
-      target.port = std::nullopt;
-    } else {
-      target.url = std::nullopt;
-      target.method = std::nullopt;
-      target.expected_status_code = std::nullopt;
-      target.host = std::nullopt;
-      target.port = std::nullopt;
-    }
-  }
-
-  if (request.name) {
-    target.name = *request.name;
-  }
-  if (request.url) {
-    target.url = *request.url;
-  }
-  if (request.method) {
-    target.method = *request.method;
-  }
-  if (request.expected_status_code) {
-    target.expected_status_code = *request.expected_status_code;
-  }
-  if (request.host) {
-    target.host = *request.host;
-  }
-  if (request.port) {
-    target.port = *request.port;
-  }
-  if (request.interval_seconds) {
-    target.interval_seconds = *request.interval_seconds;
-  }
-  if (request.timeout_ms) {
-    target.timeout_ms = *request.timeout_ms;
-  }
-
-  return target;
 }
 }  // namespace
 
@@ -80,7 +30,9 @@ TargetByIdHandler::TargetByIdHandler(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& component_context)
     : HttpHandlerBase(config, component_context),
-      target_client_(component_context.FindComponent<TargetClient>()) {}
+      target_client_(
+          component_context
+              .FindComponent<netwatch::target_client::TargetClient>()) {}
 
 std::string TargetByIdHandler::HandleRequestThrow(
     const userver::server::http::HttpRequest& request,
@@ -124,13 +76,6 @@ std::string TargetByIdHandler::HandlePatchTarget(
     const userver::server::http::HttpRequest& request,
     std::int64_t target_id) const {
   try {
-    const auto current_target = target_client_.GetTargetById(target_id);
-    if (!current_target) {
-      return ErrorResponse(request,
-                           userver::server::http::HttpStatus::kNotFound,
-                           "target not found");
-    }
-
     const auto request_json =
         userver::formats::json::FromString(request.RequestBody());
     const auto update_request = ParseUpdateTargetRequest(request_json);
@@ -140,15 +85,8 @@ std::string TargetByIdHandler::HandlePatchTarget(
                            "patch body must contain at least one field");
     }
 
-    const auto updated_target = ApplyUpdate(*current_target, update_request);
-    if (const auto validation_error =
-            monitor_service::target_validator::ValidateTarget(updated_target)) {
-      return ErrorResponse(request,
-                           userver::server::http::HttpStatus::kBadRequest,
-                           *validation_error);
-    }
-
-    const auto saved_target = target_client_.UpdateTarget(updated_target);
+    const auto saved_target =
+        target_client_.UpdateTarget(target_id, update_request);
     if (!saved_target) {
       return ErrorResponse(request,
                            userver::server::http::HttpStatus::kNotFound,
@@ -176,4 +114,4 @@ std::string TargetByIdHandler::HandleDeleteTarget(
   request.SetResponseStatus(userver::server::http::HttpStatus::kNoContent);
   return {};
 }
-}  // namespace monitor_service::target
+}  // namespace netwatch::api_gateway::targets

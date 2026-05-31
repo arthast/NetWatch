@@ -8,7 +8,7 @@
 
 #include <targets/model/target.hpp>
 
-namespace monitor_service::target {
+namespace netwatch::target_service {
 namespace {
 Target TargetFromRow(const userver::storages::postgres::Row& row) {
   return Target{
@@ -213,4 +213,4 @@ bool TargetRepository::DeactivateTarget(std::int64_t target_id) const {
 
   return result.Size() != 0;
 }
-}  // namespace monitor_service::target
+}  // namespace netwatch::target_service

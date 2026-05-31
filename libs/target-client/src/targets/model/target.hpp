@@ -4,7 +4,7 @@
 #include <optional>
 #include <string>
 
-namespace monitor_service::target {
+namespace netwatch::target_client {
 enum class TargetType { kHttp, kTcp };
 
 struct Target {
@@ -57,4 +57,4 @@ struct UpdateTargetRequest {
 TargetType TargetTypeFromString(const std::string& value);
 
 std::string TargetTypeToString(TargetType type);
-}  // namespace monitor_service::target
+}  // namespace netwatch::target_client

@@ -2,7 +2,7 @@
 
 #include <stdexcept>
 
-namespace monitor_service::target {
+namespace netwatch::target_client {
 TargetType TargetTypeFromString(const std::string& value) {
   if (value == "http") {
     return TargetType::kHttp;
@@ -24,4 +24,4 @@ std::string TargetTypeToString(TargetType type) {
 
   throw std::invalid_argument("Invalid target type enum value");
 }
-}  // namespace monitor_service::target
+}  // namespace netwatch::target_client

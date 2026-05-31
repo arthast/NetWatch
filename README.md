@@ -10,8 +10,8 @@ userver. Проект разделен на четыре runtime-сервиса:
 
 - `api-gateway` с внешним HTTP API, Swagger UI и OpenAPI specification.
 - `target-service` с gRPC API для хранения и валидации targets.
-- Общая библиотека `target-domain` для target-модели и валидации.
-- Общая библиотека `monitor-core` для check/alert доменных моделей.
+- `target-service` владеет target-моделью и валидацией.
+- `monitor-service` владеет check-моделью.
 - Ручные HTTP/TCP проверки.
 - История checks и статус target по последней проверке.
 - Alert lifecycle: `target_down` создается при падении и закрывается при восстановлении.
@@ -52,9 +52,16 @@ monitor-service ---- monitor-postgres
 alert-service   ---- alert-postgres
 ```
 
-Общие target-типы и валидация лежат в `libs/target-domain`, общие check/alert
-модели - в `libs/monitor-core`, gRPC clients - в `libs/target-client` и
-`libs/monitor-client`, gRPC контракты - в `proto/netwatch`.
+Target-типы и валидация принадлежат `target-service`, check-модель принадлежит
+`monitor-service`, gRPC clients - в `libs/target-client`,
+`libs/monitor-client` и `libs/alert-client`, gRPC контракты - в
+`proto/netwatch`. Alert domain теперь принадлежит `alert-service`, клиентский
+alert DTO живет рядом с `alert-client`, а alert lifecycle принимает собственные
+snapshot-сообщения из `alert_service.proto` без импорта target/check контрактов.
+`target-client` теперь содержит только клиентские DTO и gRPC mapping, а PATCH
+target применяется и валидируется внутри `target-service`.
+`monitor-client` содержит клиентские check DTO и gRPC mapping, а check domain
+остается внутри `monitor-service`.
 
 Service-owned код теперь лежит внутри владельцев: target repository - в
 `services/target-service/src`, check storage и runner - в
@@ -224,7 +231,7 @@ curl -s "$BASE/api/v1/alerts" | jq
 ## Тесты
 
 Сейчас автоматизированные тесты разделены по ownership: target validation живет в
-`libs/target-domain` как `netwatch_target_domain_unittest`, monitor acceptance
+`services/target-service` как `netwatch_target_service_unittest`, monitor acceptance
 сценарии остаются в `services/monitor-service/tests`, а внешний HTTP/API gateway
 контракт проверяется integration flow. Flow поднимает Docker Compose и проверяет контур
 `api-gateway -> gRPC -> target-service/monitor-service/alert-service -> PostgreSQL`.
@@ -240,9 +247,9 @@ make test-debug
 
 ```bash
 docker compose run --rm --no-deps --user 1000:1000 \
-  --workdir /workspace/services/monitor-service \
+  --workdir /workspace \
   monitor-service \
-  bash -lc 'cmake -S . -B build-compose-test-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug -DUSERVER_FEATURE_GRPC=ON -DUSERVER_FEATURE_POSTGRESQL=ON -DUSERVER_SANITIZE="addr;ub" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build-compose-test-debug -j 1 --target netwatch_target_domain_unittest monitor_service && cd build-compose-test-debug && ctest --output-on-failure -R netwatch_target_domain_unittest'
+  bash -lc 'cmake -S . -B build-compose-test-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug -DUSERVER_FEATURE_GRPC=ON -DUSERVER_FEATURE_POSTGRESQL=ON -DUSERVER_SANITIZE="addr;ub" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build-compose-test-debug -j 1 --target netwatch_target_service_unittest monitor_service && cd build-compose-test-debug && ctest --output-on-failure -R netwatch_target_service_unittest'
 ```
 
 Собрать все сервисы из корня репозитория:
@@ -256,6 +263,20 @@ docker compose run --rm --no-deps --workdir /workspace monitor-service \
 
 ```bash
 ./tests/integration/run_api_gateway_flow.py
+```
+
+Быстрая локальная проверка во время разделения сервисов:
+
+```bash
+./scripts/quick_check.sh build
+```
+
+Для повторной проверки HTTP/gRPC flow без пересоздания Compose на каждый прогон:
+
+```bash
+./scripts/quick_check.sh flow-keep
+./scripts/quick_check.sh flow-skip
+./scripts/quick_check.sh down
 ```
 
 Запустить тот же flow против production-like images:
@@ -274,7 +295,7 @@ GitHub Actions workflow находится в `.github/workflows/ci.yml`.
 На pull request и push он выполняет:
 
 - root-сборку `api_gateway`, `target_service`, `monitor_service`, `alert_service`;
-- `netwatch_target_domain_unittest` через отдельный target-service job;
+- `netwatch_target_service_unittest` через отдельный target-service job;
 - отдельные service build jobs для `api-gateway`, `target-service`,
   `monitor-service`, `alert-service`;
 - внешний integration flow через dev-compose;

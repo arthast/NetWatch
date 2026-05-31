@@ -9,7 +9,8 @@
 
 #include <common/json.hpp>
 
-namespace monitor_service::target {
+namespace netwatch::api_gateway::targets {
+namespace target_client = netwatch::target_client;
 namespace {
 template <typename T>
 T ReadRequired(const userver::formats::json::Value& json,
@@ -48,7 +49,7 @@ std::optional<T> ReadPatchOptional(const userver::formats::json::Value& json,
 
 }  // namespace
 
-CreateTargetRequest ParseCreateTargetRequest(
+target_client::CreateTargetRequest ParseCreateTargetRequest(
     const userver::formats::json::Value& json) {
   if (!json.IsObject()) {
     throw std::invalid_argument("request body must be a JSON object");
@@ -59,9 +60,10 @@ CreateTargetRequest ParseCreateTargetRequest(
     expected_status_code = ReadOptional<int>(json, "expected_status");
   }
 
-  auto request = CreateTargetRequest{
+  auto request = target_client::CreateTargetRequest{
       .name = ReadRequired<std::string>(json, "name"),
-      .type = TargetTypeFromString(ReadRequired<std::string>(json, "type")),
+      .type = target_client::TargetTypeFromString(
+          ReadRequired<std::string>(json, "type")),
       .url = ReadOptional<std::string>(json, "url"),
       .method = ReadOptional<std::string>(json, "method"),
       .expected_status_code = expected_status_code,
@@ -71,7 +73,7 @@ CreateTargetRequest ParseCreateTargetRequest(
       .timeout_ms = ReadRequired<int>(json, "timeout_ms"),
   };
 
-  if (request.type == TargetType::kHttp) {
+  if (request.type == target_client::TargetType::kHttp) {
     if (!request.method) {
       request.method = "GET";
     }
@@ -83,15 +85,15 @@ CreateTargetRequest ParseCreateTargetRequest(
   return request;
 }
 
-UpdateTargetRequest ParseUpdateTargetRequest(
+target_client::UpdateTargetRequest ParseUpdateTargetRequest(
     const userver::formats::json::Value& json) {
   if (!json.IsObject()) {
     throw std::invalid_argument("request body must be a JSON object");
   }
 
-  std::optional<TargetType> type;
+  std::optional<target_client::TargetType> type;
   if (const auto type_value = ReadPatchOptional<std::string>(json, "type")) {
-    type = TargetTypeFromString(*type_value);
+    type = target_client::TargetTypeFromString(*type_value);
   }
 
   auto expected_status_code =
@@ -100,7 +102,7 @@ UpdateTargetRequest ParseUpdateTargetRequest(
     expected_status_code = ReadPatchOptional<int>(json, "expected_status");
   }
 
-  return UpdateTargetRequest{
+  return target_client::UpdateTargetRequest{
       .name = ReadPatchOptional<std::string>(json, "name"),
       .type = type,
       .url = ReadPatchOptional<std::string>(json, "url"),
@@ -113,11 +115,12 @@ UpdateTargetRequest ParseUpdateTargetRequest(
   };
 }
 
-userver::formats::json::Value SerializeTarget(const Target& target) {
+userver::formats::json::Value SerializeTarget(
+    const target_client::Target& target) {
   userver::formats::json::ValueBuilder builder;
   builder["id"] = target.id;
   builder["name"] = target.name;
-  builder["type"] = TargetTypeToString(target.type);
+  builder["type"] = target_client::TargetTypeToString(target.type);
   common::SetOptionalField(builder, "url", target.url);
   common::SetOptionalField(builder, "method", target.method);
   common::SetOptionalField(builder, "expected_status_code",
@@ -131,7 +134,7 @@ userver::formats::json::Value SerializeTarget(const Target& target) {
 }
 
 userver::formats::json::Value SerializeTargets(
-    const std::vector<Target>& targets) {
+    const std::vector<target_client::Target>& targets) {
   userver::formats::json::ValueBuilder builder(
       userver::formats::common::Type::kArray);
   for (const auto& target : targets) {
@@ -146,4 +149,4 @@ userver::formats::json::Value SerializeError(std::string_view message) {
   builder["error"] = std::string{message};
   return builder.ExtractValue();
 }
-}  // namespace monitor_service::target
+}  // namespace netwatch::api_gateway::targets

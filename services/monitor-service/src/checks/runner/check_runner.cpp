@@ -11,7 +11,7 @@
 #include <userver/engine/io/exception.hpp>
 #include <userver/engine/io/socket.hpp>
 
-namespace monitor_service::checks {
+namespace netwatch::monitor_service::checks {
 namespace {
 int ElapsedMs(std::chrono::steady_clock::time_point started_at) {
   const auto elapsed = std::chrono::steady_clock::now() - started_at;
@@ -19,11 +19,13 @@ int ElapsedMs(std::chrono::steady_clock::time_point started_at) {
       std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count());
 }
 
-CheckResult MakeBaseResult(const target::Target& target) {
+CheckResult MakeBaseResult(const netwatch::target_client::Target& target) {
   return CheckResult{
       .target_id = target.id,
       .status = CheckStatus::kDown,
-      .protocol = target.type,
+      .protocol = target.type == netwatch::target_client::TargetType::kHttp
+                      ? CheckProtocol::kHttp
+                      : CheckProtocol::kTcp,
       .http_status = std::nullopt,
       .latency_ms = std::nullopt,
       .error_message = std::nullopt,
@@ -36,11 +38,12 @@ CheckRunner::CheckRunner(userver::clients::http::Client& http_client,
                          userver::clients::dns::Resolver& dns_resolver)
     : http_client_(http_client), dns_resolver_(dns_resolver) {}
 
-CheckResult CheckRunner::RunCheck(const target::Target& target) const {
+CheckResult CheckRunner::RunCheck(
+    const netwatch::target_client::Target& target) const {
   switch (target.type) {
-    case target::TargetType::kHttp:
+    case netwatch::target_client::TargetType::kHttp:
       return RunHttpCheck(target);
-    case target::TargetType::kTcp:
+    case netwatch::target_client::TargetType::kTcp:
       return RunTcpCheck(target);
   }
 
@@ -49,7 +52,8 @@ CheckResult CheckRunner::RunCheck(const target::Target& target) const {
   return result;
 }
 
-CheckResult CheckRunner::RunHttpCheck(const target::Target& target) const {
+CheckResult CheckRunner::RunHttpCheck(
+    const netwatch::target_client::Target& target) const {
   auto result = MakeBaseResult(target);
   const auto started_at = std::chrono::steady_clock::now();
 
@@ -89,7 +93,8 @@ CheckResult CheckRunner::RunHttpCheck(const target::Target& target) const {
   return result;
 }
 
-CheckResult CheckRunner::RunTcpCheck(const target::Target& target) const {
+CheckResult CheckRunner::RunTcpCheck(
+    const netwatch::target_client::Target& target) const {
   auto result = MakeBaseResult(target);
   const auto started_at = std::chrono::steady_clock::now();
   const auto deadline = userver::engine::Deadline::FromDuration(
@@ -134,4 +139,4 @@ CheckResult CheckRunner::RunTcpCheck(const target::Target& target) const {
 
   return result;
 }
-}  // namespace monitor_service::checks
+}  // namespace netwatch::monitor_service::checks

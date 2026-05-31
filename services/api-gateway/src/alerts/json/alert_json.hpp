@@ -5,10 +5,12 @@
 
 #include <alerts/model/alert.hpp>
 
-namespace monitor_service::alerts {
+namespace netwatch::api_gateway::alerts {
 
-userver::formats::json::Value SerializeAlert(const Alert& alert);
+userver::formats::json::Value SerializeAlert(
+    const netwatch::alert_client::Alert& alert);
 
-userver::formats::json::Value SerializeAlerts(const std::vector<Alert>& alerts);
+userver::formats::json::Value SerializeAlerts(
+    const std::vector<netwatch::alert_client::Alert>& alerts);
 
-}  // namespace monitor_service::alerts
+}  // namespace netwatch::api_gateway::alerts

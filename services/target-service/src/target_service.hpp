@@ -34,7 +34,7 @@ class TargetService final : public target::v1::TargetServiceBase::Component {
       CallContext& context, target::v1::ListTargetsRequest&& request) override;
 
  private:
-  monitor_service::target::TargetRepository repository_;
+  netwatch::target_service::TargetRepository repository_;
 };
 
 }  // namespace netwatch::target_service

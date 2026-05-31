@@ -7,7 +7,7 @@
 
 #include <targets/client/target_client.hpp>
 
-namespace monitor_service::target {
+namespace netwatch::api_gateway::targets {
 class TargetsHandler final : public userver::server::handlers::HttpHandlerBase {
  public:
   static constexpr std::string_view kName = "handler-targets";
@@ -27,6 +27,6 @@ class TargetsHandler final : public userver::server::handlers::HttpHandlerBase {
   std::string HandleListTargets(
       const userver::server::http::HttpRequest& request) const;
 
-  const TargetClient& target_client_;
+  const netwatch::target_client::TargetClient& target_client_;
 };
-}  // namespace monitor_service::target
+}  // namespace netwatch::api_gateway::targets

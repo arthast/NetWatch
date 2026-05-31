@@ -4,7 +4,7 @@
 #include <string_view>
 #include <userver/server/handlers/http_handler_base.hpp>
 
-namespace monitor_service::web {
+namespace netwatch::api_gateway::web {
 
 class OpenApiHandler final : public userver::server::handlers::HttpHandlerBase {
  public:
@@ -19,4 +19,4 @@ class OpenApiHandler final : public userver::server::handlers::HttpHandlerBase {
       userver::server::request::RequestContext& context) const override;
 };
 
-}  // namespace monitor_service::web
+}  // namespace netwatch::api_gateway::web

@@ -6,4 +6,5 @@ userver_add_grpc_library(
     PROTOS
         netwatch/target_service.proto
         netwatch/monitor_service.proto
+        netwatch/alert_service.proto
 )

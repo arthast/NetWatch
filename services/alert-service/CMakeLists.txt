@@ -19,17 +19,7 @@ if(NOT TARGET userver::core)
     userver_setup_environment()
 endif()
 
-set(NETWATCH_TARGET_DOMAIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/target-domain")
-set(NETWATCH_MONITOR_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/monitor-core")
 set(NETWATCH_PROTO_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/netwatch-proto")
-
-if(NOT TARGET netwatch_target_domain)
-    add_subdirectory("${NETWATCH_TARGET_DOMAIN_DIR}" netwatch_target_domain)
-endif()
-
-if(NOT TARGET netwatch_monitor_core)
-    add_subdirectory("${NETWATCH_MONITOR_CORE_DIR}" netwatch_monitor_core)
-endif()
 
 if(NOT TARGET netwatch_grpc_proto)
     add_subdirectory("${NETWATCH_PROTO_LIB_DIR}" netwatch_grpc_proto)
@@ -38,6 +28,7 @@ endif()
 add_library(
     ${PROJECT_NAME}_objs OBJECT
     src/alerts/grpc/alert_grpc_service.cpp
+    src/alerts/model/alert.cpp
     src/alerts/service/alert_service.cpp
     src/alerts/storage/alert_repository.cpp
 )
@@ -53,7 +44,6 @@ target_link_libraries(
            userver::grpc
            userver::postgresql
            netwatch_grpc_proto
-           netwatch_monitor_core
 )
 
 add_executable(${PROJECT_NAME} src/main.cpp)

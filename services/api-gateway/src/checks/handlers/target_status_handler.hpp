@@ -8,7 +8,7 @@
 #include <checks/client/check_client.hpp>
 #include <targets/client/target_client.hpp>
 
-namespace monitor_service::checks {
+namespace netwatch::api_gateway::checks {
 class TargetStatusHandler final
     : public userver::server::handlers::HttpHandlerBase {
  public:
@@ -23,7 +23,7 @@ class TargetStatusHandler final
       userver::server::request::RequestContext& context) const override;
 
  private:
-  const CheckClient& check_client_;
-  const target::TargetClient& target_client_;
+  const netwatch::monitor_client::CheckClient& check_client_;
+  const netwatch::target_client::TargetClient& target_client_;
 };
-}  // namespace monitor_service::checks
+}  // namespace netwatch::api_gateway::checks

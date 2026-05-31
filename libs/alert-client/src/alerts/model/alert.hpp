@@ -4,7 +4,7 @@
 #include <optional>
 #include <string>
 
-namespace monitor_service::alerts {
+namespace netwatch::alert_client {
 
 enum class AlertType { kTargetDown, kTargetRecovered, kHighLatency };
 
@@ -20,13 +20,6 @@ struct Alert {
   std::optional<std::string> resolved_at;
 };
 
-struct NewAlert {
-  std::int64_t target_id{0};
-  AlertType type{AlertType::kTargetDown};
-  AlertSeverity severity{AlertSeverity::kCritical};
-  std::string message;
-};
-
 std::string AlertTypeToString(AlertType type);
 
 AlertType AlertTypeFromString(const std::string& value);
@@ -35,4 +28,4 @@ std::string AlertSeverityToString(AlertSeverity severity);
 
 AlertSeverity AlertSeverityFromString(const std::string& value);
 
-}  // namespace monitor_service::alerts
+}  // namespace netwatch::alert_client

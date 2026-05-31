@@ -7,7 +7,7 @@
 
 #include <targets/client/target_client.hpp>
 
-namespace monitor_service::target {
+namespace netwatch::api_gateway::targets {
 class TargetByIdHandler final
     : public userver::server::handlers::HttpHandlerBase {
  public:
@@ -33,6 +33,6 @@ class TargetByIdHandler final
       const userver::server::http::HttpRequest& request,
       std::int64_t target_id) const;
 
-  const TargetClient& target_client_;
+  const netwatch::target_client::TargetClient& target_client_;
 };
-}  // namespace monitor_service::target
+}  // namespace netwatch::api_gateway::targets

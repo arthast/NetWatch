@@ -5,14 +5,15 @@
 
 #include <common/json.hpp>
 
-namespace monitor_service::alerts {
+namespace netwatch::api_gateway::alerts {
+namespace alert_client = netwatch::alert_client;
 
-userver::formats::json::Value SerializeAlert(const Alert& alert) {
+userver::formats::json::Value SerializeAlert(const alert_client::Alert& alert) {
   userver::formats::json::ValueBuilder builder;
   builder["id"] = alert.id;
   builder["target_id"] = alert.target_id;
-  builder["type"] = AlertTypeToString(alert.type);
-  builder["severity"] = AlertSeverityToString(alert.severity);
+  builder["type"] = alert_client::AlertTypeToString(alert.type);
+  builder["severity"] = alert_client::AlertSeverityToString(alert.severity);
   builder["message"] = alert.message;
   builder["created_at"] = alert.created_at;
   common::SetOptionalField(builder, "resolved_at", alert.resolved_at);
@@ -20,7 +21,7 @@ userver::formats::json::Value SerializeAlert(const Alert& alert) {
 }
 
 userver::formats::json::Value SerializeAlerts(
-    const std::vector<Alert>& alerts) {
+    const std::vector<alert_client::Alert>& alerts) {
   userver::formats::json::ValueBuilder builder(
       userver::formats::common::Type::kArray);
   for (const auto& alert : alerts) {
@@ -30,4 +31,4 @@ userver::formats::json::Value SerializeAlerts(
   return builder.ExtractValue();
 }
 
-}  // namespace monitor_service::alerts
+}  // namespace netwatch::api_gateway::alerts

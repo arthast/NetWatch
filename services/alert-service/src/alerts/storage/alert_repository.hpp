@@ -8,7 +8,7 @@
 
 #include <alerts/model/alert.hpp>
 
-namespace monitor_service::alerts {
+namespace netwatch::alert_service::alerts {
 
 class AlertRepository {
  public:
@@ -30,4 +30,4 @@ class AlertRepository {
   userver::storages::postgres::ClusterPtr pg_cluster_;
 };
 
-}  // namespace monitor_service::alerts
+}  // namespace netwatch::alert_service::alerts

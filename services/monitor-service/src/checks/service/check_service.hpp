@@ -16,7 +16,7 @@
 #include <targets/client/target_client.hpp>
 #include <targets/model/target.hpp>
 
-namespace monitor_service::checks {
+namespace netwatch::monitor_service::checks {
 
 class CheckServiceComponent final : public userver::components::ComponentBase {
  public:
@@ -33,18 +33,20 @@ class CheckServiceComponent final : public userver::components::ComponentBase {
 
   std::optional<CheckResult> GetTargetStatus(std::int64_t target_id) const;
 
-  CheckResult RunCheck(const target::Target& target) const;
+  CheckResult RunCheck(const netwatch::target_client::Target& target) const;
 
-  std::optional<CheckResult> TryRunCheck(const target::Target& target) const;
+  std::optional<CheckResult> TryRunCheck(
+      const netwatch::target_client::Target& target) const;
 
  private:
-  CheckResult RunCheckLocked(const target::Target& target) const;
+  CheckResult RunCheckLocked(
+      const netwatch::target_client::Target& target) const;
 
-  const target::TargetClient& target_client_;
-  const alerts::AlertClient& alert_client_;
+  const netwatch::target_client::TargetClient& target_client_;
+  const netwatch::alert_client::AlertClient& alert_client_;
   CheckRepository check_repository_;
   CheckRunner check_runner_;
   mutable userver::concurrent::MutexSet<std::int64_t> target_mutexes_;
 };
 
-}  // namespace monitor_service::checks
+}  // namespace netwatch::monitor_service::checks

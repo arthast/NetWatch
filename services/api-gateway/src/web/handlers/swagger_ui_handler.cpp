@@ -2,7 +2,7 @@
 
 #include <userver/server/http/http_request.hpp>
 
-namespace monitor_service::web {
+namespace netwatch::api_gateway::web {
 namespace {
 
 constexpr std::string_view kSwaggerHtml = R"html(<!doctype html>
@@ -49,4 +49,4 @@ std::string SwaggerUiHandler::HandleRequestThrow(
   return std::string{kSwaggerHtml};
 }
 
-}  // namespace monitor_service::web
+}  // namespace netwatch::api_gateway::web

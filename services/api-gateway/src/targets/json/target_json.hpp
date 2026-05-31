@@ -6,17 +6,18 @@
 
 #include <targets/model/target.hpp>
 
-namespace monitor_service::target {
-CreateTargetRequest ParseCreateTargetRequest(
+namespace netwatch::api_gateway::targets {
+netwatch::target_client::CreateTargetRequest ParseCreateTargetRequest(
     const userver::formats::json::Value& json);
 
-UpdateTargetRequest ParseUpdateTargetRequest(
+netwatch::target_client::UpdateTargetRequest ParseUpdateTargetRequest(
     const userver::formats::json::Value& json);
 
-userver::formats::json::Value SerializeTarget(const Target& target);
+userver::formats::json::Value SerializeTarget(
+    const netwatch::target_client::Target& target);
 
 userver::formats::json::Value SerializeTargets(
-    const std::vector<Target>& targets);
+    const std::vector<netwatch::target_client::Target>& targets);
 
 userver::formats::json::Value SerializeError(std::string_view message);
-}  // namespace monitor_service::target
+}  // namespace netwatch::api_gateway::targets

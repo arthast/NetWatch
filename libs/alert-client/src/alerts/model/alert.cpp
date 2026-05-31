@@ -2,7 +2,7 @@
 
 #include <stdexcept>
 
-namespace monitor_service::alerts {
+namespace netwatch::alert_client {
 
 std::string AlertTypeToString(AlertType type) {
   switch (type) {
@@ -53,4 +53,4 @@ AlertSeverity AlertSeverityFromString(const std::string& value) {
   throw std::invalid_argument("unknown alert severity: " + value);
 }
 
-}  // namespace monitor_service::alerts
+}  // namespace netwatch::alert_client

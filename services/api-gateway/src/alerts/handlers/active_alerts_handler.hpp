@@ -6,7 +6,7 @@
 
 #include <alerts/client/alert_client.hpp>
 
-namespace monitor_service::alerts {
+namespace netwatch::api_gateway::alerts {
 
 class ActiveAlertsHandler final
     : public userver::server::handlers::HttpHandlerBase {
@@ -22,7 +22,7 @@ class ActiveAlertsHandler final
       userver::server::request::RequestContext& context) const override;
 
  private:
-  const AlertClient& alert_client_;
+  const netwatch::alert_client::AlertClient& alert_client_;
 };
 
-}  // namespace monitor_service::alerts
+}  // namespace netwatch::api_gateway::alerts

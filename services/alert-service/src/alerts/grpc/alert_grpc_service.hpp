@@ -2,16 +2,16 @@
 
 #include <string_view>
 
-#include <netwatch/monitor_service_service.usrv.pb.hpp>
+#include <netwatch/alert_service_service.usrv.pb.hpp>
 #include <userver/components/component.hpp>
 
-#include <alerts/storage/alert_repository.hpp>
 #include <alerts/service/alert_service.hpp>
+#include <alerts/storage/alert_repository.hpp>
 
-namespace monitor_service::alerts {
+namespace netwatch::alert_service::alerts {
 
 class AlertGrpcService final
-    : public netwatch::monitor::v1::AlertServiceBase::Component {
+    : public netwatch::alert::v1::AlertServiceBase::Component {
  public:
   static constexpr std::string_view kName = "alert-grpc-service";
 
@@ -20,19 +20,19 @@ class AlertGrpcService final
 
   ListAlertsResult ListAlerts(
       CallContext& context,
-      netwatch::monitor::v1::ListAlertsRequest&& request) override;
+      netwatch::alert::v1::ListAlertsRequest&& request) override;
 
   ListActiveAlertsResult ListActiveAlerts(
       CallContext& context,
-      netwatch::monitor::v1::ListAlertsRequest&& request) override;
+      netwatch::alert::v1::ListAlertsRequest&& request) override;
 
   ProcessCheckResultResult ProcessCheckResult(
       CallContext& context,
-      netwatch::monitor::v1::ProcessCheckResultRequest&& request) override;
+      netwatch::alert::v1::ProcessCheckResultRequest&& request) override;
 
  private:
   AlertRepository repository_;
   AlertService alert_service_;
 };
 
-}  // namespace monitor_service::alerts
+}  // namespace netwatch::alert_service::alerts

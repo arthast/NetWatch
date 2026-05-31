@@ -1,21 +1,18 @@
 #include <alerts/grpc/alert_grpc_service.hpp>
 
-#include <checks/model/check_result.hpp>
 #include <grpcpp/support/status.h>
 #include <optional>
 #include <stdexcept>
 #include <string>
-#include <targets/model/target.hpp>
 #include <userver/components/component_context.hpp>
 #include <userver/storages/postgres/component.hpp>
 #include <utility>
 #include <vector>
 
-namespace monitor_service::alerts {
+namespace netwatch::alert_service::alerts {
 namespace {
 
-namespace proto = netwatch::monitor::v1;
-namespace target_proto = netwatch::target::v1;
+namespace proto = netwatch::alert::v1;
 
 grpc::Status InvalidArgument(std::string message) {
   return grpc::Status{grpc::StatusCode::INVALID_ARGUMENT, std::move(message)};
@@ -43,27 +40,27 @@ proto::AlertSeverity ToProtoAlertSeverity(AlertSeverity severity) {
   return proto::ALERT_SEVERITY_UNSPECIFIED;
 }
 
-target::TargetType ToDomainTargetType(target_proto::TargetType type) {
+TargetType ToDomainTargetType(proto::TargetType type) {
   switch (type) {
-    case target_proto::TARGET_TYPE_HTTP:
-      return target::TargetType::kHttp;
-    case target_proto::TARGET_TYPE_TCP:
-      return target::TargetType::kTcp;
-    case target_proto::TARGET_TYPE_UNSPECIFIED:
-    case target_proto::TargetType_INT_MIN_SENTINEL_DO_NOT_USE_:
-    case target_proto::TargetType_INT_MAX_SENTINEL_DO_NOT_USE_:
+    case proto::TARGET_TYPE_HTTP:
+      return TargetType::kHttp;
+    case proto::TARGET_TYPE_TCP:
+      return TargetType::kTcp;
+    case proto::TARGET_TYPE_UNSPECIFIED:
+    case proto::TargetType_INT_MIN_SENTINEL_DO_NOT_USE_:
+    case proto::TargetType_INT_MAX_SENTINEL_DO_NOT_USE_:
       break;
   }
 
   throw std::invalid_argument("target type must be http or tcp");
 }
 
-checks::CheckStatus ToDomainCheckStatus(proto::CheckStatus status) {
+CheckStatus ToDomainCheckStatus(proto::CheckStatus status) {
   switch (status) {
     case proto::CHECK_STATUS_UP:
-      return checks::CheckStatus::kUp;
+      return CheckStatus::kUp;
     case proto::CHECK_STATUS_DOWN:
-      return checks::CheckStatus::kDown;
+      return CheckStatus::kDown;
     case proto::CHECK_STATUS_UNSPECIFIED:
     case proto::CheckStatus_INT_MIN_SENTINEL_DO_NOT_USE_:
     case proto::CheckStatus_INT_MAX_SENTINEL_DO_NOT_USE_:
@@ -73,14 +70,14 @@ checks::CheckStatus ToDomainCheckStatus(proto::CheckStatus status) {
   throw std::invalid_argument("check status must be up or down");
 }
 
-target::Target ToDomainTarget(const target_proto::Target& source) {
-  return target::Target{
+TargetSnapshot ToDomainTarget(const proto::TargetSnapshot& source) {
+  return TargetSnapshot{
       .id = source.id(),
       .name = source.name(),
       .type = ToDomainTargetType(source.type()),
       .url = source.has_url() ? std::make_optional(source.url()) : std::nullopt,
-      .method =
-          source.has_method() ? std::make_optional(source.method()) : std::nullopt,
+      .method = source.has_method() ? std::make_optional(source.method())
+                                    : std::nullopt,
       .expected_status_code =
           source.has_expected_status_code()
               ? std::make_optional(source.expected_status_code())
@@ -95,8 +92,8 @@ target::Target ToDomainTarget(const target_proto::Target& source) {
   };
 }
 
-checks::CheckResult ToDomainCheck(const proto::CheckResult& source) {
-  return checks::CheckResult{
+CheckResultSnapshot ToDomainCheck(const proto::CheckResultSnapshot& source) {
+  return CheckResultSnapshot{
       .id = source.id(),
       .target_id = source.target_id(),
       .status = ToDomainCheckStatus(source.status()),
@@ -173,4 +170,4 @@ AlertGrpcService::ProcessCheckResultResult AlertGrpcService::ProcessCheckResult(
   }
 }
 
-}  // namespace monitor_service::alerts
+}  // namespace netwatch::alert_service::alerts

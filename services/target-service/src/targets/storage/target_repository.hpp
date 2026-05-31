@@ -7,7 +7,7 @@
 
 #include <targets/model/target.hpp>
 
-namespace monitor_service::target {
+namespace netwatch::target_service {
 class TargetRepository {
  public:
   explicit TargetRepository(userver::storages::postgres::ClusterPtr pg_cluster);
@@ -27,4 +27,4 @@ class TargetRepository {
  private:
   userver::storages::postgres::ClusterPtr pg_cluster_;
 };
-}  // namespace monitor_service::target
+}  // namespace netwatch::target_service

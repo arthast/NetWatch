@@ -3,7 +3,7 @@
 #include <userver/http/content_type.hpp>
 #include <userver/server/http/http_request.hpp>
 
-namespace monitor_service::web {
+namespace netwatch::api_gateway::web {
 namespace {
 
 constexpr std::string_view kOpenApiSpec = R"json({
@@ -431,4 +431,4 @@ std::string OpenApiHandler::HandleRequestThrow(
   return std::string{kOpenApiSpec};
 }
 
-}  // namespace monitor_service::web
+}  // namespace netwatch::api_gateway::web

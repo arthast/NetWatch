@@ -3,7 +3,7 @@
 #include <optional>
 #include <string_view>
 
-namespace monitor_service::target_validator {
+namespace netwatch::target_service::validator {
 namespace {
 bool IsBlank(std::string_view value) {
   return value.find_first_not_of(" \t\n\r") == std::string_view::npos;
@@ -13,7 +13,7 @@ bool IsValidPort(int port) { return port >= 1 && port <= 65535; }
 }  // namespace
 
 std::optional<std::string> ValidateCreateTargetRequest(
-    const target::CreateTargetRequest& request) {
+    const netwatch::target_service::CreateTargetRequest& request) {
   if (IsBlank(request.name)) {
     return "name must not be empty";
   }
@@ -33,7 +33,7 @@ std::optional<std::string> ValidateCreateTargetRequest(
   }
 
   switch (request.type) {
-    case target::TargetType::kHttp:
+    case netwatch::target_service::TargetType::kHttp:
       if (!request.url || IsBlank(*request.url)) {
         return "http target requires url";
       }
@@ -53,7 +53,7 @@ std::optional<std::string> ValidateCreateTargetRequest(
       }
       break;
 
-    case target::TargetType::kTcp:
+    case netwatch::target_service::TargetType::kTcp:
       if (!request.host || IsBlank(*request.host)) {
         return "tcp target requires host";
       }
@@ -77,17 +77,19 @@ std::optional<std::string> ValidateCreateTargetRequest(
   return std::nullopt;
 }
 
-std::optional<std::string> ValidateTarget(const target::Target& target) {
-  return ValidateCreateTargetRequest(target::CreateTargetRequest{
-      .name = target.name,
-      .type = target.type,
-      .url = target.url,
-      .method = target.method,
-      .expected_status_code = target.expected_status_code,
-      .host = target.host,
-      .port = target.port,
-      .interval_seconds = target.interval_seconds,
-      .timeout_ms = target.timeout_ms,
-  });
+std::optional<std::string> ValidateTarget(
+    const netwatch::target_service::Target& target) {
+  return ValidateCreateTargetRequest(
+      netwatch::target_service::CreateTargetRequest{
+          .name = target.name,
+          .type = target.type,
+          .url = target.url,
+          .method = target.method,
+          .expected_status_code = target.expected_status_code,
+          .host = target.host,
+          .port = target.port,
+          .interval_seconds = target.interval_seconds,
+          .timeout_ms = target.timeout_ms,
+      });
 }
-}  // namespace monitor_service::target_validator
+}  // namespace netwatch::target_service::validator

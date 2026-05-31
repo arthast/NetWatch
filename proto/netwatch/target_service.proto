@@ -41,7 +41,20 @@ message CreateTargetRequest {
 }
 
 message UpdateTargetRequest {
-  Target target = 1;
+  int64 id = 1;
+
+  optional string name = 2;
+  optional TargetType type = 3;
+
+  optional string url = 4;
+  optional string method = 5;
+  optional int32 expected_status_code = 6;
+
+  optional string host = 7;
+  optional int32 port = 8;
+
+  optional int32 interval_seconds = 9;
+  optional int32 timeout_ms = 10;
 }
 
 message TargetIdRequest {

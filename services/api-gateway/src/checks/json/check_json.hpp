@@ -5,11 +5,12 @@
 
 #include <checks/model/check_result.hpp>
 
-namespace monitor_service::checks {
+namespace netwatch::api_gateway::checks {
 
-userver::formats::json::Value SerializeCheckResult(const CheckResult& check);
+userver::formats::json::Value SerializeCheckResult(
+    const netwatch::monitor_client::CheckResult& check);
 
 userver::formats::json::Value SerializeCheckResults(
-    const std::vector<CheckResult>& checks);
+    const std::vector<netwatch::monitor_client::CheckResult>& checks);
 
-}  // namespace monitor_service::checks
+}  // namespace netwatch::api_gateway::checks

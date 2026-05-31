@@ -7,7 +7,7 @@
 
 #include <checks/service/check_service.hpp>
 
-namespace monitor_service::checks {
+namespace netwatch::monitor_service::checks {
 
 class CheckGrpcService final
     : public netwatch::monitor::v1::CheckServiceBase::Component {
@@ -33,4 +33,4 @@ class CheckGrpcService final
   const CheckServiceComponent& check_service_;
 };
 
-}  // namespace monitor_service::checks
+}  // namespace netwatch::monitor_service::checks

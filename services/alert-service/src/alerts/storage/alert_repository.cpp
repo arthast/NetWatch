@@ -5,7 +5,7 @@
 #include <userver/storages/postgres/row.hpp>
 #include <utility>
 
-namespace monitor_service::alerts {
+namespace netwatch::alert_service::alerts {
 namespace {
 
 Alert AlertFromRow(const userver::storages::postgres::Row& row) {
@@ -147,4 +147,4 @@ std::vector<Alert> AlertRepository::ListActiveAlerts() const {
   return alerts;
 }
 
-}  // namespace monitor_service::alerts
+}  // namespace netwatch::alert_service::alerts

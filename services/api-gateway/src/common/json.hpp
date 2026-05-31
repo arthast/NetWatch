@@ -6,7 +6,7 @@
 
 #include <userver/formats/json/value_builder.hpp>
 
-namespace monitor_service::common {
+namespace netwatch::api_gateway::common {
 
 template <typename T>
 void SetOptionalField(userver::formats::json::ValueBuilder& builder,
@@ -16,4 +16,4 @@ void SetOptionalField(userver::formats::json::ValueBuilder& builder,
   }
 }
 
-}  // namespace monitor_service::common
+}  // namespace netwatch::api_gateway::common

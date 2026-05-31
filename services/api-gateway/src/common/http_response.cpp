@@ -4,7 +4,7 @@
 #include <userver/formats/json/value_builder.hpp>
 #include <userver/http/content_type.hpp>
 
-namespace monitor_service::common {
+namespace netwatch::api_gateway::common {
 
 std::string JsonResponse(const userver::server::http::HttpRequest& request,
                          const userver::formats::json::Value& body) {
@@ -25,4 +25,4 @@ std::string ErrorResponse(const userver::server::http::HttpRequest& request,
   return response;
 }
 
-}  // namespace monitor_service::common
+}  // namespace netwatch::api_gateway::common

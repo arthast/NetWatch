@@ -10,7 +10,7 @@
 #include <userver/yaml_config/merge_schemas.hpp>
 #include <userver/yaml_config/schema.hpp>
 
-namespace monitor_service::target {
+namespace netwatch::target_client {
 namespace {
 
 namespace proto = netwatch::target::v1;
@@ -47,30 +47,38 @@ TargetType ToDomainTargetType(proto::TargetType type) {
   throw std::invalid_argument("target type must be http or tcp");
 }
 
-void FillProtoTarget(const Target& source, proto::Target& target) {
-  target.set_id(source.id);
-  target.set_name(source.name);
-  target.set_type(ToProtoTargetType(source.type));
+void FillProtoUpdateRequest(std::int64_t target_id,
+                            const UpdateTargetRequest& source,
+                            proto::UpdateTargetRequest& request) {
+  request.set_id(target_id);
 
+  if (source.name) {
+    request.set_name(*source.name);
+  }
+  if (source.type) {
+    request.set_type(ToProtoTargetType(*source.type));
+  }
   if (source.url) {
-    target.set_url(*source.url);
+    request.set_url(*source.url);
   }
   if (source.method) {
-    target.set_method(*source.method);
+    request.set_method(*source.method);
   }
   if (source.expected_status_code) {
-    target.set_expected_status_code(*source.expected_status_code);
+    request.set_expected_status_code(*source.expected_status_code);
   }
   if (source.host) {
-    target.set_host(*source.host);
+    request.set_host(*source.host);
   }
   if (source.port) {
-    target.set_port(*source.port);
+    request.set_port(*source.port);
   }
-
-  target.set_interval_seconds(source.interval_seconds);
-  target.set_timeout_ms(source.timeout_ms);
-  target.set_is_active(source.is_active);
+  if (source.interval_seconds) {
+    request.set_interval_seconds(*source.interval_seconds);
+  }
+  if (source.timeout_ms) {
+    request.set_timeout_ms(*source.timeout_ms);
+  }
 }
 
 proto::CreateTargetRequest ToProtoCreateRequest(
@@ -148,12 +156,11 @@ std::invalid_argument ToInvalidArgument(
 TargetClient::TargetClient(const userver::components::ComponentConfig& config,
                            const userver::components::ComponentContext& context)
     : ComponentBase(config, context),
-      grpc_client_(&context
-                        .FindComponent<
-                            userver::ugrpc::client::SimpleClientComponent<
-                                proto::TargetServiceClient>>(
-                            "target-service-client")
-                        .GetClient()) {
+      grpc_client_(
+          &context
+               .FindComponent<userver::ugrpc::client::SimpleClientComponent<
+                   proto::TargetServiceClient>>("target-service-client")
+               .GetClient()) {
   const auto transport = config["transport"].As<std::optional<std::string>>();
   if (transport && *transport != "grpc") {
     throw std::invalid_argument{"target-client.transport supports only 'grpc'"};
@@ -202,9 +209,10 @@ std::optional<Target> TargetClient::GetTargetById(
   }
 }
 
-std::optional<Target> TargetClient::UpdateTarget(const Target& target) const {
+std::optional<Target> TargetClient::UpdateTarget(
+    std::int64_t target_id, const UpdateTargetRequest& update) const {
   proto::UpdateTargetRequest request;
-  FillProtoTarget(target, *request.mutable_target());
+  FillProtoUpdateRequest(target_id, update, request);
 
   try {
     return ToDomainTarget(
@@ -226,4 +234,4 @@ bool TargetClient::DeactivateTarget(std::int64_t target_id) const {
   }
 }
 
-}  // namespace monitor_service::target
+}  // namespace netwatch::target_client
