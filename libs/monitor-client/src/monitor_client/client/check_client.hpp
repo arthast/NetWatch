@@ -8,7 +8,7 @@
 #include <netwatch/monitor_service_client.usrv.pb.hpp>
 #include <userver/components/component_base.hpp>
 
-#include <checks/model/check_result.hpp>
+#include <monitor_client/model/check_result.hpp>
 
 namespace netwatch::monitor_client {
 

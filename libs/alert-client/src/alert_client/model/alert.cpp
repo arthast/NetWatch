@@ -1,4 +1,4 @@
-#include <alerts/model/alert.hpp>
+#include <alert_client/model/alert.hpp>
 
 #include <stdexcept>
 

@@ -5,7 +5,7 @@
 #include <userver/components/component.hpp>
 #include <userver/server/handlers/http_handler_base.hpp>
 
-#include <targets/client/target_client.hpp>
+#include <target_client/client/target_client.hpp>
 
 namespace netwatch::api_gateway::targets {
 class TargetsHandler final : public userver::server::handlers::HttpHandlerBase {

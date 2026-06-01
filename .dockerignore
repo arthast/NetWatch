@@ -22,3 +22,13 @@ __pycache__
 
 *.log
 compile_commands.json
+
+.env
+.env.*
+!.env.example
+deploy/.env
+deploy/.env.*
+!deploy/.env.example
+
+backups
+backups/

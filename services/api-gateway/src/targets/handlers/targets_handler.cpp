@@ -56,12 +56,18 @@ std::string TargetsHandler::HandleCreateTarget(
   } catch (const std::invalid_argument& ex) {
     return ErrorResponse(
         request, userver::server::http::HttpStatus::kBadRequest, ex.what());
+  } catch (const userver::ugrpc::client::BaseError& ex) {
+    return common::UpstreamErrorResponse(request, "target-service", ex);
   }
 }
 
 std::string TargetsHandler::HandleListTargets(
     const userver::server::http::HttpRequest& request) const {
-  return JsonResponse(request,
-                      SerializeTargets(target_client_.ListActiveTargets()));
+  try {
+    return JsonResponse(request,
+                        SerializeTargets(target_client_.ListActiveTargets()));
+  } catch (const userver::ugrpc::client::BaseError& ex) {
+    return common::UpstreamErrorResponse(request, "target-service", ex);
+  }
 }
 }  // namespace netwatch::api_gateway::targets

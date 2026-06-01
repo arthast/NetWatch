@@ -5,7 +5,7 @@
 #include <userver/components/component.hpp>
 #include <userver/server/handlers/http_handler_base.hpp>
 
-#include <checks/client/check_client.hpp>
+#include <monitor_client/client/check_client.hpp>
 
 namespace netwatch::api_gateway::checks {
 class ManualCheckHandler final

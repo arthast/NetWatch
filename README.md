@@ -27,6 +27,13 @@ C++ и userver. Проект построен как микросервисна�
 - отдавать Swagger UI и OpenAPI contract
 - собираться и проверяться через CI/CD
 
+Gateway нормализует ошибки внутренних gRPC-сервисов в HTTP 502/504, а
+`monitor-service` сохраняет результат проверки даже при временной недоступности
+`alert-service`. Scheduler использует PostgreSQL lease на target, поэтому
+несколько реплик `monitor-service` не запускают одну и ту же scheduled-проверку
+одновременно. Основной мониторинг деградирует мягко и не падает целиком из-за
+вторичной подсистемы.
+
 ## Архитектура
 
 ```mermaid
@@ -91,7 +98,7 @@ services/
   alert-service/     alert domain, lifecycle, storage, gRPC service
 
 libs/
-  netwatch-proto/    generated gRPC code
+  netwatch-proto/    service-specific generated gRPC targets
   target-client/     typed gRPC client for target-service
   monitor-client/    typed gRPC client for monitor-service
   alert-client/      typed gRPC client for alert-service
@@ -107,11 +114,22 @@ scripts/             local verification helpers
 У каждого сервиса отдельная PostgreSQL база:
 
 - `target-service` владеет таблицей `targets`;
-- `monitor-service` владеет таблицей `check_results`;
+- `monitor-service` владеет таблицами `check_results` и `target_check_leases`;
 - `alert-service` владеет таблицей `alerts`.
 
 Между базами нет shared tables, foreign keys и прямых SQL-запросов из чужого
 сервиса. Связи между доменами проходят через gRPC contracts.
+
+Миграции применяются отдельными Compose jobs:
+
+- `target-migrations`;
+- `monitor-migrations`;
+- `alert-migrations`.
+
+Каждый job запускает `scripts/apply_migrations.sh`, применяет SQL-файлы из
+service-owned `postgresql/migrations` и фиксирует версии в `schema_migrations`.
+Сервисы стартуют только после успешного завершения своего migration job, поэтому
+этот flow работает и для пустой, и для уже существующей базы.
 
 ## Внутренние gRPC contracts
 
@@ -232,4 +250,3 @@ checks, собирает production-like Docker images и публикует и�
 - `ghcr.io/<owner>/<repo>/target-service:<sha|branch>`;
 - `ghcr.io/<owner>/<repo>/monitor-service:<sha|branch>`;
 - `ghcr.io/<owner>/<repo>/alert-service:<sha|branch>`.
-

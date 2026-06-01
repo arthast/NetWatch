@@ -4,7 +4,7 @@
 #include <userver/formats/json/value.hpp>
 #include <vector>
 
-#include <targets/model/target.hpp>
+#include <target_client/model/target.hpp>
 
 namespace netwatch::api_gateway::targets {
 netwatch::target_client::CreateTargetRequest ParseCreateTargetRequest(

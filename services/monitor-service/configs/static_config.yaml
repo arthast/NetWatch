@@ -86,6 +86,7 @@ components_manager:
         target-check-scheduler:
             enabled: $scheduler-enabled
             scan-period-ms: $scheduler-scan-period-ms
+            lease-duration-ms: $scheduler-lease-duration-ms
 
         postgres-db-1:
             dbconnection: $pg-connection

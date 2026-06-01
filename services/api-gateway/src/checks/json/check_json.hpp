@@ -3,7 +3,7 @@
 #include <userver/formats/json/value.hpp>
 #include <vector>
 
-#include <checks/model/check_result.hpp>
+#include <monitor_client/model/check_result.hpp>
 
 namespace netwatch::api_gateway::checks {
 

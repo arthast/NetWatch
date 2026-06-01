@@ -4,7 +4,7 @@
 #include <userver/clients/http/client.hpp>
 
 #include <checks/model/check_result.hpp>
-#include <targets/model/target.hpp>
+#include <target_client/model/target.hpp>
 
 namespace netwatch::monitor_service::checks {
 class CheckRunner {

@@ -3,7 +3,7 @@
 #include <userver/formats/json/value.hpp>
 #include <vector>
 
-#include <alerts/model/alert.hpp>
+#include <alert_client/model/alert.hpp>
 
 namespace netwatch::api_gateway::alerts {
 

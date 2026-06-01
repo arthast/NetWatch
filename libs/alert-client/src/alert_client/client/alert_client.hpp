@@ -9,7 +9,7 @@
 #include <netwatch/alert_service_client.usrv.pb.hpp>
 #include <userver/components/component_base.hpp>
 
-#include <alerts/model/alert.hpp>
+#include <alert_client/model/alert.hpp>
 
 namespace netwatch::alert_client {
 

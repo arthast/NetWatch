@@ -8,7 +8,7 @@
 #include <userver/components/component_base.hpp>
 
 #include <netwatch/target_service_client.usrv.pb.hpp>
-#include <targets/model/target.hpp>
+#include <target_client/model/target.hpp>
 
 namespace userver::yaml_config {
 class Schema;

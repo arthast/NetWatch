@@ -21,8 +21,8 @@ endif()
 
 set(NETWATCH_PROTO_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/netwatch-proto")
 
-if(NOT TARGET netwatch_grpc_proto)
-    add_subdirectory("${NETWATCH_PROTO_LIB_DIR}" netwatch_grpc_proto)
+if(NOT TARGET netwatch_target_proto)
+    add_subdirectory("${NETWATCH_PROTO_LIB_DIR}" netwatch_proto)
 endif()
 
 add_library(
@@ -43,7 +43,7 @@ target_link_libraries(
     PUBLIC userver::core
            userver::grpc
            userver::postgresql
-           netwatch_grpc_proto
+           netwatch_target_proto
 )
 
 add_executable(${PROJECT_NAME} src/main.cpp)
