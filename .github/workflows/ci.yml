@@ -114,7 +114,7 @@ jobs:
     needs:
       - integration-dev-compose
       - integration-runtime-images
-    if: github.event_name == 'push'
+    if: github.event_name != 'pull_request'
     strategy:
       fail-fast: false
       matrix:
@@ -152,3 +152,94 @@ jobs:
 
           docker push "${image}:${sha}"
           docker push "${image}:${ref}"
+
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-24.04
+    needs:
+      - publish-images
+    if: github.event_name != 'pull_request'
+    environment: production
+    concurrency:
+      group: netwatch-production-deploy
+      cancel-in-progress: false
+    steps:
+      - name: Check deploy secrets
+        id: deploy-secrets
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
+          NETWATCH_BASE_URL: ${{ secrets.NETWATCH_BASE_URL }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$SERVER_HOST" || -z "$SERVER_USER" || -z "$SERVER_SSH_KEY" || -z "$NETWATCH_BASE_URL" ]]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping deploy because one or more deploy secrets are not configured"
+            exit 0
+          fi
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare SSH key
+        if: steps.deploy-secrets.outputs.enabled == 'true'
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SERVER_SSH_KEY" > ~/.ssh/netwatch_deploy_key
+          chmod 600 ~/.ssh/netwatch_deploy_key
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy compose stack
+        if: steps.deploy-secrets.outputs.enabled == 'true'
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          NETWATCH_BASE_URL: ${{ secrets.NETWATCH_BASE_URL }}
+          REF_NAME: ${{ github.ref_name }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          image_tag="$(echo "$REF_NAME" | tr '[:upper:]/' '[:lower:]-')"
+
+          if [[ -n "${GHCR_TOKEN:-}" ]]; then
+            printf '%s' "$GHCR_TOKEN" | ssh -i ~/.ssh/netwatch_deploy_key \
+              -o BatchMode=yes \
+              -o StrictHostKeyChecking=yes \
+              "${SERVER_USER}@${SERVER_HOST}" \
+              "docker login ghcr.io -u '${GHCR_USER}' --password-stdin"
+          fi
+
+          ssh -i ~/.ssh/netwatch_deploy_key \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            "${SERVER_USER}@${SERVER_HOST}" \
+            bash -s -- "$REF_NAME" "$image_tag" "$NETWATCH_BASE_URL" <<'REMOTE'
+          set -euo pipefail
+
+          REF_NAME="$1"
+          IMAGE_TAG="$2"
+          NETWATCH_BASE_URL="$3"
+
+          cd "$HOME/NetWatch"
+
+          if [[ ! -f deploy/.env ]]; then
+            echo "deploy/.env is missing on the server" >&2
+            exit 1
+          fi
+
+          git fetch origin "$REF_NAME"
+          git checkout -B "$REF_NAME" "origin/$REF_NAME"
+
+          export NETWATCH_IMAGE_TAG="$IMAGE_TAG"
+          export NETWATCH_BASE_URL
+
+          docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml pull
+          docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml up -d
+          docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml ps
+
+          ./scripts/prod_smoke_test.sh
+          REMOTE
