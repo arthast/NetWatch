@@ -1,4 +1,4 @@
-#include <target_service.hpp>
+#include <targets/grpc/target_grpc_service.hpp>
 
 #include <grpcpp/support/status.h>
 #include <optional>
@@ -160,7 +160,7 @@ domain::UpdateTargetRequest ToDomainUpdateRequest(
 
 }  // namespace
 
-TargetService::TargetService(
+TargetGrpcService::TargetGrpcService(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& context)
     : proto::TargetServiceBase::Component(config, context),
@@ -168,7 +168,7 @@ TargetService::TargetService(
           context.FindComponent<userver::components::Postgres>("postgres-db-1")
               .GetCluster()) {}
 
-TargetService::CreateTargetResult TargetService::CreateTarget(
+TargetGrpcService::CreateTargetResult TargetGrpcService::CreateTarget(
     CallContext&, proto::CreateTargetRequest&& request) {
   try {
     const auto create_request = ToDomainCreateRequest(request);
@@ -184,7 +184,7 @@ TargetService::CreateTargetResult TargetService::CreateTarget(
   }
 }
 
-TargetService::UpdateTargetResult TargetService::UpdateTarget(
+TargetGrpcService::UpdateTargetResult TargetGrpcService::UpdateTarget(
     CallContext&, proto::UpdateTargetRequest&& request) {
   try {
     if (request.id() <= 0) {
@@ -217,7 +217,7 @@ TargetService::UpdateTargetResult TargetService::UpdateTarget(
   }
 }
 
-TargetService::DeleteTargetResult TargetService::DeleteTarget(
+TargetGrpcService::DeleteTargetResult TargetGrpcService::DeleteTarget(
     CallContext&, proto::TargetIdRequest&& request) {
   if (!repository_.DeactivateTarget(request.id())) {
     return NotFound("target not found");
@@ -226,7 +226,7 @@ TargetService::DeleteTargetResult TargetService::DeleteTarget(
   return proto::DeleteTargetResponse{};
 }
 
-TargetService::GetTargetResult TargetService::GetTarget(
+TargetGrpcService::GetTargetResult TargetGrpcService::GetTarget(
     CallContext&, proto::TargetIdRequest&& request) {
   const auto target = repository_.GetTargetById(request.id());
   if (!target) {
@@ -236,12 +236,12 @@ TargetService::GetTargetResult TargetService::GetTarget(
   return MakeTargetResponse(*target);
 }
 
-TargetService::ListTargetsResult TargetService::ListTargets(
+TargetGrpcService::ListTargetsResult TargetGrpcService::ListTargets(
     CallContext&, proto::ListTargetsRequest&&) {
   return MakeListTargetsResponse(repository_.ListTargets());
 }
 
-TargetService::ListActiveTargetsResult TargetService::ListActiveTargets(
+TargetGrpcService::ListActiveTargetsResult TargetGrpcService::ListActiveTargets(
     CallContext&, proto::ListTargetsRequest&&) {
   return MakeListTargetsResponse(repository_.ListActiveTargets());
 }

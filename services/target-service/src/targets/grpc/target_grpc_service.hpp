@@ -8,12 +8,12 @@
 
 namespace netwatch::target_service {
 
-class TargetService final : public target::v1::TargetServiceBase::Component {
+class TargetGrpcService final : public target::v1::TargetServiceBase::Component {
  public:
-  static constexpr std::string_view kName = "target-service";
+  static constexpr std::string_view kName = "target-grpc-service";
 
-  TargetService(const userver::components::ComponentConfig& config,
-                const userver::components::ComponentContext& context);
+  TargetGrpcService(const userver::components::ComponentConfig& config,
+                    const userver::components::ComponentContext& context);
 
   CreateTargetResult CreateTarget(
       CallContext& context, target::v1::CreateTargetRequest&& request) override;

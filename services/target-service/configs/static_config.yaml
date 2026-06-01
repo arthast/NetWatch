@@ -52,7 +52,7 @@ components_manager:
             port: $grpc-server-port
             completion-queue-count: 3
 
-        target-service:
+        target-grpc-service:
             task-processor: main-task-processor
 
         postgres-db-1:
