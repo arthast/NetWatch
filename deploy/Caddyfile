@@ -1,0 +1,8 @@
+{$NETWATCH_SITE_ADDRESS} {
+	encode zstd gzip
+
+	@tests path /tests/*
+	respond @tests 404
+
+	reverse_proxy api-gateway:8080
+}

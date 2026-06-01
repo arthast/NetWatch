@@ -1,0 +1,222 @@
+name: ${COMPOSE_PROJECT_NAME:-netwatch-prod}
+
+x-app-common: &app-common
+  platform: linux/amd64
+  restart: unless-stopped
+  init: true
+  environment:
+    USERVER_ENABLE_STACK_USAGE_MONITOR: "0"
+  networks:
+    - internal
+
+x-service-healthcheck: &service-healthcheck
+  test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
+  start_period: 30s
+  interval: 10s
+  timeout: 3s
+  retries: 12
+
+x-postgres-healthcheck: &postgres-healthcheck
+  interval: 10s
+  timeout: 3s
+  retries: 12
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    init: true
+    environment:
+      NETWATCH_SITE_ADDRESS: ${NETWATCH_SITE_ADDRESS:-:80}
+    ports:
+      - "${NETWATCH_HTTP_PORT:-80}:80"
+      - "${NETWATCH_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - netwatch-caddy-data:/data
+      - netwatch-caddy-config:/config
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "caddy version >/dev/null"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    networks:
+      - edge
+
+  target-postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${TARGET_POSTGRES_DB:-target_service_db}
+      POSTGRES_USER: ${TARGET_POSTGRES_USER:-target_service}
+      POSTGRES_PASSWORD: ${TARGET_POSTGRES_PASSWORD:?set TARGET_POSTGRES_PASSWORD}
+    volumes:
+      - netwatch-target-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      <<: *postgres-healthcheck
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+    networks:
+      - internal
+
+  target-migrations:
+    image: postgres:16
+    depends_on:
+      target-postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_DB: ${TARGET_POSTGRES_DB:-target_service_db}
+      POSTGRES_USER: ${TARGET_POSTGRES_USER:-target_service}
+      POSTGRES_PASSWORD: ${TARGET_POSTGRES_PASSWORD:?set TARGET_POSTGRES_PASSWORD}
+    volumes:
+      - ../scripts/apply_migrations.sh:/usr/local/bin/apply_migrations.sh:ro
+      - ../services/target-service/postgresql/migrations:/migrations:ro
+    command:
+      - bash
+      - -lc
+      - >
+        /usr/local/bin/apply_migrations.sh target-service /migrations
+        "postgresql://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@target-postgres:5432/$${POSTGRES_DB}"
+    networks:
+      - internal
+
+  monitor-postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${MONITOR_POSTGRES_DB:-monitor_service_db}
+      POSTGRES_USER: ${MONITOR_POSTGRES_USER:-monitor_service}
+      POSTGRES_PASSWORD: ${MONITOR_POSTGRES_PASSWORD:?set MONITOR_POSTGRES_PASSWORD}
+    volumes:
+      - netwatch-monitor-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      <<: *postgres-healthcheck
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+    networks:
+      - internal
+
+  monitor-migrations:
+    image: postgres:16
+    depends_on:
+      monitor-postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_DB: ${MONITOR_POSTGRES_DB:-monitor_service_db}
+      POSTGRES_USER: ${MONITOR_POSTGRES_USER:-monitor_service}
+      POSTGRES_PASSWORD: ${MONITOR_POSTGRES_PASSWORD:?set MONITOR_POSTGRES_PASSWORD}
+    volumes:
+      - ../scripts/apply_migrations.sh:/usr/local/bin/apply_migrations.sh:ro
+      - ../services/monitor-service/postgresql/migrations:/migrations:ro
+    command:
+      - bash
+      - -lc
+      - >
+        /usr/local/bin/apply_migrations.sh monitor-service /migrations
+        "postgresql://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@monitor-postgres:5432/$${POSTGRES_DB}"
+    networks:
+      - internal
+
+  alert-postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${ALERT_POSTGRES_DB:-alert_service_db}
+      POSTGRES_USER: ${ALERT_POSTGRES_USER:-alert_service}
+      POSTGRES_PASSWORD: ${ALERT_POSTGRES_PASSWORD:?set ALERT_POSTGRES_PASSWORD}
+    volumes:
+      - netwatch-alert-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      <<: *postgres-healthcheck
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+    networks:
+      - internal
+
+  alert-migrations:
+    image: postgres:16
+    depends_on:
+      alert-postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_DB: ${ALERT_POSTGRES_DB:-alert_service_db}
+      POSTGRES_USER: ${ALERT_POSTGRES_USER:-alert_service}
+      POSTGRES_PASSWORD: ${ALERT_POSTGRES_PASSWORD:?set ALERT_POSTGRES_PASSWORD}
+    volumes:
+      - ../scripts/apply_migrations.sh:/usr/local/bin/apply_migrations.sh:ro
+      - ../services/alert-service/postgresql/migrations:/migrations:ro
+    command:
+      - bash
+      - -lc
+      - >
+        /usr/local/bin/apply_migrations.sh alert-service /migrations
+        "postgresql://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@alert-postgres:5432/$${POSTGRES_DB}"
+    networks:
+      - internal
+
+  target-service:
+    <<: *app-common
+    image: ${NETWATCH_IMAGE_REGISTRY:-ghcr.io/arthast/netwatch}/target-service:${NETWATCH_IMAGE_TAG:-main}
+    pull_policy: always
+    environment:
+      USERVER_ENABLE_STACK_USAGE_MONITOR: "0"
+      DB_CONNECTION: postgresql://${TARGET_POSTGRES_USER:-target_service}:${TARGET_POSTGRES_PASSWORD:?set TARGET_POSTGRES_PASSWORD}@target-postgres:5432/${TARGET_POSTGRES_DB:-target_service_db}
+    depends_on:
+      target-migrations:
+        condition: service_completed_successfully
+    healthcheck: *service-healthcheck
+
+  alert-service:
+    <<: *app-common
+    image: ${NETWATCH_IMAGE_REGISTRY:-ghcr.io/arthast/netwatch}/alert-service:${NETWATCH_IMAGE_TAG:-main}
+    pull_policy: always
+    environment:
+      USERVER_ENABLE_STACK_USAGE_MONITOR: "0"
+      DB_CONNECTION: postgresql://${ALERT_POSTGRES_USER:-alert_service}:${ALERT_POSTGRES_PASSWORD:?set ALERT_POSTGRES_PASSWORD}@alert-postgres:5432/${ALERT_POSTGRES_DB:-alert_service_db}
+    depends_on:
+      alert-migrations:
+        condition: service_completed_successfully
+    healthcheck: *service-healthcheck
+
+  monitor-service:
+    <<: *app-common
+    image: ${NETWATCH_IMAGE_REGISTRY:-ghcr.io/arthast/netwatch}/monitor-service:${NETWATCH_IMAGE_TAG:-main}
+    pull_policy: always
+    environment:
+      USERVER_ENABLE_STACK_USAGE_MONITOR: "0"
+      DB_CONNECTION: postgresql://${MONITOR_POSTGRES_USER:-monitor_service}:${MONITOR_POSTGRES_PASSWORD:?set MONITOR_POSTGRES_PASSWORD}@monitor-postgres:5432/${MONITOR_POSTGRES_DB:-monitor_service_db}
+    depends_on:
+      monitor-migrations:
+        condition: service_completed_successfully
+      target-service:
+        condition: service_healthy
+      alert-service:
+        condition: service_healthy
+    healthcheck: *service-healthcheck
+
+  api-gateway:
+    <<: *app-common
+    image: ${NETWATCH_IMAGE_REGISTRY:-ghcr.io/arthast/netwatch}/api-gateway:${NETWATCH_IMAGE_TAG:-main}
+    pull_policy: always
+    depends_on:
+      target-service:
+        condition: service_healthy
+      monitor-service:
+        condition: service_healthy
+      alert-service:
+        condition: service_healthy
+    healthcheck: *service-healthcheck
+    networks:
+      - edge
+      - internal
+
+networks:
+  edge:
+  internal:
+
+volumes:
+  netwatch-caddy-data:
+  netwatch-caddy-config:
+  netwatch-target-postgres-data:
+  netwatch-monitor-postgres-data:
+  netwatch-alert-postgres-data:
