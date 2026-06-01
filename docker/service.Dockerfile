@@ -1,4 +1,5 @@
 ARG USERVER_IMAGE=ghcr.io/userver-framework/ubuntu-24.04-userver:latest
+ARG RUNTIME_IMAGE=ubuntu:24.04
 ARG NETWATCH_IMAGE_PLATFORM=linux/amd64
 
 FROM --platform=${NETWATCH_IMAGE_PLATFORM} ${USERVER_IMAGE} AS builder
@@ -23,11 +24,34 @@ RUN cmake \
     && cmake --build /tmp/netwatch-build -j "${BUILD_JOBS}" --target "${SERVICE_TARGET}" \
     && cmake --install /tmp/netwatch-build --component "${SERVICE_TARGET}"
 
-FROM --platform=${NETWATCH_IMAGE_PLATFORM} ${USERVER_IMAGE} AS runtime
+RUN set -eux; \
+    binary="/opt/netwatch/bin/${SERVICE_TARGET}"; \
+    strip --strip-unneeded "${binary}" || true; \
+    mkdir -p /opt/netwatch/lib; \
+    ldd "${binary}" \
+      | awk '{ path = ($2 == "=>") ? $3 : $1; if (path ~ "^/") print path }' \
+      | sort -u \
+      | while read -r library; do \
+          case "$(basename "${library}")" in \
+            ld-linux*|libc.so.*|libdl.so.*|libm.so.*|libpthread.so.*|librt.so.*) continue ;; \
+          esac; \
+          cp -L "${library}" "/opt/netwatch/lib/$(basename "${library}")"; \
+        done
+
+FROM --platform=${NETWATCH_IMAGE_PLATFORM} ${RUNTIME_IMAGE} AS runtime
 
 ARG SERVICE_TARGET
 ENV NETWATCH_SERVICE=${SERVICE_TARGET}
 ENV USERVER_ENABLE_STACK_USAGE_MONITOR=0
+ENV LD_LIBRARY_PATH=/opt/netwatch/lib
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+      ca-certificates \
+      curl \
+      python3-minimal \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /opt/netwatch /opt/netwatch
 
