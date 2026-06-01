@@ -9,10 +9,16 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: write
   contents: read
   packages: write
 
 env:
+  CCACHE_BASEDIR: /workspace
+  CCACHE_COMPILERCHECK: content
+  CCACHE_DIR: /workspace/.ccache
+  CCACHE_MAXSIZE: 1G
+  CCACHE_NOHASHDIR: "true"
   CMAKE_ARGS: >-
     -G Ninja
     -DCMAKE_BUILD_TYPE=Debug
@@ -20,6 +26,8 @@ env:
     -DUSERVER_FEATURE_POSTGRESQL=ON
     -DUSERVER_SANITIZE="addr;ub"
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+  NETWATCH_BUILD_JOBS: 2
+  NETWATCH_CI_BUILD_JOBS: 2
 
 jobs:
   api-gateway-build:
@@ -28,11 +36,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ${{ runner.os }}-ccache-api-gateway-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-api-gateway-
+            ${{ runner.os }}-ccache-
+
       - name: Build api-gateway
         run: |
-          docker compose run --rm --no-deps --workdir /workspace monitor-service \
-            bash -lc 'cmake -S . -B build-ci-api-gateway-debug ${{ env.CMAKE_ARGS }} \
-              && cmake --build build-ci-api-gateway-debug -j 1 --target api_gateway'
+          docker compose run --rm --no-deps --workdir /workspace \
+            --env CCACHE_BASEDIR \
+            --env CCACHE_COMPILERCHECK \
+            --env CCACHE_DIR \
+            --env CCACHE_MAXSIZE \
+            --env CCACHE_NOHASHDIR \
+            monitor-service \
+            bash -lc 'set -e; \
+              ccache --zero-stats || true; \
+              cmake -S . -B build-ci-api-gateway-debug ${{ env.CMAKE_ARGS }}; \
+              cmake --build build-ci-api-gateway-debug -j ${{ env.NETWATCH_CI_BUILD_JOBS }} --target api_gateway; \
+              ccache --show-stats || true'
+
+      - name: Fix ccache permissions
+        if: always()
+        run: sudo chown -R "$USER:$USER" .ccache || true
 
   target-service-tests:
     name: target-service build and tests
@@ -40,13 +70,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ${{ runner.os }}-ccache-target-service-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-target-service-
+            ${{ runner.os }}-ccache-
+
       - name: Build target-service and run target-service unit tests
         run: |
-          docker compose run --rm --no-deps --workdir /workspace monitor-service \
-            bash -lc 'cmake -S . -B build-ci-target-service-debug ${{ env.CMAKE_ARGS }} \
-              && cmake --build build-ci-target-service-debug -j 1 --target target_service netwatch_target_service_unittest \
-              && cd build-ci-target-service-debug \
-              && ctest --output-on-failure -R netwatch_target_service_unittest'
+          docker compose run --rm --no-deps --workdir /workspace \
+            --env CCACHE_BASEDIR \
+            --env CCACHE_COMPILERCHECK \
+            --env CCACHE_DIR \
+            --env CCACHE_MAXSIZE \
+            --env CCACHE_NOHASHDIR \
+            monitor-service \
+            bash -lc 'set -e; \
+              ccache --zero-stats || true; \
+              cmake -S . -B build-ci-target-service-debug ${{ env.CMAKE_ARGS }}; \
+              cmake --build build-ci-target-service-debug -j ${{ env.NETWATCH_CI_BUILD_JOBS }} --target target_service netwatch_target_service_unittest; \
+              ccache --show-stats || true; \
+              cd build-ci-target-service-debug; \
+              ctest --output-on-failure -R netwatch_target_service_unittest'
+
+      - name: Fix ccache permissions
+        if: always()
+        run: sudo chown -R "$USER:$USER" .ccache || true
 
   monitor-service-build:
     name: monitor-service build
@@ -54,11 +106,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ${{ runner.os }}-ccache-monitor-service-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-monitor-service-
+            ${{ runner.os }}-ccache-
+
       - name: Build monitor-service
         run: |
-          docker compose run --rm --no-deps --workdir /workspace monitor-service \
-            bash -lc 'cmake -S . -B build-ci-monitor-service-debug ${{ env.CMAKE_ARGS }} \
-              && cmake --build build-ci-monitor-service-debug -j 1 --target monitor_service'
+          docker compose run --rm --no-deps --workdir /workspace \
+            --env CCACHE_BASEDIR \
+            --env CCACHE_COMPILERCHECK \
+            --env CCACHE_DIR \
+            --env CCACHE_MAXSIZE \
+            --env CCACHE_NOHASHDIR \
+            monitor-service \
+            bash -lc 'set -e; \
+              ccache --zero-stats || true; \
+              cmake -S . -B build-ci-monitor-service-debug ${{ env.CMAKE_ARGS }}; \
+              cmake --build build-ci-monitor-service-debug -j ${{ env.NETWATCH_CI_BUILD_JOBS }} --target monitor_service; \
+              ccache --show-stats || true'
+
+      - name: Fix ccache permissions
+        if: always()
+        run: sudo chown -R "$USER:$USER" .ccache || true
 
   alert-service-build:
     name: alert-service build
@@ -66,11 +140,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ${{ runner.os }}-ccache-alert-service-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-alert-service-
+            ${{ runner.os }}-ccache-
+
       - name: Build alert-service
         run: |
-          docker compose run --rm --no-deps --workdir /workspace monitor-service \
-            bash -lc 'cmake -S . -B build-ci-alert-service-debug ${{ env.CMAKE_ARGS }} \
-              && cmake --build build-ci-alert-service-debug -j 1 --target alert_service'
+          docker compose run --rm --no-deps --workdir /workspace \
+            --env CCACHE_BASEDIR \
+            --env CCACHE_COMPILERCHECK \
+            --env CCACHE_DIR \
+            --env CCACHE_MAXSIZE \
+            --env CCACHE_NOHASHDIR \
+            monitor-service \
+            bash -lc 'set -e; \
+              ccache --zero-stats || true; \
+              cmake -S . -B build-ci-alert-service-debug ${{ env.CMAKE_ARGS }}; \
+              cmake --build build-ci-alert-service-debug -j ${{ env.NETWATCH_CI_BUILD_JOBS }} --target alert_service; \
+              ccache --show-stats || true'
+
+      - name: Fix ccache permissions
+        if: always()
+        run: sudo chown -R "$USER:$USER" .ccache || true
 
   integration-dev-compose:
     name: Integration Flow (dev compose)
@@ -130,28 +226,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Log in to GHCR
-        run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Build and push ${{ matrix.service }}
+      - name: Prepare image metadata
+        id: image
         run: |
           set -euo pipefail
           repo="$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
           ref="$(echo "${GITHUB_REF_NAME}" | tr '[:upper:]/' '[:lower:]-')"
           sha="${GITHUB_SHA::12}"
           image="ghcr.io/${repo}/${{ matrix.service }}"
+          echo "image=${image}" >> "$GITHUB_OUTPUT"
+          echo "ref=${ref}" >> "$GITHUB_OUTPUT"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
 
-          docker build \
-            --platform linux/amd64 \
-            --file docker/service.Dockerfile \
-            --build-arg SERVICE_TARGET=${{ matrix.target }} \
-            --build-arg BUILD_JOBS="${NETWATCH_BUILD_JOBS:-1}" \
-            --tag "${image}:${sha}" \
-            --tag "${image}:${ref}" \
-            .
+      - uses: docker/setup-buildx-action@v3
 
-          docker push "${image}:${sha}"
-          docker push "${image}:${ref}"
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Build and push ${{ matrix.service }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/service.Dockerfile
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            SERVICE_TARGET=${{ matrix.target }}
+            BUILD_JOBS=${{ env.NETWATCH_BUILD_JOBS }}
+          tags: |
+            ${{ steps.image.outputs.image }}:${{ steps.image.outputs.sha }}
+            ${{ steps.image.outputs.image }}:${{ steps.image.outputs.ref }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
   deploy:
     name: Deploy to VPS
