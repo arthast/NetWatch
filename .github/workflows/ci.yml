@@ -261,7 +261,7 @@ jobs:
             ${{ steps.image.outputs.image }}:${{ steps.image.outputs.sha }}
             ${{ steps.image.outputs.image }}:${{ steps.image.outputs.ref }}
           cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=min,scope=${{ matrix.service }},ignore-error=true
 
   deploy:
     name: Deploy to VPS
