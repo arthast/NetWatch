@@ -274,6 +274,8 @@ jobs:
       group: netwatch-production-deploy
       cancel-in-progress: false
     steps:
+      - uses: actions/checkout@v4
+
       - name: Check deploy secrets
         id: deploy-secrets
         env:
@@ -350,6 +352,10 @@ jobs:
           docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml pull
           docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml up -d
           docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml ps
-
-          ./scripts/prod_smoke_test.sh
           REMOTE
+
+      - name: Verify public endpoint
+        if: steps.deploy-secrets.outputs.enabled == 'true'
+        env:
+          NETWATCH_BASE_URL: ${{ secrets.NETWATCH_BASE_URL }}
+        run: ./scripts/prod_smoke_test.sh
