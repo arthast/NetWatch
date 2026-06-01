@@ -4,7 +4,7 @@
 #include <string_view>
 #include <userver/server/handlers/http_handler_base.hpp>
 
-#include <alerts/client/alert_client.hpp>
+#include <alert_client/client/alert_client.hpp>
 
 namespace netwatch::api_gateway::alerts {
 

@@ -9,12 +9,12 @@
 #include <userver/concurrent/mutex_set.hpp>
 #include <vector>
 
-#include <alerts/client/alert_client.hpp>
+#include <alert_client/client/alert_client.hpp>
 #include <checks/model/check_result.hpp>
 #include <checks/runner/check_runner.hpp>
 #include <checks/storage/check_repository.hpp>
-#include <targets/client/target_client.hpp>
-#include <targets/model/target.hpp>
+#include <target_client/client/target_client.hpp>
+#include <target_client/model/target.hpp>
 
 namespace netwatch::monitor_service::checks {
 

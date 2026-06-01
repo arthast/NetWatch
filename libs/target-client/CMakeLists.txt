@@ -1,7 +1,7 @@
 add_library(
     netwatch_target_client STATIC
-    src/targets/client/target_client.cpp
-    src/targets/model/target.cpp
+    src/target_client/client/target_client.cpp
+    src/target_client/model/target.cpp
 )
 
 target_include_directories(
@@ -13,5 +13,5 @@ target_link_libraries(
     netwatch_target_client
     PUBLIC userver::core
            userver::grpc
-           netwatch_grpc_proto
+           netwatch_target_proto
 )

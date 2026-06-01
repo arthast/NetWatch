@@ -28,14 +28,18 @@ std::string ManualCheckHandler::HandleRequestThrow(
                                  "target id must be a positive integer");
   }
 
-  const auto check = check_client_.RunCheck(*target_id);
-  if (!check) {
-    return common::ErrorResponse(request,
-                                 userver::server::http::HttpStatus::kNotFound,
-                                 "target not found");
-  }
+  try {
+    const auto check = check_client_.RunCheck(*target_id);
+    if (!check) {
+      return common::ErrorResponse(
+          request, userver::server::http::HttpStatus::kNotFound,
+          "target not found");
+    }
 
-  request.SetResponseStatus(userver::server::http::HttpStatus::kCreated);
-  return common::JsonResponse(request, SerializeCheckResult(*check));
+    request.SetResponseStatus(userver::server::http::HttpStatus::kCreated);
+    return common::JsonResponse(request, SerializeCheckResult(*check));
+  } catch (const userver::ugrpc::client::BaseError& ex) {
+    return common::UpstreamErrorResponse(request, "monitor-service", ex);
+  }
 }
 }  // namespace netwatch::api_gateway::checks

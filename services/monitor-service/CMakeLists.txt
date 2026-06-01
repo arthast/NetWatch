@@ -25,8 +25,8 @@ set(NETWATCH_MONITOR_CLIENT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/monitor-
 set(NETWATCH_PROTO_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/netwatch-proto")
 set(NETWATCH_TARGET_CLIENT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/target-client")
 
-if(NOT TARGET netwatch_grpc_proto)
-    add_subdirectory("${NETWATCH_PROTO_LIB_DIR}" netwatch_grpc_proto)
+if(NOT TARGET netwatch_monitor_proto)
+    add_subdirectory("${NETWATCH_PROTO_LIB_DIR}" netwatch_proto)
 endif()
 
 if(NOT TARGET netwatch_monitor_client)
@@ -48,6 +48,7 @@ add_library(
     src/checks/runner/check_runner.cpp
     src/checks/scheduler/target_check_scheduler.cpp
     src/checks/service/check_service.cpp
+    src/checks/storage/check_lease_repository.cpp
     src/checks/storage/check_repository.cpp
 )
 
@@ -63,7 +64,7 @@ target_link_libraries(
            userver::postgresql
            netwatch_alert_client
            netwatch_monitor_client
-           netwatch_grpc_proto
+           netwatch_monitor_proto
            netwatch_target_client
 )
 

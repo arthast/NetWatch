@@ -18,11 +18,11 @@
 
 #include <userver/utils/daemon_run.hpp>
 
-#include <alerts/client/alert_client.hpp>
+#include <alert_client/client/alert_client.hpp>
 #include <checks/grpc/check_grpc_service.hpp>
 #include <checks/scheduler/target_check_scheduler.hpp>
 #include <checks/service/check_service.hpp>
-#include <targets/client/target_client.hpp>
+#include <target_client/client/target_client.hpp>
 
 int main(int argc, char* argv[]) {
   auto component_list =

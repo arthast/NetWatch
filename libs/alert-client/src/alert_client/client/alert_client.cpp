@@ -1,4 +1,4 @@
-#include <alerts/client/alert_client.hpp>
+#include <alert_client/client/alert_client.hpp>
 
 #include <chrono>
 #include <stdexcept>

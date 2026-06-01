@@ -14,14 +14,14 @@
 #include <netwatch/monitor_service_client.usrv.pb.hpp>
 #include <netwatch/target_service_client.usrv.pb.hpp>
 
-#include <alerts/client/alert_client.hpp>
+#include <alert_client/client/alert_client.hpp>
 #include <alerts/handlers/active_alerts_handler.hpp>
 #include <alerts/handlers/alerts_handler.hpp>
-#include <checks/client/check_client.hpp>
+#include <monitor_client/client/check_client.hpp>
 #include <checks/handlers/manual_check_handler.hpp>
 #include <checks/handlers/target_checks_handler.hpp>
 #include <checks/handlers/target_status_handler.hpp>
-#include <targets/client/target_client.hpp>
+#include <target_client/client/target_client.hpp>
 #include <targets/handlers/target_by_id_handler.hpp>
 #include <targets/handlers/targets_handler.hpp>
 #include <web/handlers/openapi_handler.hpp>

@@ -63,13 +63,18 @@ std::string TargetByIdHandler::HandleRequestThrow(
 std::string TargetByIdHandler::HandleGetTarget(
     const userver::server::http::HttpRequest& request,
     std::int64_t target_id) const {
-  const auto target = target_client_.GetTargetById(target_id);
-  if (!target) {
-    return ErrorResponse(request, userver::server::http::HttpStatus::kNotFound,
-                         "target not found");
-  }
+  try {
+    const auto target = target_client_.GetTargetById(target_id);
+    if (!target) {
+      return ErrorResponse(
+          request, userver::server::http::HttpStatus::kNotFound,
+          "target not found");
+    }
 
-  return JsonResponse(request, SerializeTarget(*target));
+    return JsonResponse(request, SerializeTarget(*target));
+  } catch (const userver::ugrpc::client::BaseError& ex) {
+    return common::UpstreamErrorResponse(request, "target-service", ex);
+  }
 }
 
 std::string TargetByIdHandler::HandlePatchTarget(
@@ -100,18 +105,25 @@ std::string TargetByIdHandler::HandlePatchTarget(
   } catch (const std::invalid_argument& ex) {
     return ErrorResponse(
         request, userver::server::http::HttpStatus::kBadRequest, ex.what());
+  } catch (const userver::ugrpc::client::BaseError& ex) {
+    return common::UpstreamErrorResponse(request, "target-service", ex);
   }
 }
 
 std::string TargetByIdHandler::HandleDeleteTarget(
     const userver::server::http::HttpRequest& request,
     std::int64_t target_id) const {
-  if (!target_client_.DeactivateTarget(target_id)) {
-    return ErrorResponse(request, userver::server::http::HttpStatus::kNotFound,
-                         "target not found");
-  }
+  try {
+    if (!target_client_.DeactivateTarget(target_id)) {
+      return ErrorResponse(
+          request, userver::server::http::HttpStatus::kNotFound,
+          "target not found");
+    }
 
-  request.SetResponseStatus(userver::server::http::HttpStatus::kNoContent);
-  return {};
+    request.SetResponseStatus(userver::server::http::HttpStatus::kNoContent);
+    return {};
+  } catch (const userver::ugrpc::client::BaseError& ex) {
+    return common::UpstreamErrorResponse(request, "target-service", ex);
+  }
 }
 }  // namespace netwatch::api_gateway::targets

@@ -2,7 +2,9 @@
 
 #include <mutex>
 #include <userver/components/component_context.hpp>
+#include <userver/logging/log.hpp>
 #include <userver/storages/postgres/component.hpp>
+#include <userver/ugrpc/client/exceptions.hpp>
 
 namespace netwatch::monitor_service::checks {
 namespace {
@@ -152,8 +154,17 @@ CheckResult CheckServiceComponent::RunCheckLocked(
   if (previous_check) {
     previous_alert_check = ToAlertCheck(*previous_check);
   }
-  alert_client_.ProcessCheckResult(ToAlertTarget(target), previous_alert_check,
-                                   ToAlertCheck(saved_check));
+  try {
+    alert_client_.ProcessCheckResult(ToAlertTarget(target),
+                                     previous_alert_check,
+                                     ToAlertCheck(saved_check));
+  } catch (const userver::ugrpc::client::BaseError& ex) {
+    LOG_WARNING() << "Failed to process alert lifecycle for saved check, "
+                  << "target_id=" << target.id
+                  << ", check_id=" << saved_check.id
+                  << ", error=" << ex.what();
+  }
+
   return saved_check;
 }
 

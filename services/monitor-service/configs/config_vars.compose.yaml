@@ -9,6 +9,7 @@ grpc-server-port: 8091
 
 scheduler-enabled: true
 scheduler-scan-period-ms: 1000
+scheduler-lease-duration-ms: 30000
 
 target-service-grpc-endpoint: target-service:8090
 alert-service-grpc-endpoint: alert-service:8092

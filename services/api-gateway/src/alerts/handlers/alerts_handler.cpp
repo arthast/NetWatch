@@ -19,8 +19,12 @@ AlertsHandler::AlertsHandler(
 std::string AlertsHandler::HandleRequestThrow(
     const userver::server::http::HttpRequest& request,
     userver::server::request::RequestContext&) const {
-  return common::JsonResponse(request,
-                              SerializeAlerts(alert_client_.ListAlerts()));
+  try {
+    return common::JsonResponse(request,
+                                SerializeAlerts(alert_client_.ListAlerts()));
+  } catch (const userver::ugrpc::client::BaseError& ex) {
+    return common::UpstreamErrorResponse(request, "alert-service", ex);
+  }
 }
 
 }  // namespace netwatch::api_gateway::alerts

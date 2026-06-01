@@ -9,12 +9,28 @@ services:
       - "15432:5432"
     volumes:
       - netwatch-target-postgres-data:/var/lib/postgresql/data
-      - ./services/target-service/postgresql/migrations/001_create_targets.sql:/docker-entrypoint-initdb.d/001_target_service_create_targets.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U target_service -d target_service_db"]
       interval: 2s
       timeout: 2s
       retries: 30
+
+  target-migrations:
+    image: postgres:16
+    depends_on:
+      target-postgres:
+        condition: service_healthy
+    volumes:
+      - ./scripts/apply_migrations.sh:/usr/local/bin/apply_migrations.sh:ro
+      - ./services/target-service/postgresql/migrations:/migrations:ro
+    command:
+      - bash
+      - -lc
+      - >
+        /usr/local/bin/apply_migrations.sh
+        target-service
+        /migrations
+        postgresql://target_service:target_service@target-postgres:5432/target_service_db
 
   monitor-postgres:
     image: postgres:16
@@ -26,12 +42,28 @@ services:
       - "15434:5432"
     volumes:
       - netwatch-monitor-postgres-data:/var/lib/postgresql/data
-      - ./services/monitor-service/postgresql/migrations/001_create_check_results.sql:/docker-entrypoint-initdb.d/002_monitor_service_create_check_results.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U monitor_service -d monitor_service_db"]
       interval: 2s
       timeout: 2s
       retries: 30
+
+  monitor-migrations:
+    image: postgres:16
+    depends_on:
+      monitor-postgres:
+        condition: service_healthy
+    volumes:
+      - ./scripts/apply_migrations.sh:/usr/local/bin/apply_migrations.sh:ro
+      - ./services/monitor-service/postgresql/migrations:/migrations:ro
+    command:
+      - bash
+      - -lc
+      - >
+        /usr/local/bin/apply_migrations.sh
+        monitor-service
+        /migrations
+        postgresql://monitor_service:monitor_service@monitor-postgres:5432/monitor_service_db
 
   alert-postgres:
     image: postgres:16
@@ -43,12 +75,28 @@ services:
       - "15435:5432"
     volumes:
       - netwatch-alert-postgres-data:/var/lib/postgresql/data
-      - ./services/alert-service/postgresql/migrations/001_create_alerts.sql:/docker-entrypoint-initdb.d/001_alert_service_create_alerts.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U alert_service -d alert_service_db"]
       interval: 2s
       timeout: 2s
       retries: 30
+
+  alert-migrations:
+    image: postgres:16
+    depends_on:
+      alert-postgres:
+        condition: service_healthy
+    volumes:
+      - ./scripts/apply_migrations.sh:/usr/local/bin/apply_migrations.sh:ro
+      - ./services/alert-service/postgresql/migrations:/migrations:ro
+    command:
+      - bash
+      - -lc
+      - >
+        /usr/local/bin/apply_migrations.sh
+        alert-service
+        /migrations
+        postgresql://alert_service:alert_service@alert-postgres:5432/alert_service_db
 
   api-gateway:
     image: ghcr.io/userver-framework/ubuntu-24.04-userver:latest
@@ -104,6 +152,8 @@ services:
     depends_on:
       monitor-postgres:
         condition: service_healthy
+      monitor-migrations:
+        condition: service_completed_successfully
       target-service:
         condition: service_healthy
       alert-service:
@@ -143,8 +193,8 @@ services:
       - .:/workspace
       - netwatch-alert-ccache:/workspace/services/alert-service/.ccache
     depends_on:
-      alert-postgres:
-        condition: service_healthy
+      alert-migrations:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
       start_period: 120s
@@ -182,8 +232,8 @@ services:
       - .:/workspace
       - netwatch-target-ccache:/workspace/services/target-service/.ccache
     depends_on:
-      target-postgres:
-        condition: service_healthy
+      target-migrations:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
       start_period: 120s
