@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.12...3.31)
 project(api_gateway CXX)
 
 if(NOT TARGET userver::core)
-    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../monitor-service/cmake")
+    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../cmake")
     include(DownloadUserver)
 
     find_package(

@@ -2,14 +2,14 @@ cmake_minimum_required(VERSION 3.12...3.31)
 project(monitor_service CXX)
 
 if(NOT TARGET userver::core)
-    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../cmake")
     include(DownloadUserver)
 
-find_package(
-    userver
-    COMPONENTS core
-               grpc
-               postgresql
+    find_package(
+        userver
+        COMPONENTS core
+                   grpc
+                   postgresql
         QUIET
     )
     if(NOT userver_FOUND)
@@ -72,12 +72,6 @@ add_executable(${PROJECT_NAME} src/main.cpp)
 target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_NAME}_objs)
 
 include(GNUInstallDirs)
-
-if(DEFINED ENV{PREFIX})
-    message(STATUS "Set install prefix: $ENV{PREFIX}")
-    file(TO_CMAKE_PATH "$ENV{PREFIX}" PREFIX_PATH)
-    set(CMAKE_INSTALL_PREFIX "${PREFIX_PATH}")
-endif()
 
 file(GLOB CONFIGS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/configs/*.yaml ${CMAKE_CURRENT_SOURCE_DIR}/configs/*.json)
 
