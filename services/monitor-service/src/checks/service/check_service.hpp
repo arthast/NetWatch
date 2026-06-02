@@ -2,10 +2,6 @@
 
 #include <cstdint>
 #include <optional>
-#include <string_view>
-#include <userver/clients/dns/component.hpp>
-#include <userver/clients/http/component.hpp>
-#include <userver/components/component_base.hpp>
 #include <userver/concurrent/mutex_set.hpp>
 #include <vector>
 
@@ -18,13 +14,11 @@
 
 namespace netwatch::monitor_service::checks {
 
-class CheckServiceComponent final : public userver::components::ComponentBase {
+class CheckService final {
  public:
-  static constexpr std::string_view kName = "check-service";
-
-  CheckServiceComponent(
-      const userver::components::ComponentConfig& config,
-      const userver::components::ComponentContext& component_context);
+  CheckService(const netwatch::target_client::TargetClient& target_client,
+               const netwatch::alert_client::AlertClient& alert_client,
+               CheckRepository check_repository, CheckRunner check_runner);
 
   std::optional<CheckResult> RunCheckForTarget(std::int64_t target_id) const;
 

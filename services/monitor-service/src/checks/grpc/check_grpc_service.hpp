@@ -30,7 +30,7 @@ class CheckGrpcService final
       netwatch::monitor::v1::TargetIdRequest&& request) override;
 
  private:
-  const CheckServiceComponent& check_service_;
+  const CheckService& check_service_;
 };
 
 }  // namespace netwatch::monitor_service::checks

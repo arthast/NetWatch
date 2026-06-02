@@ -40,7 +40,7 @@ class TargetCheckScheduler final : public userver::components::ComponentBase {
   void LaunchCheck(netwatch::target_client::Target target);
 
   const netwatch::target_client::TargetClient& target_client_;
-  const CheckServiceComponent& check_service_;
+  const CheckService& check_service_;
   CheckLeaseRepository lease_repository_;
   std::string scheduler_owner_id_;
   std::chrono::milliseconds lease_duration_;

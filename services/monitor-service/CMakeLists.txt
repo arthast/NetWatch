@@ -48,6 +48,7 @@ add_library(
     src/checks/runner/check_runner.cpp
     src/checks/scheduler/target_check_scheduler.cpp
     src/checks/service/check_service.cpp
+    src/checks/service/check_service_component.cpp
     src/checks/storage/check_lease_repository.cpp
     src/checks/storage/check_repository.cpp
 )

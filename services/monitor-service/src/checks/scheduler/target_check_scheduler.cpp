@@ -1,5 +1,6 @@
 #include <checks/scheduler/target_check_scheduler.hpp>
 
+#include <checks/service/check_service_component.hpp>
 #include <chrono>
 #include <cstdint>
 #include <exception>
@@ -7,7 +8,6 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <vector>
 #include <userver/components/component_config.hpp>
 #include <userver/components/component_context.hpp>
 #include <userver/logging/log.hpp>
@@ -15,6 +15,7 @@
 #include <userver/testsuite/testsuite_support.hpp>
 #include <userver/yaml_config/merge_schemas.hpp>
 #include <userver/yaml_config/schema.hpp>
+#include <vector>
 
 namespace netwatch::monitor_service::checks {
 namespace {
@@ -23,8 +24,7 @@ constexpr auto kDefaultLeaseDuration = std::chrono::milliseconds{30000};
 
 std::string MakeSchedulerOwnerId() {
   std::random_device random;
-  const auto now =
-      std::chrono::system_clock::now().time_since_epoch().count();
+  const auto now = std::chrono::system_clock::now().time_since_epoch().count();
 
   std::ostringstream stream;
   stream << "monitor-service-scheduler-" << now << '-' << random();
@@ -39,7 +39,8 @@ TargetCheckScheduler::TargetCheckScheduler(
       target_client_(
           component_context
               .FindComponent<netwatch::target_client::TargetClient>()),
-      check_service_(component_context.FindComponent<CheckServiceComponent>()),
+      check_service_(component_context.FindComponent<CheckServiceComponent>()
+                         .GetService()),
       lease_repository_(
           component_context
               .FindComponent<userver::components::Postgres>("postgres-db-1")
