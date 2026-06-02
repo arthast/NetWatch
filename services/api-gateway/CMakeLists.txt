@@ -53,6 +53,8 @@ add_library(
     src/targets/handlers/target_by_id_handler.cpp
     src/targets/handlers/targets_handler.cpp
     src/targets/json/target_json.cpp
+    src/targets/service/targets_service.cpp
+    src/targets/service/targets_service_component.cpp
     src/web/handlers/openapi_handler.cpp
     src/web/handlers/swagger_ui_handler.cpp
 )

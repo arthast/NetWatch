@@ -49,6 +49,8 @@ components_manager:
         target-client:
             transport: grpc
 
+        targets-service: {}
+
         check-client: {}
 
         alert-client: {}
