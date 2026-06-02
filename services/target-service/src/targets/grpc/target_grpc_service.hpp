@@ -4,11 +4,12 @@
 #include <userver/components/component.hpp>
 
 #include <netwatch/target_service_service.usrv.pb.hpp>
-#include <targets/storage/target_repository.hpp>
+#include <targets/service/target_service.hpp>
 
 namespace netwatch::target_service {
 
-class TargetGrpcService final : public target::v1::TargetServiceBase::Component {
+class TargetGrpcService final
+    : public target::v1::TargetServiceBase::Component {
  public:
   static constexpr std::string_view kName = "target-grpc-service";
 
@@ -34,7 +35,7 @@ class TargetGrpcService final : public target::v1::TargetServiceBase::Component 
       CallContext& context, target::v1::ListTargetsRequest&& request) override;
 
  private:
-  netwatch::target_service::TargetRepository repository_;
+  TargetService target_service_;
 };
 
 }  // namespace netwatch::target_service

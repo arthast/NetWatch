@@ -7,7 +7,6 @@
 #include <userver/storages/postgres/component.hpp>
 
 #include <targets/model/target.hpp>
-#include <targets/validation/target_validator.hpp>
 
 namespace netwatch::target_service {
 namespace {
@@ -91,7 +90,7 @@ proto::ListTargetsResponse MakeListTargetsResponse(
 
 domain::CreateTargetRequest ToDomainCreateRequest(
     const proto::CreateTargetRequest& request) {
-  auto result = domain::CreateTargetRequest{
+  return domain::CreateTargetRequest{
       .name = request.name(),
       .type = ToDomainTargetType(request.type()),
       .url =
@@ -109,24 +108,6 @@ domain::CreateTargetRequest ToDomainCreateRequest(
       .interval_seconds = request.interval_seconds(),
       .timeout_ms = request.timeout_ms(),
   };
-
-  if (result.type == domain::TargetType::kHttp) {
-    if (!result.method) {
-      result.method = "GET";
-    }
-    if (!result.expected_status_code) {
-      result.expected_status_code = 200;
-    }
-  }
-
-  return result;
-}
-
-bool HasPatchFields(const proto::UpdateTargetRequest& request) {
-  return request.has_name() || request.has_type() || request.has_url() ||
-         request.has_method() || request.has_expected_status_code() ||
-         request.has_host() || request.has_port() ||
-         request.has_interval_seconds() || request.has_timeout_ms();
 }
 
 domain::UpdateTargetRequest ToDomainUpdateRequest(
@@ -164,21 +145,15 @@ TargetGrpcService::TargetGrpcService(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& context)
     : proto::TargetServiceBase::Component(config, context),
-      repository_(
+      target_service_(TargetRepository{
           context.FindComponent<userver::components::Postgres>("postgres-db-1")
-              .GetCluster()) {}
+              .GetCluster()}) {}
 
 TargetGrpcService::CreateTargetResult TargetGrpcService::CreateTarget(
     CallContext&, proto::CreateTargetRequest&& request) {
   try {
-    const auto create_request = ToDomainCreateRequest(request);
-    if (const auto error =
-            netwatch::target_service::validator::ValidateCreateTargetRequest(
-                create_request)) {
-      return InvalidArgument(*error);
-    }
-
-    return MakeTargetResponse(repository_.CreateTarget(create_request));
+    return MakeTargetResponse(
+        target_service_.CreateTarget(ToDomainCreateRequest(request)));
   } catch (const std::invalid_argument& ex) {
     return InvalidArgument(ex.what());
   }
@@ -187,63 +162,42 @@ TargetGrpcService::CreateTargetResult TargetGrpcService::CreateTarget(
 TargetGrpcService::UpdateTargetResult TargetGrpcService::UpdateTarget(
     CallContext&, proto::UpdateTargetRequest&& request) {
   try {
-    if (request.id() <= 0) {
-      return InvalidArgument("target id must be a positive integer");
-    }
-    if (!HasPatchFields(request)) {
-      return InvalidArgument("patch body must contain at least one field");
-    }
-
-    const auto current_target = repository_.GetTargetById(request.id());
-    if (!current_target) {
-      return NotFound("target not found");
-    }
-
-    const auto target =
-        domain::ApplyUpdate(*current_target, ToDomainUpdateRequest(request));
-    if (const auto error =
-            netwatch::target_service::validator::ValidateTarget(target)) {
-      return InvalidArgument(*error);
-    }
-
-    const auto updated = repository_.UpdateTarget(target);
-    if (!updated) {
-      return NotFound("target not found");
-    }
-
-    return MakeTargetResponse(*updated);
+    return MakeTargetResponse(target_service_.UpdateTarget(
+        request.id(), ToDomainUpdateRequest(request)));
   } catch (const std::invalid_argument& ex) {
     return InvalidArgument(ex.what());
+  } catch (const TargetNotFound& ex) {
+    return NotFound(ex.what());
   }
 }
 
 TargetGrpcService::DeleteTargetResult TargetGrpcService::DeleteTarget(
     CallContext&, proto::TargetIdRequest&& request) {
-  if (!repository_.DeactivateTarget(request.id())) {
-    return NotFound("target not found");
+  try {
+    target_service_.DeleteTarget(request.id());
+    return proto::DeleteTargetResponse{};
+  } catch (const TargetNotFound& ex) {
+    return NotFound(ex.what());
   }
-
-  return proto::DeleteTargetResponse{};
 }
 
 TargetGrpcService::GetTargetResult TargetGrpcService::GetTarget(
     CallContext&, proto::TargetIdRequest&& request) {
-  const auto target = repository_.GetTargetById(request.id());
-  if (!target) {
-    return NotFound("target not found");
+  try {
+    return MakeTargetResponse(target_service_.GetTarget(request.id()));
+  } catch (const TargetNotFound& ex) {
+    return NotFound(ex.what());
   }
-
-  return MakeTargetResponse(*target);
 }
 
 TargetGrpcService::ListTargetsResult TargetGrpcService::ListTargets(
     CallContext&, proto::ListTargetsRequest&&) {
-  return MakeListTargetsResponse(repository_.ListTargets());
+  return MakeListTargetsResponse(target_service_.ListTargets());
 }
 
 TargetGrpcService::ListActiveTargetsResult TargetGrpcService::ListActiveTargets(
     CallContext&, proto::ListTargetsRequest&&) {
-  return MakeListTargetsResponse(repository_.ListActiveTargets());
+  return MakeListTargetsResponse(target_service_.ListActiveTargets());
 }
 
 }  // namespace netwatch::target_service

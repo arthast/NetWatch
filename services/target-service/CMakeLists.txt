@@ -29,6 +29,7 @@ add_library(
     ${PROJECT_NAME}_objs OBJECT
     src/targets/grpc/target_grpc_service.cpp
     src/targets/model/target.cpp
+    src/targets/service/target_service.cpp
     src/targets/storage/target_repository.cpp
     src/targets/validation/target_validator.cpp
 )
