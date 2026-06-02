@@ -17,6 +17,7 @@
 #include <alert_client/client/alert_client.hpp>
 #include <alerts/handlers/active_alerts_handler.hpp>
 #include <alerts/handlers/alerts_handler.hpp>
+#include <alerts/service/alerts_service_component.hpp>
 #include <checks/handlers/manual_check_handler.hpp>
 #include <checks/handlers/target_checks_handler.hpp>
 #include <checks/handlers/target_status_handler.hpp>
@@ -51,6 +52,7 @@ int main(int argc, char* argv[]) {
           .Append<netwatch::alert_client::AlertClient>()
           .Append<netwatch::api_gateway::targets::TargetsServiceComponent>()
           .Append<netwatch::api_gateway::checks::ChecksServiceComponent>()
+          .Append<netwatch::api_gateway::alerts::AlertsServiceComponent>()
           .Append<netwatch::api_gateway::web::SwaggerUiHandler>()
           .Append<netwatch::api_gateway::web::OpenApiHandler>()
           .Append<netwatch::api_gateway::alerts::AlertsHandler>()

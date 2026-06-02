@@ -44,6 +44,8 @@ add_library(
     src/alerts/handlers/active_alerts_handler.cpp
     src/alerts/handlers/alerts_handler.cpp
     src/alerts/json/alert_json.cpp
+    src/alerts/service/alerts_service.cpp
+    src/alerts/service/alerts_service_component.cpp
     src/checks/handlers/manual_check_handler.cpp
     src/checks/handlers/target_checks_handler.cpp
     src/checks/handlers/target_status_handler.cpp

@@ -57,6 +57,8 @@ components_manager:
 
         alert-client: {}
 
+        alerts-service: {}
+
         tests-control:
             load-enabled: $is-testing
             path: /tests/{action}
