@@ -5,8 +5,7 @@
 #include <userver/components/component.hpp>
 #include <userver/server/handlers/http_handler_base.hpp>
 
-#include <monitor_client/client/check_client.hpp>
-#include <target_client/client/target_client.hpp>
+#include <checks/service/checks_service.hpp>
 
 namespace netwatch::api_gateway::checks {
 class TargetStatusHandler final
@@ -23,7 +22,6 @@ class TargetStatusHandler final
       userver::server::request::RequestContext& context) const override;
 
  private:
-  const netwatch::monitor_client::CheckClient& check_client_;
-  const netwatch::target_client::TargetClient& target_client_;
+  const ChecksService& checks_service_;
 };
 }  // namespace netwatch::api_gateway::checks

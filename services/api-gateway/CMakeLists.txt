@@ -48,6 +48,8 @@ add_library(
     src/checks/handlers/target_checks_handler.cpp
     src/checks/handlers/target_status_handler.cpp
     src/checks/json/check_json.cpp
+    src/checks/service/checks_service.cpp
+    src/checks/service/checks_service_component.cpp
     src/common/http_response.cpp
     src/common/path_params.cpp
     src/targets/handlers/target_by_id_handler.cpp

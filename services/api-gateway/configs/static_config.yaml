@@ -53,6 +53,8 @@ components_manager:
 
         check-client: {}
 
+        checks-service: {}
+
         alert-client: {}
 
         tests-control:

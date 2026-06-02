@@ -5,21 +5,36 @@
 #include <userver/server/http/http_status.hpp>
 
 #include <checks/json/check_json.hpp>
+#include <checks/service/checks_service_component.hpp>
 #include <common/http_response.hpp>
 #include <common/path_params.hpp>
 
 namespace netwatch::api_gateway::checks {
+namespace {
+
+std::string UpstreamErrorResponse(
+    const userver::server::http::HttpRequest& request,
+    const UpstreamError& error) {
+  const std::string upstream_service{ToString(error.GetService())};
+  if (error.IsDeadlineExceeded()) {
+    return common::ErrorResponse(
+        request, userver::server::http::HttpStatus::kGatewayTimeout,
+        upstream_service + " timed out");
+  }
+
+  return common::ErrorResponse(request,
+                               userver::server::http::HttpStatus::kBadGateway,
+                               upstream_service + " is unavailable");
+}
+
+}  // namespace
 
 TargetStatusHandler::TargetStatusHandler(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& component_context)
     : HttpHandlerBase(config, component_context),
-      check_client_(
-          component_context
-              .FindComponent<netwatch::monitor_client::CheckClient>()),
-      target_client_(
-          component_context
-              .FindComponent<netwatch::target_client::TargetClient>()) {}
+      checks_service_(component_context.FindComponent<ChecksServiceComponent>()
+                          .GetService()) {}
 
 std::string TargetStatusHandler::HandleRequestThrow(
     const userver::server::http::HttpRequest& request,
@@ -32,24 +47,26 @@ std::string TargetStatusHandler::HandleRequestThrow(
   }
 
   try {
-    const auto status = check_client_.GetTargetStatus(*target_id);
-    if (!status) {
-      try {
-        if (!target_client_.GetTargetById(*target_id)) {
-          return common::ErrorResponse(
-              request, userver::server::http::HttpStatus::kNotFound,
-              "target not found");
-        }
-      } catch (const userver::ugrpc::client::BaseError& ex) {
-        return common::UpstreamErrorResponse(request, "target-service", ex);
-      }
-
-      return common::ErrorResponse(
-          request, userver::server::http::HttpStatus::kNotFound,
-          "target has no checks");
+    const auto status = checks_service_.GetTargetStatus(*target_id);
+    switch (status.kind) {
+      case TargetStatusResultKind::kFound:
+        return common::JsonResponse(request,
+                                    SerializeCheckResult(*status.check));
+      case TargetStatusResultKind::kTargetNotFound:
+        return common::ErrorResponse(
+            request, userver::server::http::HttpStatus::kNotFound,
+            "target not found");
+      case TargetStatusResultKind::kNoChecks:
+        return common::ErrorResponse(
+            request, userver::server::http::HttpStatus::kNotFound,
+            "target has no checks");
     }
 
-    return common::JsonResponse(request, SerializeCheckResult(*status));
+    return common::ErrorResponse(request,
+                                 userver::server::http::HttpStatus::kNotFound,
+                                 "target has no checks");
+  } catch (const UpstreamError& ex) {
+    return UpstreamErrorResponse(request, ex);
   } catch (const userver::ugrpc::client::BaseError& ex) {
     return common::UpstreamErrorResponse(request, "monitor-service", ex);
   }
