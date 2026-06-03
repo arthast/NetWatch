@@ -6,6 +6,10 @@ components_manager:
         fs-task-processor:
             worker_threads: $worker-fs-threads
 
+        producer-task-processor:
+            worker_threads: $producer-worker-threads
+            thread_name: producer-worker
+
     default_task_processor: main-task-processor
 
     components:
@@ -35,12 +39,30 @@ components_manager:
         dns-client:
             fs-task-processor: fs-task-processor
 
+        default-secdist-provider:
+            config: $secdist-path
+
+        secdist: {}
+
+        kafka-producer-alert-events:
+            security_protocol: PLAINTEXT
+            delivery_timeout: 3000
+            queue_buffering_max: 10
+            enable_idempotence: true
+
         grpc-server:
             port: $grpc-server-port
             completion-queue-count: 3
 
         alert-grpc-service:
             task-processor: main-task-processor
+
+        alert-outbox-publisher:
+            enabled: $alert-outbox-publisher-enabled
+            topic: $alert-events-topic
+            batch-size: $alert-outbox-batch-size
+            publish-period-ms: $alert-outbox-publish-period-ms
+            retry-delay-ms: $alert-outbox-retry-delay-ms
 
         tests-control:
             load-enabled: $is-testing

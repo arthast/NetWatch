@@ -9,6 +9,7 @@ if(NOT TARGET userver::core)
         userver
         COMPONENTS core
                    grpc
+                   kafka
                    postgresql
         QUIET
     )
@@ -21,6 +22,10 @@ endif()
 
 set(NETWATCH_PROTO_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/netwatch-proto")
 
+if(NOT TARGET userver::kafka)
+    find_package(userver REQUIRED COMPONENTS kafka)
+endif()
+
 if(NOT TARGET netwatch_alert_proto)
     add_subdirectory("${NETWATCH_PROTO_LIB_DIR}" netwatch_proto)
 endif()
@@ -28,6 +33,7 @@ endif()
 add_library(
     ${PROJECT_NAME}_objs OBJECT
     src/alerts/events/alert_event.cpp
+    src/alerts/events/alert_outbox_publisher.cpp
     src/alerts/grpc/alert_grpc_service.cpp
     src/alerts/model/alert.cpp
     src/alerts/repository/alert_outbox_repository.cpp
@@ -44,6 +50,7 @@ target_link_libraries(
     ${PROJECT_NAME}_objs
     PUBLIC userver::core
            userver::grpc
+           userver::kafka
            userver::postgresql
            netwatch_alert_proto
 )
@@ -53,7 +60,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_NAME}_objs)
 
 include(GNUInstallDirs)
 
-file(GLOB CONFIGS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/configs/*.yaml)
+file(GLOB CONFIGS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/configs/*.yaml ${CMAKE_CURRENT_SOURCE_DIR}/configs/*.json)
 
 install(
     TARGETS ${PROJECT_NAME}

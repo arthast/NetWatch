@@ -1,0 +1,7 @@
+{
+  "kafka_settings": {
+    "kafka-producer-alert-events": {
+      "brokers": "localhost:9092"
+    }
+  }
+}

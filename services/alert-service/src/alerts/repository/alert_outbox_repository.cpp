@@ -29,18 +29,18 @@ AlertOutboxEvent AlertOutboxEventFromRow(
 }
 
 constexpr std::string_view kOutboxFields = R"(
-    event_id,
-    event_type,
-    aggregate_type,
-    aggregate_id,
-    partition_key,
-    payload::text AS payload,
-    status,
-    attempts,
-    to_char(next_retry_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS next_retry_at,
-    last_error,
-    to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,
-    to_char(published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS published_at
+    outbox.event_id,
+    outbox.event_type,
+    outbox.aggregate_type,
+    outbox.aggregate_id,
+    outbox.partition_key,
+    outbox.payload::text AS payload,
+    outbox.status,
+    outbox.attempts,
+    to_char(outbox.next_retry_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS next_retry_at,
+    outbox.last_error,
+    to_char(outbox.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,
+    to_char(outbox.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS published_at
 )";
 
 }  // namespace

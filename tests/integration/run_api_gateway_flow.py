@@ -26,6 +26,18 @@ def run(command: list[str], *, cwd: str | None = None) -> None:
     subprocess.run(command, cwd=cwd, check=True)
 
 
+def run_capture(command: list[str], *, cwd: str | None = None) -> str:
+    result = subprocess.run(
+        command,
+        cwd=cwd,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    return result.stdout
+
+
 def request(
     method: str,
     path: str,
@@ -330,6 +342,48 @@ def run_flow(base_url: str) -> None:
     test_alert_lifecycle(base_url)
 
 
+def wait_for_alert_events_in_kafka(
+    compose: list[str], timeout_seconds: int = 30
+) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    last_output = ""
+
+    while time.monotonic() < deadline:
+        output = run_capture(
+            [
+                *compose,
+                "exec",
+                "-T",
+                "kafka",
+                "bash",
+                "-lc",
+                (
+                    "/opt/kafka/bin/kafka-console-consumer.sh "
+                    "--bootstrap-server localhost:9092 "
+                    "--topic netwatch.alert.events.v1 "
+                    "--from-beginning "
+                    "--timeout-ms 5000 "
+                    "--max-messages 2"
+                ),
+            ]
+        )
+        last_output = output
+        messages = [
+            json.loads(line)
+            for line in output.splitlines()
+            if line.strip().startswith("{")
+        ]
+        event_types = {message.get("event_type") for message in messages}
+        if {"alert.opened", "alert.resolved"} <= event_types:
+            return
+        time.sleep(1)
+
+    raise RuntimeError(
+        "Kafka alert events did not appear in netwatch.alert.events.v1. "
+        f"Last consumer output:\n{last_output}"
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Run api-gateway integration tests against Docker Compose."
@@ -365,6 +419,8 @@ def main() -> int:
 
         wait_for_gateway(args.base_url, args.timeout_seconds)
         run_flow(args.base_url)
+        if not args.skip_compose:
+            wait_for_alert_events_in_kafka(compose)
         print("api-gateway integration flow passed")
         return 0
     finally:
