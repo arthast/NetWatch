@@ -5,6 +5,7 @@
 #include <userver/server/http/http_status.hpp>
 
 #include <checks/json/check_json.hpp>
+#include <checks/service/checks_service_component.hpp>
 #include <common/http_response.hpp>
 #include <common/path_params.hpp>
 
@@ -14,9 +15,8 @@ TargetChecksHandler::TargetChecksHandler(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& component_context)
     : HttpHandlerBase(config, component_context),
-      check_client_(
-          component_context
-              .FindComponent<netwatch::monitor_client::CheckClient>()) {}
+      checks_service_(component_context.FindComponent<ChecksServiceComponent>()
+                          .GetService()) {}
 
 std::string TargetChecksHandler::HandleRequestThrow(
     const userver::server::http::HttpRequest& request,
@@ -29,11 +29,11 @@ std::string TargetChecksHandler::HandleRequestThrow(
   }
 
   try {
-    const auto checks = check_client_.ListTargetChecks(*target_id);
+    const auto checks = checks_service_.ListTargetChecks(*target_id);
     if (!checks) {
-      return common::ErrorResponse(
-          request, userver::server::http::HttpStatus::kNotFound,
-          "target not found");
+      return common::ErrorResponse(request,
+                                   userver::server::http::HttpStatus::kNotFound,
+                                   "target not found");
     }
 
     return common::JsonResponse(request, SerializeCheckResults(*checks));

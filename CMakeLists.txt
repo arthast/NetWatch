@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.14)
 
 project(netwatch CXX)
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/services/monitor-service/cmake")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(DownloadUserver)
 
 find_package(

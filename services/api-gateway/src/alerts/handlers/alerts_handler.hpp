@@ -4,7 +4,7 @@
 #include <string_view>
 #include <userver/server/handlers/http_handler_base.hpp>
 
-#include <alert_client/client/alert_client.hpp>
+#include <alerts/service/alerts_service.hpp>
 
 namespace netwatch::api_gateway::alerts {
 
@@ -20,7 +20,7 @@ class AlertsHandler final : public userver::server::handlers::HttpHandlerBase {
       userver::server::request::RequestContext& context) const override;
 
  private:
-  const netwatch::alert_client::AlertClient& alert_client_;
+  const AlertsService& alerts_service_;
 };
 
 }  // namespace netwatch::api_gateway::alerts

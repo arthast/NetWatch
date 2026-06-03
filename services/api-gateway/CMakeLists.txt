@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.12...3.31)
 project(api_gateway CXX)
 
 if(NOT TARGET userver::core)
-    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../monitor-service/cmake")
+    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../cmake")
     include(DownloadUserver)
 
     find_package(
@@ -44,15 +44,21 @@ add_library(
     src/alerts/handlers/active_alerts_handler.cpp
     src/alerts/handlers/alerts_handler.cpp
     src/alerts/json/alert_json.cpp
+    src/alerts/service/alerts_service.cpp
+    src/alerts/service/alerts_service_component.cpp
     src/checks/handlers/manual_check_handler.cpp
     src/checks/handlers/target_checks_handler.cpp
     src/checks/handlers/target_status_handler.cpp
     src/checks/json/check_json.cpp
+    src/checks/service/checks_service.cpp
+    src/checks/service/checks_service_component.cpp
     src/common/http_response.cpp
     src/common/path_params.cpp
     src/targets/handlers/target_by_id_handler.cpp
     src/targets/handlers/targets_handler.cpp
     src/targets/json/target_json.cpp
+    src/targets/service/targets_service.cpp
+    src/targets/service/targets_service_component.cpp
     src/web/handlers/openapi_handler.cpp
     src/web/handlers/swagger_ui_handler.cpp
 )

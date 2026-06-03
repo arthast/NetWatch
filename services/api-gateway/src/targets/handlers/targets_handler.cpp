@@ -9,6 +9,7 @@
 
 #include <common/http_response.hpp>
 #include <targets/json/target_json.hpp>
+#include <targets/service/targets_service_component.hpp>
 
 namespace netwatch::api_gateway::targets {
 using common::ErrorResponse;
@@ -18,9 +19,9 @@ TargetsHandler::TargetsHandler(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& component_context)
     : HttpHandlerBase(config, component_context),
-      target_client_(
-          component_context
-              .FindComponent<netwatch::target_client::TargetClient>()) {}
+      targets_service_(
+          component_context.FindComponent<TargetsServiceComponent>()
+              .GetService()) {}
 
 std::string TargetsHandler::HandleRequestThrow(
     const userver::server::http::HttpRequest& request,
@@ -47,7 +48,7 @@ std::string TargetsHandler::HandleCreateTarget(
         userver::formats::json::FromString(request.RequestBody());
     const auto create_request = ParseCreateTargetRequest(request_json);
 
-    const auto target = target_client_.CreateTarget(create_request);
+    const auto target = targets_service_.CreateTarget(create_request);
     request.SetResponseStatus(userver::server::http::HttpStatus::kCreated);
     return JsonResponse(request, SerializeTarget(target));
   } catch (const userver::formats::json::Exception& ex) {
@@ -65,7 +66,7 @@ std::string TargetsHandler::HandleListTargets(
     const userver::server::http::HttpRequest& request) const {
   try {
     return JsonResponse(request,
-                        SerializeTargets(target_client_.ListActiveTargets()));
+                        SerializeTargets(targets_service_.ListActiveTargets()));
   } catch (const userver::ugrpc::client::BaseError& ex) {
     return common::UpstreamErrorResponse(request, "target-service", ex);
   }

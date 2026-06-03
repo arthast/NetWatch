@@ -165,6 +165,28 @@ services:
       target-migrations:
         condition: service_completed_successfully
     healthcheck: *service-healthcheck
+    command:
+      - bash
+      - -lc
+      - |
+        set -euo pipefail
+        python3 - "$$DB_CONNECTION" /opt/netwatch/etc/target_service/config_vars.compose.yaml /tmp/config_vars.yaml <<'PY'
+        import sys
+        from pathlib import Path
+
+        connection, source, destination = sys.argv[1:]
+        quoted = "'" + connection.replace("'", "''") + "'"
+        lines = []
+        for line in Path(source).read_text(encoding="utf-8").splitlines():
+            if line.startswith("pg-connection:"):
+                lines.append(f"pg-connection: {quoted}")
+            else:
+                lines.append(line)
+        Path(destination).write_text("\n".join(lines) + "\n", encoding="utf-8")
+        PY
+        exec /opt/netwatch/bin/target_service \
+          --config /opt/netwatch/etc/target_service/static_config.yaml \
+          --config_vars /tmp/config_vars.yaml
 
   alert-service:
     <<: *app-common
@@ -177,6 +199,28 @@ services:
       alert-migrations:
         condition: service_completed_successfully
     healthcheck: *service-healthcheck
+    command:
+      - bash
+      - -lc
+      - |
+        set -euo pipefail
+        python3 - "$$DB_CONNECTION" /opt/netwatch/etc/alert_service/config_vars.compose.yaml /tmp/config_vars.yaml <<'PY'
+        import sys
+        from pathlib import Path
+
+        connection, source, destination = sys.argv[1:]
+        quoted = "'" + connection.replace("'", "''") + "'"
+        lines = []
+        for line in Path(source).read_text(encoding="utf-8").splitlines():
+            if line.startswith("pg-connection:"):
+                lines.append(f"pg-connection: {quoted}")
+            else:
+                lines.append(line)
+        Path(destination).write_text("\n".join(lines) + "\n", encoding="utf-8")
+        PY
+        exec /opt/netwatch/bin/alert_service \
+          --config /opt/netwatch/etc/alert_service/static_config.yaml \
+          --config_vars /tmp/config_vars.yaml
 
   monitor-service:
     <<: *app-common
@@ -193,6 +237,28 @@ services:
       alert-service:
         condition: service_healthy
     healthcheck: *service-healthcheck
+    command:
+      - bash
+      - -lc
+      - |
+        set -euo pipefail
+        python3 - "$$DB_CONNECTION" /opt/netwatch/etc/monitor_service/config_vars.compose.yaml /tmp/config_vars.yaml <<'PY'
+        import sys
+        from pathlib import Path
+
+        connection, source, destination = sys.argv[1:]
+        quoted = "'" + connection.replace("'", "''") + "'"
+        lines = []
+        for line in Path(source).read_text(encoding="utf-8").splitlines():
+            if line.startswith("pg-connection:"):
+                lines.append(f"pg-connection: {quoted}")
+            else:
+                lines.append(line)
+        Path(destination).write_text("\n".join(lines) + "\n", encoding="utf-8")
+        PY
+        exec /opt/netwatch/bin/monitor_service \
+          --config /opt/netwatch/etc/monitor_service/static_config.yaml \
+          --config_vars /tmp/config_vars.yaml
 
   api-gateway:
     <<: *app-common

@@ -1,25 +1,18 @@
 #include <monitor_client/client/check_client.hpp>
 
-#include <chrono>
 #include <optional>
 #include <stdexcept>
 #include <userver/components/component_context.hpp>
-#include <userver/ugrpc/client/call_options.hpp>
 #include <userver/ugrpc/client/exceptions.hpp>
 #include <userver/ugrpc/client/simple_client_component.hpp>
 #include <vector>
+
+#include <client_common/call_options.hpp>
 
 namespace netwatch::monitor_client {
 namespace {
 
 namespace proto = netwatch::monitor::v1;
-
-userver::ugrpc::client::CallOptions MakeCallOptions() {
-  userver::ugrpc::client::CallOptions options;
-  options.SetAttempts(1);
-  options.SetTimeout(std::chrono::milliseconds{1000});
-  return options;
-}
 
 proto::TargetIdRequest MakeTargetIdRequest(std::int64_t target_id) {
   proto::TargetIdRequest request;
@@ -98,9 +91,10 @@ CheckClient::CheckClient(const userver::components::ComponentConfig& config,
 
 std::optional<CheckResult> CheckClient::RunCheck(std::int64_t target_id) const {
   try {
-    return ToDomainCheck(
-        client_.RunCheck(MakeTargetIdRequest(target_id), MakeCallOptions())
-            .check());
+    return ToDomainCheck(client_
+                             .RunCheck(MakeTargetIdRequest(target_id),
+                                       client_common::MakeGrpcCallOptions())
+                             .check());
   } catch (const userver::ugrpc::client::NotFoundError&) {
     return std::nullopt;
   }
@@ -109,8 +103,8 @@ std::optional<CheckResult> CheckClient::RunCheck(std::int64_t target_id) const {
 std::optional<std::vector<CheckResult>> CheckClient::ListTargetChecks(
     std::int64_t target_id) const {
   try {
-    return ToDomainChecks(
-        client_.ListChecks(MakeTargetIdRequest(target_id), MakeCallOptions()));
+    return ToDomainChecks(client_.ListChecks(
+        MakeTargetIdRequest(target_id), client_common::MakeGrpcCallOptions()));
   } catch (const userver::ugrpc::client::NotFoundError&) {
     return std::nullopt;
   }
@@ -121,7 +115,8 @@ std::optional<CheckResult> CheckClient::GetTargetStatus(
   try {
     return ToDomainCheck(
         client_
-            .GetTargetStatus(MakeTargetIdRequest(target_id), MakeCallOptions())
+            .GetTargetStatus(MakeTargetIdRequest(target_id),
+                             client_common::MakeGrpcCallOptions())
             .check());
   } catch (const userver::ugrpc::client::NotFoundError&) {
     return std::nullopt;

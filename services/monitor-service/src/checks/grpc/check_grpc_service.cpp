@@ -1,6 +1,7 @@
 #include <checks/grpc/check_grpc_service.hpp>
 
 #include <grpcpp/support/status.h>
+#include <checks/service/check_service_component.hpp>
 #include <string>
 #include <userver/components/component_context.hpp>
 #include <utility>
@@ -75,7 +76,8 @@ CheckGrpcService::CheckGrpcService(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& context)
     : proto::CheckServiceBase::Component(config, context),
-      check_service_(context.FindComponent<CheckServiceComponent>()) {}
+      check_service_(
+          context.FindComponent<CheckServiceComponent>().GetService()) {}
 
 CheckGrpcService::RunCheckResult CheckGrpcService::RunCheck(
     CallContext&, proto::TargetIdRequest&& request) {

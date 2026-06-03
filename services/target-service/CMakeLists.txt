@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.12...3.31)
 project(target_service CXX)
 
 if(NOT TARGET userver::core)
-    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../monitor-service/cmake")
+    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../cmake")
     include(DownloadUserver)
 
     find_package(
@@ -27,8 +27,9 @@ endif()
 
 add_library(
     ${PROJECT_NAME}_objs OBJECT
-    src/target_service.cpp
+    src/targets/grpc/target_grpc_service.cpp
     src/targets/model/target.cpp
+    src/targets/service/target_service.cpp
     src/targets/storage/target_repository.cpp
     src/targets/validation/target_validator.cpp
 )

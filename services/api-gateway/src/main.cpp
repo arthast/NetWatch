@@ -17,13 +17,16 @@
 #include <alert_client/client/alert_client.hpp>
 #include <alerts/handlers/active_alerts_handler.hpp>
 #include <alerts/handlers/alerts_handler.hpp>
-#include <monitor_client/client/check_client.hpp>
+#include <alerts/service/alerts_service_component.hpp>
 #include <checks/handlers/manual_check_handler.hpp>
 #include <checks/handlers/target_checks_handler.hpp>
 #include <checks/handlers/target_status_handler.hpp>
+#include <checks/service/checks_service_component.hpp>
+#include <monitor_client/client/check_client.hpp>
 #include <target_client/client/target_client.hpp>
 #include <targets/handlers/target_by_id_handler.hpp>
 #include <targets/handlers/targets_handler.hpp>
+#include <targets/service/targets_service_component.hpp>
 #include <web/handlers/openapi_handler.hpp>
 #include <web/handlers/swagger_ui_handler.hpp>
 
@@ -47,6 +50,9 @@ int main(int argc, char* argv[]) {
           .Append<netwatch::target_client::TargetClient>()
           .Append<netwatch::monitor_client::CheckClient>()
           .Append<netwatch::alert_client::AlertClient>()
+          .Append<netwatch::api_gateway::targets::TargetsServiceComponent>()
+          .Append<netwatch::api_gateway::checks::ChecksServiceComponent>()
+          .Append<netwatch::api_gateway::alerts::AlertsServiceComponent>()
           .Append<netwatch::api_gateway::web::SwaggerUiHandler>()
           .Append<netwatch::api_gateway::web::OpenApiHandler>()
           .Append<netwatch::api_gateway::alerts::AlertsHandler>()

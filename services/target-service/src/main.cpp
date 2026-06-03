@@ -10,7 +10,7 @@
 #include <userver/ugrpc/server/component_list.hpp>
 #include <userver/utils/daemon_run.hpp>
 
-#include <target_service.hpp>
+#include <targets/grpc/target_grpc_service.hpp>
 
 int main(int argc, char* argv[]) {
   auto component_list =
@@ -22,7 +22,7 @@ int main(int argc, char* argv[]) {
           .Append<userver::clients::dns::Component>()
           .Append<userver::components::Postgres>("postgres-db-1")
           .AppendComponentList(userver::ugrpc::server::MinimalComponentList())
-          .Append<netwatch::target_service::TargetService>();
+          .Append<netwatch::target_service::TargetGrpcService>();
 
   return userver::utils::DaemonMain(argc, argv, component_list);
 }

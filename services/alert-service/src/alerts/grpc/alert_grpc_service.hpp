@@ -5,8 +5,8 @@
 #include <netwatch/alert_service_service.usrv.pb.hpp>
 #include <userver/components/component.hpp>
 
+#include <alerts/repository/alert_repository.hpp>
 #include <alerts/service/alert_service.hpp>
-#include <alerts/storage/alert_repository.hpp>
 
 namespace netwatch::alert_service::alerts {
 

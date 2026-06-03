@@ -2,14 +2,14 @@ cmake_minimum_required(VERSION 3.12...3.31)
 project(monitor_service CXX)
 
 if(NOT TARGET userver::core)
-    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../cmake")
     include(DownloadUserver)
 
-find_package(
-    userver
-    COMPONENTS core
-               grpc
-               postgresql
+    find_package(
+        userver
+        COMPONENTS core
+                   grpc
+                   postgresql
         QUIET
     )
     if(NOT userver_FOUND)
@@ -44,12 +44,14 @@ endif()
 add_library(
     ${PROJECT_NAME}_objs OBJECT
     src/checks/grpc/check_grpc_service.cpp
+    src/checks/alerting/check_alert_notifier.cpp
     src/checks/model/check_result.cpp
+    src/checks/repository/check_lease_repository.cpp
+    src/checks/repository/check_repository.cpp
     src/checks/runner/check_runner.cpp
     src/checks/scheduler/target_check_scheduler.cpp
     src/checks/service/check_service.cpp
-    src/checks/storage/check_lease_repository.cpp
-    src/checks/storage/check_repository.cpp
+    src/checks/service/check_service_component.cpp
 )
 
 target_include_directories(
@@ -72,12 +74,6 @@ add_executable(${PROJECT_NAME} src/main.cpp)
 target_link_libraries(${PROJECT_NAME} PRIVATE ${PROJECT_NAME}_objs)
 
 include(GNUInstallDirs)
-
-if(DEFINED ENV{PREFIX})
-    message(STATUS "Set install prefix: $ENV{PREFIX}")
-    file(TO_CMAKE_PATH "$ENV{PREFIX}" PREFIX_PATH)
-    set(CMAKE_INSTALL_PREFIX "${PREFIX_PATH}")
-endif()
 
 file(GLOB CONFIGS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/configs/*.yaml ${CMAKE_CURRENT_SOURCE_DIR}/configs/*.json)
 

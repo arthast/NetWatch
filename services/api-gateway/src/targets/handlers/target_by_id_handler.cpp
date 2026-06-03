@@ -12,27 +12,19 @@
 #include <common/http_response.hpp>
 #include <common/path_params.hpp>
 #include <targets/json/target_json.hpp>
+#include <targets/service/targets_service_component.hpp>
 
 namespace netwatch::api_gateway::targets {
 using common::ErrorResponse;
 using common::JsonResponse;
 
-namespace {
-bool HasPatchFields(
-    const netwatch::target_client::UpdateTargetRequest& request) {
-  return request.name || request.type || request.url || request.method ||
-         request.expected_status_code || request.host || request.port ||
-         request.interval_seconds || request.timeout_ms;
-}
-}  // namespace
-
 TargetByIdHandler::TargetByIdHandler(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& component_context)
     : HttpHandlerBase(config, component_context),
-      target_client_(
-          component_context
-              .FindComponent<netwatch::target_client::TargetClient>()) {}
+      targets_service_(
+          component_context.FindComponent<TargetsServiceComponent>()
+              .GetService()) {}
 
 std::string TargetByIdHandler::HandleRequestThrow(
     const userver::server::http::HttpRequest& request,
@@ -64,11 +56,11 @@ std::string TargetByIdHandler::HandleGetTarget(
     const userver::server::http::HttpRequest& request,
     std::int64_t target_id) const {
   try {
-    const auto target = target_client_.GetTargetById(target_id);
+    const auto target = targets_service_.GetTargetById(target_id);
     if (!target) {
-      return ErrorResponse(
-          request, userver::server::http::HttpStatus::kNotFound,
-          "target not found");
+      return ErrorResponse(request,
+                           userver::server::http::HttpStatus::kNotFound,
+                           "target not found");
     }
 
     return JsonResponse(request, SerializeTarget(*target));
@@ -84,14 +76,9 @@ std::string TargetByIdHandler::HandlePatchTarget(
     const auto request_json =
         userver::formats::json::FromString(request.RequestBody());
     const auto update_request = ParseUpdateTargetRequest(request_json);
-    if (!HasPatchFields(update_request)) {
-      return ErrorResponse(request,
-                           userver::server::http::HttpStatus::kBadRequest,
-                           "patch body must contain at least one field");
-    }
 
     const auto saved_target =
-        target_client_.UpdateTarget(target_id, update_request);
+        targets_service_.UpdateTarget(target_id, update_request);
     if (!saved_target) {
       return ErrorResponse(request,
                            userver::server::http::HttpStatus::kNotFound,
@@ -114,10 +101,10 @@ std::string TargetByIdHandler::HandleDeleteTarget(
     const userver::server::http::HttpRequest& request,
     std::int64_t target_id) const {
   try {
-    if (!target_client_.DeactivateTarget(target_id)) {
-      return ErrorResponse(
-          request, userver::server::http::HttpStatus::kNotFound,
-          "target not found");
+    if (!targets_service_.DeactivateTarget(target_id)) {
+      return ErrorResponse(request,
+                           userver::server::http::HttpStatus::kNotFound,
+                           "target not found");
     }
 
     request.SetResponseStatus(userver::server::http::HttpStatus::kNoContent);

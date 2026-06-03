@@ -10,8 +10,8 @@
 #include <userver/engine/mutex.hpp>
 #include <userver/utils/periodic_task.hpp>
 
+#include <checks/repository/check_lease_repository.hpp>
 #include <checks/service/check_service.hpp>
-#include <checks/storage/check_lease_repository.hpp>
 #include <target_client/client/target_client.hpp>
 #include <target_client/model/target.hpp>
 
@@ -40,7 +40,7 @@ class TargetCheckScheduler final : public userver::components::ComponentBase {
   void LaunchCheck(netwatch::target_client::Target target);
 
   const netwatch::target_client::TargetClient& target_client_;
-  const CheckServiceComponent& check_service_;
+  const CheckService& check_service_;
   CheckLeaseRepository lease_repository_;
   std::string scheduler_owner_id_;
   std::chrono::milliseconds lease_duration_;

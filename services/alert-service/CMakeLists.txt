@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.12...3.31)
 project(alert_service CXX)
 
 if(NOT TARGET userver::core)
-    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../monitor-service/cmake")
+    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../cmake")
     include(DownloadUserver)
 
     find_package(
@@ -27,10 +27,12 @@ endif()
 
 add_library(
     ${PROJECT_NAME}_objs OBJECT
+    src/alerts/events/alert_event.cpp
     src/alerts/grpc/alert_grpc_service.cpp
     src/alerts/model/alert.cpp
+    src/alerts/repository/alert_outbox_repository.cpp
+    src/alerts/repository/alert_repository.cpp
     src/alerts/service/alert_service.cpp
-    src/alerts/storage/alert_repository.cpp
 )
 
 target_include_directories(

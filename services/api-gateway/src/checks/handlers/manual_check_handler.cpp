@@ -5,6 +5,7 @@
 #include <userver/server/http/http_status.hpp>
 
 #include <checks/json/check_json.hpp>
+#include <checks/service/checks_service_component.hpp>
 #include <common/http_response.hpp>
 #include <common/path_params.hpp>
 
@@ -14,9 +15,8 @@ ManualCheckHandler::ManualCheckHandler(
     const userver::components::ComponentConfig& config,
     const userver::components::ComponentContext& component_context)
     : HttpHandlerBase(config, component_context),
-      check_client_(
-          component_context
-              .FindComponent<netwatch::monitor_client::CheckClient>()) {}
+      checks_service_(component_context.FindComponent<ChecksServiceComponent>()
+                          .GetService()) {}
 
 std::string ManualCheckHandler::HandleRequestThrow(
     const userver::server::http::HttpRequest& request,
@@ -29,11 +29,11 @@ std::string ManualCheckHandler::HandleRequestThrow(
   }
 
   try {
-    const auto check = check_client_.RunCheck(*target_id);
+    const auto check = checks_service_.RunCheck(*target_id);
     if (!check) {
-      return common::ErrorResponse(
-          request, userver::server::http::HttpStatus::kNotFound,
-          "target not found");
+      return common::ErrorResponse(request,
+                                   userver::server::http::HttpStatus::kNotFound,
+                                   "target not found");
     }
 
     request.SetResponseStatus(userver::server::http::HttpStatus::kCreated);
