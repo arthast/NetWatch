@@ -5,15 +5,21 @@ C++ и userver. Проект построен как микросервисна�
 отделен от доменных сервисов, каждый сервис владеет своей базой данных,
 а внутреннее взаимодействие идет по gRPC.
 
+Публичный стенд:
+
+- Swagger UI: `http://158.160.233.79/docs`
+- OpenAPI JSON: `http://158.160.233.79/openapi.json`
+
 ## Стек
 
-- C++ / userver;
-- gRPC / Protocol Buffers;
-- PostgreSQL;
-- Docker / Docker Compose;
-- CMake / Ninja;
-- Swagger / OpenAPI;
-- GitHub Actions.
+- C++ / userver
+- gRPC / Protocol Buffers
+- Kafka
+- PostgreSQL
+- Docker / Docker Compose
+- CMake / Ninja
+- Swagger / OpenAPI
+- GitHub Actions
 
 ## Что умеет NetWatch
 
@@ -46,14 +52,19 @@ flowchart LR
 
     monitor -->|gRPC: read targets| target
     monitor -->|gRPC: check snapshots| alert
+    alert -->|Kafka: alert.opened / alert.resolved| kafka["Kafka<br/>netwatch.alert.events.v1"]
+    kafka -->|consume alert events| notification["notification-service"]
+    notification -->|SMTP / email API| email["Email provider"]
 
     target --> target_db[("target-postgres<br/>targets")]
     monitor --> monitor_db[("monitor-postgres<br/>check_results")]
-    alert --> alert_db[("alert-postgres<br/>alerts")]
+    alert --> alert_db[("alert-postgres<br/>alerts<br/>alert_outbox_events")]
 ```
 
 Снаружи открыт только `api-gateway`. Остальные сервисы считаются внутренними и
-доступны друг другу по gRPC внутри runtime-сети.
+доступны друг другу по gRPC внутри runtime-сети. События alert lifecycle
+доставляются асинхронно: `alert-service` пишет их в outbox и публикует в Kafka,
+а `notification-service` будет читать topic и отправлять уведомления.
 
 ## Сервисы
 
@@ -62,7 +73,8 @@ flowchart LR
 | `api-gateway` | HTTP API, Swagger UI, OpenAPI, JSON/gRPC mapping | нет |
 | `target-service` | target domain, CRUD, PATCH, validation | `target_service_db` |
 | `monitor-service` | check runner, scheduler, check history, target status | `monitor_service_db` |
-| `alert-service` | alert lifecycle, active/resolved alerts | `alert_service_db` |
+| `alert-service` | alert lifecycle, active/resolved alerts, Kafka outbox events | `alert_service_db` |
+| `notification-service` | Kafka consumer для alert events, email notification delivery | будет определено при реализации |
 
 ### `api-gateway`
 
@@ -86,7 +98,16 @@ Scheduler периодически обходит active targets и запуск
 
 Владелец alert lifecycle. Сервис получает snapshot target и previous/current
 check results, открывает `target_down` alert при падении и закрывает его после
-восстановления.
+восстановления. После изменения alert lifecycle сервис записывает событие в
+`alert_outbox_events` и публикует его в Kafka topic `netwatch.alert.events.v1`.
+
+### `notification-service`
+
+Сервис уведомлений. Он будет читать события `alert.opened` и `alert.resolved`
+из Kafka, применять настройки получателей/каналов и отправлять email через
+SMTP или внешний email API. Этот сервис не должен вызываться синхронно из
+`monitor-service` или `alert-service`: доставка уведомлений живет отдельно от
+основного мониторинга.
 
 ## Границы владения в коде
 
@@ -96,6 +117,8 @@ services/
   target-service/    target domain, validation, storage, gRPC service
   monitor-service/   check domain, runner, scheduler, storage, gRPC service
   alert-service/     alert domain, lifecycle, storage, gRPC service
+  notification-service/
+                     planned notification domain, Kafka consumer, email delivery
 
 libs/
   netwatch-proto/    service-specific generated gRPC targets
@@ -115,10 +138,11 @@ scripts/             local verification helpers
 
 - `target-service` владеет таблицей `targets`;
 - `monitor-service` владеет таблицами `check_results` и `target_check_leases`;
-- `alert-service` владеет таблицей `alerts`.
+- `alert-service` владеет таблицами `alerts` и `alert_outbox_events`.
 
 Между базами нет shared tables, foreign keys и прямых SQL-запросов из чужого
-сервиса. Связи между доменами проходят через gRPC contracts.
+сервиса. Синхронные связи между доменами проходят через gRPC contracts, а
+асинхронные события доставляются через Kafka.
 
 Миграции применяются отдельными Compose jobs:
 
@@ -146,6 +170,20 @@ service-owned `postgresql/migrations` и фиксирует версии в `sch
 `alert-service` принимает собственные snapshot messages, чтобы не зависеть от
 внутренних моделей target/check сервисов.
 
+## Kafka events
+
+Сейчас используется topic `netwatch.alert.events.v1`.
+
+`alert-service` публикует события:
+
+- `alert.opened`;
+- `alert.resolved`.
+
+Payload события содержит `event_id`, `event_type`, `producer`, `occurred_at`,
+snapshot alert и snapshot target. Эти события предназначены для
+`notification-service`, который будет отправлять email-уведомления независимо
+от основного request flow.
+
 ## Основной runtime flow
 
 ```mermaid
@@ -155,6 +193,8 @@ sequenceDiagram
     participant T as target-service
     participant M as monitor-service
     participant A as alert-service
+    participant K as Kafka
+    participant N as notification-service
 
     C->>G: POST /api/v1/targets
     G->>T: CreateTarget gRPC
@@ -168,6 +208,9 @@ sequenceDiagram
     M->>M: HTTP/TCP check + save result
     M->>A: ProcessCheckResult gRPC
     A->>A: open/resolve alert
+    A-->>K: publish alert.opened / alert.resolved
+    K-->>N: consume alert event
+    N-->>N: send email notification
     M-->>G: CheckResult
     G-->>C: 201 Created
 ```
@@ -203,6 +246,7 @@ sequenceDiagram
 | Swagger UI | `http://localhost:8081/docs` |
 | OpenAPI JSON | `http://localhost:8081/openapi.json` |
 | Target service healthcheck | `http://localhost:8082/ping` |
+| Kafka bootstrap | `localhost:19092` |
 | Target PostgreSQL | `localhost:15432` |
 | Monitor PostgreSQL | `localhost:15434` |
 | Alert PostgreSQL | `localhost:15435` |

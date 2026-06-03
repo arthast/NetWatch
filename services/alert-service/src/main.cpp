@@ -3,13 +3,17 @@
 #include <userver/components/component_list.hpp>
 #include <userver/components/minimal_server_component_list.hpp>
 #include <userver/congestion_control/component.hpp>
+#include <userver/kafka/producer_component.hpp>
 #include <userver/server/handlers/ping.hpp>
 #include <userver/server/handlers/tests_control.hpp>
 #include <userver/storages/postgres/component.hpp>
+#include <userver/storages/secdist/component.hpp>
+#include <userver/storages/secdist/provider_component.hpp>
 #include <userver/testsuite/testsuite_support.hpp>
 #include <userver/ugrpc/server/component_list.hpp>
 #include <userver/utils/daemon_run.hpp>
 
+#include <alerts/events/alert_outbox_publisher.hpp>
 #include <alerts/grpc/alert_grpc_service.hpp>
 
 int main(int argc, char* argv[]) {
@@ -20,9 +24,14 @@ int main(int argc, char* argv[]) {
           .Append<userver::server::handlers::TestsControl>()
           .Append<userver::congestion_control::Component>()
           .Append<userver::clients::dns::Component>()
+          .Append<userver::components::DefaultSecdistProvider>()
+          .Append<userver::components::Secdist>()
+          .Append<userver::kafka::ProducerComponent>(
+              "kafka-producer-alert-events")
           .Append<userver::components::Postgres>("postgres-db-1")
           .AppendComponentList(userver::ugrpc::server::MinimalComponentList())
-          .Append<netwatch::alert_service::alerts::AlertGrpcService>();
+          .Append<netwatch::alert_service::alerts::AlertGrpcService>()
+          .Append<netwatch::alert_service::alerts::AlertOutboxPublisher>();
 
   return userver::utils::DaemonMain(argc, argv, component_list);
 }

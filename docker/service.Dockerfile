@@ -22,6 +22,7 @@ RUN --mount=type=cache,id=netwatch-ccache,target=/root/.cache/ccache \
       -G Ninja \
       -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
       -DUSERVER_FEATURE_GRPC=ON \
+      -DUSERVER_FEATURE_KAFKA=ON \
       -DUSERVER_FEATURE_POSTGRESQL=ON \
       -DCMAKE_INSTALL_PREFIX=/opt/netwatch \
       -DCMAKE_EXPORT_COMPILE_COMMANDS=OFF; \

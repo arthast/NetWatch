@@ -154,6 +154,55 @@ services:
     networks:
       - internal
 
+  kafka:
+    image: apache/kafka:3.9.1
+    platform: linux/amd64
+    restart: unless-stopped
+    init: true
+    environment:
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-MkU3OEVBNTcwNTJENDM2Qk}
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+    volumes:
+      - netwatch-kafka-data:/tmp/kraft-combined-logs
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks:
+      - internal
+
+  kafka-init:
+    image: apache/kafka:3.9.1
+    platform: linux/amd64
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command:
+      - bash
+      - -lc
+      - >
+        /opt/kafka/bin/kafka-topics.sh
+        --bootstrap-server kafka:9092
+        --create
+        --if-not-exists
+        --topic netwatch.alert.events.v1
+        --partitions 3
+        --replication-factor 1
+    networks:
+      - internal
+
   target-service:
     <<: *app-common
     image: ${NETWATCH_IMAGE_REGISTRY:-ghcr.io/arthast/netwatch}/target-service:${NETWATCH_IMAGE_TAG:-main}
@@ -197,6 +246,8 @@ services:
       DB_CONNECTION: postgresql://${ALERT_POSTGRES_USER:-alert_service}:${ALERT_POSTGRES_PASSWORD:?set ALERT_POSTGRES_PASSWORD}@alert-postgres:5432/${ALERT_POSTGRES_DB:-alert_service_db}
     depends_on:
       alert-migrations:
+        condition: service_completed_successfully
+      kafka-init:
         condition: service_completed_successfully
     healthcheck: *service-healthcheck
     command:
@@ -286,3 +337,4 @@ volumes:
   netwatch-target-postgres-data:
   netwatch-monitor-postgres-data:
   netwatch-alert-postgres-data:
+  netwatch-kafka-data:

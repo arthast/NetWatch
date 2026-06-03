@@ -98,6 +98,51 @@ services:
         /migrations
         postgresql://alert_service:alert_service@alert-postgres:5432/alert_service_db
 
+  kafka:
+    image: apache/kafka:3.9.1
+    platform: linux/amd64
+    environment:
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+    ports:
+      - "19092:9092"
+    volumes:
+      - netwatch-kafka-data:/tmp/kraft-combined-logs
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  kafka-init:
+    image: apache/kafka:3.9.1
+    platform: linux/amd64
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command:
+      - bash
+      - -lc
+      - >
+        /opt/kafka/bin/kafka-topics.sh
+        --bootstrap-server kafka:9092
+        --create
+        --if-not-exists
+        --topic netwatch.alert.events.v1
+        --partitions 3
+        --replication-factor 1
+
   api-gateway:
     image: ${NETWATCH_API_GATEWAY_IMAGE:-netwatch/api-gateway:local}
     build:
@@ -168,6 +213,8 @@ services:
     depends_on:
       alert-migrations:
         condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
       start_period: 30s
@@ -203,3 +250,4 @@ volumes:
   netwatch-target-postgres-data:
   netwatch-monitor-postgres-data:
   netwatch-alert-postgres-data:
+  netwatch-kafka-data:

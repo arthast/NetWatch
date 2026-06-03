@@ -9,6 +9,7 @@ find_package(
     userver
     COMPONENTS core
                grpc
+               kafka
                postgresql
     QUIET
 )
