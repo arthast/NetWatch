@@ -14,8 +14,9 @@ CheckServiceComponent::CheckServiceComponent(
       check_service_(
           component_context
               .FindComponent<netwatch::target_client::TargetClient>(),
-          component_context
-              .FindComponent<netwatch::alert_client::AlertClient>(),
+          CheckAlertNotifier{
+              component_context
+                  .FindComponent<netwatch::alert_client::AlertClient>()},
           CheckRepository{
               component_context
                   .FindComponent<userver::components::Postgres>("postgres-db-1")

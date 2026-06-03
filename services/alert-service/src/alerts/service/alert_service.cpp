@@ -4,6 +4,28 @@
 #include <utility>
 
 namespace netwatch::alert_service::alerts {
+namespace {
+
+std::string TargetTypeToString(TargetType type) {
+  switch (type) {
+    case TargetType::kHttp:
+      return "http";
+    case TargetType::kTcp:
+      return "tcp";
+  }
+
+  return "http";
+}
+
+AlertEventTargetSnapshot ToAlertEventTarget(const TargetSnapshot& target) {
+  return AlertEventTargetSnapshot{
+      .id = target.id,
+      .name = target.name,
+      .type = TargetTypeToString(target.type),
+  };
+}
+
+}  // namespace
 
 AlertService::AlertService(AlertRepository repository)
     : repository_(std::move(repository)) {}
@@ -27,16 +49,19 @@ void AlertService::ProcessTargetDown(const TargetSnapshot& target) const {
     return;
   }
 
-  repository_.CreateAlert(NewAlert{
-      .target_id = target.id,
-      .type = AlertType::kTargetDown,
-      .severity = AlertSeverity::kCritical,
-      .message = "Target " + target.name + " is down",
-  });
+  repository_.CreateAlertWithEvent(
+      NewAlert{
+          .target_id = target.id,
+          .type = AlertType::kTargetDown,
+          .severity = AlertSeverity::kCritical,
+          .message = "Target " + target.name + " is down",
+      },
+      ToAlertEventTarget(target));
 }
 
 void AlertService::ProcessTargetRecovered(const TargetSnapshot& target) const {
-  repository_.ResolveActiveAlert(target.id, AlertType::kTargetDown);
+  repository_.ResolveActiveAlertWithEvent(target.id, AlertType::kTargetDown,
+                                          ToAlertEventTarget(target));
 }
 
 }  // namespace netwatch::alert_service::alerts

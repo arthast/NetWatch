@@ -6,6 +6,7 @@
 #include <userver/storages/postgres/postgres.hpp>
 #include <vector>
 
+#include <alerts/events/alert_event.hpp>
 #include <alerts/model/alert.hpp>
 
 namespace netwatch::alert_service::alerts {
@@ -16,11 +17,18 @@ class AlertRepository {
 
   Alert CreateAlert(const NewAlert& alert) const;
 
+  Alert CreateAlertWithEvent(const NewAlert& alert,
+                             const AlertEventTargetSnapshot& target) const;
+
   std::optional<Alert> FindActiveAlert(std::int64_t target_id,
                                        AlertType type) const;
 
   std::optional<Alert> ResolveActiveAlert(std::int64_t target_id,
                                           AlertType type) const;
+
+  std::optional<Alert> ResolveActiveAlertWithEvent(
+      std::int64_t target_id, AlertType type,
+      const AlertEventTargetSnapshot& target) const;
 
   std::vector<Alert> ListAlerts() const;
 

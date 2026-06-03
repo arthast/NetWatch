@@ -4,7 +4,7 @@
 #include <optional>
 #include <string>
 
-#include <alerts/storage/alert_repository.hpp>
+#include <alerts/repository/alert_repository.hpp>
 
 namespace netwatch::alert_service::alerts {
 

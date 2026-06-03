@@ -1,7 +1,7 @@
-#include <checks/storage/check_lease_repository.hpp>
+#include <checks/repository/check_lease_repository.hpp>
 
-#include <utility>
 #include <userver/storages/postgres/result_set.hpp>
+#include <utility>
 
 namespace netwatch::monitor_service::checks {
 
@@ -42,14 +42,13 @@ bool CheckLeaseRepository::TryAcquire(
 
 void CheckLeaseRepository::Release(std::int64_t target_id,
                                    std::string_view owner_id) const {
-  pg_cluster_->Execute(
-      userver::storages::postgres::ClusterHostType::kMaster,
-      R"(
+  pg_cluster_->Execute(userver::storages::postgres::ClusterHostType::kMaster,
+                       R"(
             DELETE FROM target_check_leases
             WHERE target_id = $1
               AND owner_id = $2
         )",
-      target_id, std::string{owner_id});
+                       target_id, std::string{owner_id});
 }
 
 }  // namespace netwatch::monitor_service::checks

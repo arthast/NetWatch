@@ -44,13 +44,14 @@ endif()
 add_library(
     ${PROJECT_NAME}_objs OBJECT
     src/checks/grpc/check_grpc_service.cpp
+    src/checks/alerting/check_alert_notifier.cpp
     src/checks/model/check_result.cpp
+    src/checks/repository/check_lease_repository.cpp
+    src/checks/repository/check_repository.cpp
     src/checks/runner/check_runner.cpp
     src/checks/scheduler/target_check_scheduler.cpp
     src/checks/service/check_service.cpp
     src/checks/service/check_service_component.cpp
-    src/checks/storage/check_lease_repository.cpp
-    src/checks/storage/check_repository.cpp
 )
 
 target_include_directories(

@@ -1,23 +1,16 @@
 #include <alert_client/client/alert_client.hpp>
 
-#include <chrono>
 #include <stdexcept>
 #include <userver/components/component_context.hpp>
-#include <userver/ugrpc/client/call_options.hpp>
 #include <userver/ugrpc/client/simple_client_component.hpp>
 #include <vector>
+
+#include <client_common/call_options.hpp>
 
 namespace netwatch::alert_client {
 namespace {
 
 namespace proto = netwatch::alert::v1;
-
-userver::ugrpc::client::CallOptions MakeCallOptions() {
-  userver::ugrpc::client::CallOptions options;
-  options.SetAttempts(1);
-  options.SetTimeout(std::chrono::milliseconds{1000});
-  return options;
-}
 
 AlertType ToDomainAlertType(proto::AlertType type) {
   switch (type) {
@@ -152,13 +145,13 @@ AlertClient::AlertClient(const userver::components::ComponentConfig& config,
                   .GetClient()) {}
 
 std::vector<Alert> AlertClient::ListAlerts() const {
-  return ToDomainAlerts(
-      client_.ListAlerts(proto::ListAlertsRequest{}, MakeCallOptions()));
+  return ToDomainAlerts(client_.ListAlerts(
+      proto::ListAlertsRequest{}, client_common::MakeGrpcCallOptions()));
 }
 
 std::vector<Alert> AlertClient::ListActiveAlerts() const {
-  return ToDomainAlerts(
-      client_.ListActiveAlerts(proto::ListAlertsRequest{}, MakeCallOptions()));
+  return ToDomainAlerts(client_.ListActiveAlerts(
+      proto::ListAlertsRequest{}, client_common::MakeGrpcCallOptions()));
 }
 
 void AlertClient::ProcessCheckResult(
@@ -172,7 +165,7 @@ void AlertClient::ProcessCheckResult(
   }
   FillProtoCheck(current_check, *request.mutable_current_check());
 
-  client_.ProcessCheckResult(request, MakeCallOptions());
+  client_.ProcessCheckResult(request, client_common::MakeGrpcCallOptions());
 }
 
 }  // namespace netwatch::alert_client

@@ -1,4 +1,4 @@
-#include <checks/storage/check_repository.hpp>
+#include <checks/repository/check_repository.hpp>
 
 #include <optional>
 #include <userver/storages/postgres/result_set.hpp>

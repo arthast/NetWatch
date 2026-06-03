@@ -27,10 +27,12 @@ endif()
 
 add_library(
     ${PROJECT_NAME}_objs OBJECT
+    src/alerts/events/alert_event.cpp
     src/alerts/grpc/alert_grpc_service.cpp
     src/alerts/model/alert.cpp
+    src/alerts/repository/alert_outbox_repository.cpp
+    src/alerts/repository/alert_repository.cpp
     src/alerts/service/alert_service.cpp
-    src/alerts/storage/alert_repository.cpp
 )
 
 target_include_directories(

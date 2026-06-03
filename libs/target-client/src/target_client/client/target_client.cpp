@@ -1,26 +1,19 @@
 #include <target_client/client/target_client.hpp>
 
-#include <chrono>
 #include <optional>
 #include <stdexcept>
 #include <userver/components/component_context.hpp>
-#include <userver/ugrpc/client/call_options.hpp>
 #include <userver/ugrpc/client/exceptions.hpp>
 #include <userver/ugrpc/client/simple_client_component.hpp>
 #include <userver/yaml_config/merge_schemas.hpp>
 #include <userver/yaml_config/schema.hpp>
 
+#include <client_common/call_options.hpp>
+
 namespace netwatch::target_client {
 namespace {
 
 namespace proto = netwatch::target::v1;
-
-userver::ugrpc::client::CallOptions MakeCallOptions() {
-  userver::ugrpc::client::CallOptions options;
-  options.SetAttempts(1);
-  options.SetTimeout(std::chrono::milliseconds{1000});
-  return options;
-}
 
 proto::TargetType ToProtoTargetType(TargetType type) {
   switch (type) {
@@ -185,7 +178,8 @@ Target TargetClient::CreateTarget(const CreateTargetRequest& request) const {
   try {
     return ToDomainTarget(
         grpc_client_
-            ->CreateTarget(ToProtoCreateRequest(request), MakeCallOptions())
+            ->CreateTarget(ToProtoCreateRequest(request),
+                           client_common::MakeGrpcCallOptions())
             .target());
   } catch (const userver::ugrpc::client::InvalidArgumentError& ex) {
     throw ToInvalidArgument(ex);
@@ -194,16 +188,16 @@ Target TargetClient::CreateTarget(const CreateTargetRequest& request) const {
 
 std::vector<Target> TargetClient::ListActiveTargets() const {
   return ToDomainTargets(grpc_client_->ListActiveTargets(
-      proto::ListTargetsRequest{}, MakeCallOptions()));
+      proto::ListTargetsRequest{}, client_common::MakeGrpcCallOptions()));
 }
 
 std::optional<Target> TargetClient::GetTargetById(
     std::int64_t target_id) const {
   try {
-    return ToDomainTarget(
-        grpc_client_
-            ->GetTarget(MakeTargetIdRequest(target_id), MakeCallOptions())
-            .target());
+    return ToDomainTarget(grpc_client_
+                              ->GetTarget(MakeTargetIdRequest(target_id),
+                                          client_common::MakeGrpcCallOptions())
+                              .target());
   } catch (const userver::ugrpc::client::NotFoundError&) {
     return std::nullopt;
   }
@@ -216,7 +210,9 @@ std::optional<Target> TargetClient::UpdateTarget(
 
   try {
     return ToDomainTarget(
-        grpc_client_->UpdateTarget(request, MakeCallOptions()).target());
+        grpc_client_
+            ->UpdateTarget(request, client_common::MakeGrpcCallOptions())
+            .target());
   } catch (const userver::ugrpc::client::NotFoundError&) {
     return std::nullopt;
   } catch (const userver::ugrpc::client::InvalidArgumentError& ex) {
@@ -227,7 +223,7 @@ std::optional<Target> TargetClient::UpdateTarget(
 bool TargetClient::DeactivateTarget(std::int64_t target_id) const {
   try {
     grpc_client_->DeleteTarget(MakeTargetIdRequest(target_id),
-                               MakeCallOptions());
+                               client_common::MakeGrpcCallOptions());
     return true;
   } catch (const userver::ugrpc::client::NotFoundError&) {
     return false;
