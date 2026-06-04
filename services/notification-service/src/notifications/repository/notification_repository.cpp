@@ -97,14 +97,21 @@ NotificationRepository::AcquirePendingDeliveries(int batch_size) const {
             WITH acquired AS (
                 SELECT id, event_id
                 FROM notification_deliveries AS delivery
-                WHERE delivery.status = 'pending'
+                WHERE
+                    delivery.status = 'pending'
+                    OR (
+                        delivery.status = 'sending'
+                        AND delivery.updated_at < NOW() - INTERVAL '5 minutes'
+                    )
                 ORDER BY delivery.created_at, delivery.id
                 FOR UPDATE SKIP LOCKED
                 LIMIT $1
             )
             UPDATE notification_deliveries AS delivery
             SET
+                status = 'sending',
                 attempts = attempts + 1,
+                error_message = NULL,
                 updated_at = NOW()
             FROM acquired
             JOIN notification_events AS event
@@ -143,6 +150,7 @@ void NotificationRepository::MarkDeliverySent(std::int64_t delivery_id) const {
                 updated_at = NOW(),
                 delivered_at = NOW()
             WHERE id = $1
+              AND status = 'sending'
         )",
                        delivery_id);
 }
@@ -161,6 +169,7 @@ void NotificationRepository::MarkDeliveryFailed(
                 error_message = $2,
                 updated_at = NOW()
             WHERE id = $1
+              AND status = 'sending'
         )",
                        delivery_id, error);
 }

@@ -21,14 +21,24 @@ constexpr auto kDefaultSendPeriod = std::chrono::milliseconds{1000};
 constexpr auto kDefaultRequestTimeout = std::chrono::milliseconds{3000};
 constexpr int kDefaultBatchSize = 20;
 
-std::string AlertTypeTitle(std::string_view event_type) {
+std::string AlertSubjectPrefix(std::string_view event_type) {
   if (event_type == "alert.opened") {
-    return "Alert opened";
+    return "Target is down";
   }
   if (event_type == "alert.resolved") {
-    return "Alert resolved";
+    return "Target recovered";
   }
-  return "Alert event";
+  return "Alert update";
+}
+
+std::string AlertStatusTitle(std::string_view event_type) {
+  if (event_type == "alert.opened") {
+    return "DOWN";
+  }
+  if (event_type == "alert.resolved") {
+    return "RECOVERED";
+  }
+  return "UPDATED";
 }
 
 std::string ReadStringOr(const userver::formats::json::Value& json,
@@ -44,7 +54,7 @@ std::string BuildSubject(const PendingNotificationDelivery& delivery,
                          const userver::formats::json::Value& payload) {
   const auto target = payload["target"];
   const auto target_name = ReadStringOr(target, "name", "target");
-  return "[NetWatch] " + AlertTypeTitle(delivery.event_type) + ": " +
+  return "[NetWatch] " + AlertSubjectPrefix(delivery.event_type) + ": " +
          target_name;
 }
 
@@ -54,18 +64,21 @@ std::string BuildText(const PendingNotificationDelivery& delivery,
   const auto target = payload["target"];
 
   std::string text;
-  text += "NetWatch notification\n\n";
+  text += "NetWatch alert\n\n";
+  text += "Target: " + ReadStringOr(target, "name", "target") + "\n";
+  text += "Status: " + AlertStatusTitle(delivery.event_type) + "\n";
+  text += "Severity: " + ReadStringOr(alert, "severity", "unknown") + "\n";
+  text += "Type: " + ReadStringOr(alert, "type", "unknown") + "\n";
+  if (const auto message = ReadStringOr(alert, "message"); !message.empty()) {
+    text += "Message: " + message + "\n";
+  }
+  if (const auto occurred_at = ReadStringOr(payload, "occurred_at");
+      !occurred_at.empty()) {
+    text += "Time: " + occurred_at + "\n";
+  }
+  text += "\nTechnical details\n";
   text += "Event: " + delivery.event_type + "\n";
   text += "Event ID: " + delivery.event_id + "\n";
-  text += "Target: " + ReadStringOr(target, "name", "unknown") + "\n";
-  text += "Alert type: " + ReadStringOr(alert, "type", "unknown") + "\n";
-  text += "Alert status: " + ReadStringOr(alert, "status", "unknown") + "\n";
-  text += "Reason: " + ReadStringOr(alert, "reason", "n/a") + "\n";
-  text += "Opened at: " + ReadStringOr(alert, "opened_at", "n/a") + "\n";
-  if (const auto resolved_at = ReadStringOr(alert, "resolved_at");
-      !resolved_at.empty()) {
-    text += "Resolved at: " + resolved_at + "\n";
-  }
   return text;
 }
 
