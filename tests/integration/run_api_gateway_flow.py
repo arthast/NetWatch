@@ -445,8 +445,8 @@ def wait_for_mailpit_messages(compose: list[str], timeout_seconds: int = 30) -> 
             message.get("Subject", "")
             for message in payload.get("messages", [])
         }
-        if any("Alert opened" in subject for subject in subjects) and any(
-            "Alert resolved" in subject for subject in subjects
+        if any("Target is down" in subject for subject in subjects) and any(
+            "Target recovered" in subject for subject in subjects
         ):
             return
         time.sleep(1)
