@@ -273,13 +273,20 @@ services:
         from pathlib import Path
 
         connection, source, destination = sys.argv[1:]
-        quoted = "'" + connection.replace("'", "''") + "'"
+        replacements = {
+            "pg-connection": connection,
+        }
+
+        def quote(value: str) -> str:
+            return "'" + value.replace("'", "''") + "'"
+
         lines = []
         for line in Path(source).read_text(encoding="utf-8").splitlines():
-            if line.startswith("pg-connection:"):
-                lines.append(f"pg-connection: {quoted}")
-            else:
-                lines.append(line)
+            key = line.split(":", 1)[0]
+            if key in replacements:
+                lines.append(f"{key}: {quote(replacements[key])}")
+                continue
+            lines.append(line)
         Path(destination).write_text("\n".join(lines) + "\n", encoding="utf-8")
         PY
         exec /opt/netwatch/bin/target_service \
@@ -309,13 +316,21 @@ services:
         from pathlib import Path
 
         connection, source, destination = sys.argv[1:]
-        quoted = "'" + connection.replace("'", "''") + "'"
+        replacements = {
+            "pg-connection": connection,
+            "secdist-path": "/opt/netwatch/etc/alert_service/secdist.compose.json",
+        }
+
+        def quote(value: str) -> str:
+            return "'" + value.replace("'", "''") + "'"
+
         lines = []
         for line in Path(source).read_text(encoding="utf-8").splitlines():
-            if line.startswith("pg-connection:"):
-                lines.append(f"pg-connection: {quoted}")
-            else:
-                lines.append(line)
+            key = line.split(":", 1)[0]
+            if key in replacements:
+                lines.append(f"{key}: {quote(replacements[key])}")
+                continue
+            lines.append(line)
         Path(destination).write_text("\n".join(lines) + "\n", encoding="utf-8")
         PY
         exec /opt/netwatch/bin/alert_service \
@@ -357,6 +372,7 @@ services:
         connection, source, destination = sys.argv[1:]
         replacements = {
             "pg-connection": connection,
+            "secdist-path": "/opt/netwatch/etc/notification_service/secdist.compose.json",
             "notification-email-provider": os.getenv("NOTIFICATION_EMAIL_PROVIDER", ""),
             "notification-email-provider-url": os.getenv("NOTIFICATION_EMAIL_PROVIDER_URL", ""),
             "notification-email-from-email": os.getenv("NOTIFICATION_EMAIL_FROM_EMAIL", ""),
