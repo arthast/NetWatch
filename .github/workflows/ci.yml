@@ -169,6 +169,40 @@ jobs:
         if: always()
         run: sudo chown -R "$USER:$USER" .ccache || true
 
+  notification-service-build:
+    name: notification-service build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ${{ runner.os }}-ccache-notification-service-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-notification-service-
+            ${{ runner.os }}-ccache-
+
+      - name: Build notification-service
+        run: |
+          docker compose run --rm --no-deps --workdir /workspace \
+            --env CCACHE_BASEDIR \
+            --env CCACHE_COMPILERCHECK \
+            --env CCACHE_DIR \
+            --env CCACHE_MAXSIZE \
+            --env CCACHE_NOHASHDIR \
+            monitor-service \
+            bash -lc 'set -e; \
+              ccache --zero-stats || true; \
+              cmake -S . -B build-ci-notification-service-debug ${{ env.CMAKE_ARGS }}; \
+              cmake --build build-ci-notification-service-debug -j ${{ env.NETWATCH_CI_BUILD_JOBS }} --target notification_service; \
+              ccache --show-stats || true'
+
+      - name: Fix ccache permissions
+        if: always()
+        run: sudo chown -R "$USER:$USER" .ccache || true
+
   integration-dev-compose:
     name: Integration Flow (dev compose)
     runs-on: ubuntu-24.04
@@ -177,6 +211,7 @@ jobs:
       - target-service-tests
       - monitor-service-build
       - alert-service-build
+      - notification-service-build
     steps:
       - uses: actions/checkout@v4
 
@@ -191,6 +226,7 @@ jobs:
       - target-service-tests
       - monitor-service-build
       - alert-service-build
+      - notification-service-build
     steps:
       - uses: actions/checkout@v4
 
@@ -222,6 +258,8 @@ jobs:
             target: monitor_service
           - service: alert-service
             target: alert_service
+          - service: notification-service
+            target: notification_service
           - service: target-service
             target: target_service
     steps:

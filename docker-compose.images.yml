@@ -98,6 +98,39 @@ services:
         /migrations
         postgresql://alert_service:alert_service@alert-postgres:5432/alert_service_db
 
+  notification-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: notification_service_db
+      POSTGRES_USER: notification_service
+      POSTGRES_PASSWORD: notification_service
+    ports:
+      - "15436:5432"
+    volumes:
+      - netwatch-notification-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notification_service -d notification_service_db"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  notification-migrations:
+    image: postgres:16
+    depends_on:
+      notification-postgres:
+        condition: service_healthy
+    volumes:
+      - ./scripts/apply_migrations.sh:/usr/local/bin/apply_migrations.sh:ro
+      - ./services/notification-service/postgresql/migrations:/migrations:ro
+    command:
+      - bash
+      - -lc
+      - >
+        /usr/local/bin/apply_migrations.sh
+        notification-service
+        /migrations
+        postgresql://notification_service:notification_service@notification-postgres:5432/notification_service_db
+
   kafka:
     image: apache/kafka:3.9.1
     platform: linux/amd64
@@ -142,6 +175,17 @@ services:
         --topic netwatch.alert.events.v1
         --partitions 3
         --replication-factor 1
+
+  mailpit:
+    image: axllent/mailpit:v1.30
+    platform: linux/amd64
+    ports:
+      - "8025:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
 
   api-gateway:
     image: ${NETWATCH_API_GATEWAY_IMAGE:-netwatch/api-gateway:local}
@@ -222,6 +266,32 @@ services:
       timeout: 2s
       retries: 30
 
+  notification-service:
+    image: ${NETWATCH_NOTIFICATION_SERVICE_IMAGE:-netwatch/notification-service:local}
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_TARGET: notification_service
+        BUILD_JOBS: ${NETWATCH_BUILD_JOBS:-1}
+    platform: linux/amd64
+    environment:
+      DB_CONNECTION: postgresql://notification_service:notification_service@notification-postgres:5432/notification_service_db
+      USERVER_ENABLE_STACK_USAGE_MONITOR: "0"
+    depends_on:
+      notification-migrations:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
+      start_period: 30s
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
   target-service:
     image: ${NETWATCH_TARGET_SERVICE_IMAGE:-netwatch/target-service:local}
     build:
@@ -250,4 +320,5 @@ volumes:
   netwatch-target-postgres-data:
   netwatch-monitor-postgres-data:
   netwatch-alert-postgres-data:
+  netwatch-notification-postgres-data:
   netwatch-kafka-data:

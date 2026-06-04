@@ -384,6 +384,79 @@ def wait_for_alert_events_in_kafka(
     )
 
 
+def wait_for_notification_events(
+    compose: list[str], timeout_seconds: int = 30
+) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    last_output = ""
+
+    while time.monotonic() < deadline:
+        output = run_capture(
+            [
+                *compose,
+                "exec",
+                "-T",
+                "notification-postgres",
+                "psql",
+                "-U",
+                "notification_service",
+                "-d",
+                "notification_service_db",
+                "-Atc",
+                (
+                    "SELECT event_type || ':' || status "
+                    "FROM notification_events "
+                    "JOIN notification_deliveries USING (event_id) "
+                    "ORDER BY event_type, status"
+                ),
+            ]
+        )
+        last_output = output
+        rows = {line.strip() for line in output.splitlines() if line.strip()}
+        if {"alert.opened:sent", "alert.resolved:sent"} <= rows:
+            return
+        time.sleep(1)
+
+    raise RuntimeError(
+        "notification-service did not persist alert notification events. "
+        f"Last query output:\n{last_output}"
+    )
+
+
+def wait_for_mailpit_messages(compose: list[str], timeout_seconds: int = 30) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    last_output = ""
+
+    while time.monotonic() < deadline:
+        output = run_capture(
+            [
+                *compose,
+                "exec",
+                "-T",
+                "api-gateway",
+                "curl",
+                "-fsS",
+                "http://mailpit:8025/api/v1/messages",
+            ]
+        )
+        last_output = output
+        payload = json.loads(output)
+        subjects = {
+            message.get("Subject", "")
+            for message in payload.get("messages", [])
+        }
+        if any("Alert opened" in subject for subject in subjects) and any(
+            "Alert resolved" in subject for subject in subjects
+        ):
+            return
+        time.sleep(1)
+
+    raise RuntimeError(
+        "Mailpit did not receive alert notification emails. "
+        f"Last response:\n{last_output}"
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Run api-gateway integration tests against Docker Compose."
@@ -421,6 +494,8 @@ def main() -> int:
         run_flow(args.base_url)
         if not args.skip_compose:
             wait_for_alert_events_in_kafka(compose)
+            wait_for_notification_events(compose)
+            wait_for_mailpit_messages(compose)
         print("api-gateway integration flow passed")
         return 0
     finally:

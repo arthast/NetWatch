@@ -26,7 +26,7 @@ EOF
 
 build() {
   docker compose run --rm --no-deps --workdir /workspace monitor-service \
-    bash -lc "cmake -S . -B \"$BUILD_DIR\" -G Ninja -DCMAKE_BUILD_TYPE=Debug -DUSERVER_FEATURE_GRPC=ON -DUSERVER_FEATURE_POSTGRESQL=ON -DUSERVER_SANITIZE='addr;ub' -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build \"$BUILD_DIR\" -j \"$BUILD_JOBS\" --target api_gateway target_service monitor_service alert_service"
+    bash -lc "cmake -S . -B \"$BUILD_DIR\" -G Ninja -DCMAKE_BUILD_TYPE=Debug -DUSERVER_FEATURE_GRPC=ON -DUSERVER_FEATURE_KAFKA=ON -DUSERVER_FEATURE_POSTGRESQL=ON -DUSERVER_SANITIZE='addr;ub' -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build \"$BUILD_DIR\" -j \"$BUILD_JOBS\" --target api_gateway target_service monitor_service alert_service notification_service"
 }
 
 case "${1:-}" in

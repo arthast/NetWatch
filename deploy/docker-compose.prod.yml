@@ -154,6 +154,42 @@ services:
     networks:
       - internal
 
+  notification-postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${NOTIFICATION_POSTGRES_DB:-notification_service_db}
+      POSTGRES_USER: ${NOTIFICATION_POSTGRES_USER:-notification_service}
+      POSTGRES_PASSWORD: ${NOTIFICATION_POSTGRES_PASSWORD:?set NOTIFICATION_POSTGRES_PASSWORD}
+    volumes:
+      - netwatch-notification-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      <<: *postgres-healthcheck
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+    networks:
+      - internal
+
+  notification-migrations:
+    image: postgres:16
+    depends_on:
+      notification-postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_DB: ${NOTIFICATION_POSTGRES_DB:-notification_service_db}
+      POSTGRES_USER: ${NOTIFICATION_POSTGRES_USER:-notification_service}
+      POSTGRES_PASSWORD: ${NOTIFICATION_POSTGRES_PASSWORD:?set NOTIFICATION_POSTGRES_PASSWORD}
+    volumes:
+      - ../scripts/apply_migrations.sh:/usr/local/bin/apply_migrations.sh:ro
+      - ../services/notification-service/postgresql/migrations:/migrations:ro
+    command:
+      - bash
+      - -lc
+      - >
+        /usr/local/bin/apply_migrations.sh notification-service /migrations
+        "postgresql://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@notification-postgres:5432/$${POSTGRES_DB}"
+    networks:
+      - internal
+
   kafka:
     image: apache/kafka:3.9.1
     platform: linux/amd64
@@ -200,6 +236,19 @@ services:
         --topic netwatch.alert.events.v1
         --partitions 3
         --replication-factor 1
+    networks:
+      - internal
+
+  mailpit:
+    image: axllent/mailpit:v1.30
+    platform: linux/amd64
+    restart: unless-stopped
+    init: true
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
     networks:
       - internal
 
@@ -273,6 +322,65 @@ services:
           --config /opt/netwatch/etc/alert_service/static_config.yaml \
           --config_vars /tmp/config_vars.yaml
 
+  notification-service:
+    <<: *app-common
+    image: ${NETWATCH_IMAGE_REGISTRY:-ghcr.io/arthast/netwatch}/notification-service:${NETWATCH_IMAGE_TAG:-main}
+    pull_policy: always
+    environment:
+      USERVER_ENABLE_STACK_USAGE_MONITOR: "0"
+      DB_CONNECTION: postgresql://${NOTIFICATION_POSTGRES_USER:-notification_service}:${NOTIFICATION_POSTGRES_PASSWORD:?set NOTIFICATION_POSTGRES_PASSWORD}@notification-postgres:5432/${NOTIFICATION_POSTGRES_DB:-notification_service_db}
+      NOTIFICATION_EMAIL_PROVIDER: ${NOTIFICATION_EMAIL_PROVIDER:-mailpit}
+      NOTIFICATION_EMAIL_PROVIDER_URL: ${NOTIFICATION_EMAIL_PROVIDER_URL:-http://mailpit:8025}
+      NOTIFICATION_EMAIL_FROM_EMAIL: ${NOTIFICATION_EMAIL_FROM_EMAIL:-netwatch@example.test}
+      NOTIFICATION_EMAIL_FROM_NAME: ${NOTIFICATION_EMAIL_FROM_NAME:-NetWatch}
+      NOTIFICATION_EMAIL_SEED_RECIPIENT_EMAIL: ${NOTIFICATION_EMAIL_SEED_RECIPIENT_EMAIL:-alerts@example.test}
+      YANDEX_POSTBOX_IAM_TOKEN: ${YANDEX_POSTBOX_IAM_TOKEN:-}
+      NOTIFICATION_YANDEX_POSTBOX_METADATA_TOKEN_URL: ${NOTIFICATION_YANDEX_POSTBOX_METADATA_TOKEN_URL:-}
+    depends_on:
+      notification-migrations:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_healthy
+    healthcheck: *service-healthcheck
+    command:
+      - bash
+      - -lc
+      - |
+        set -euo pipefail
+        python3 - "$$DB_CONNECTION" /opt/netwatch/etc/notification_service/config_vars.compose.yaml /tmp/config_vars.yaml <<'PY'
+        import os
+        import sys
+        from pathlib import Path
+
+        connection, source, destination = sys.argv[1:]
+        replacements = {
+            "pg-connection": connection,
+            "notification-email-provider": os.getenv("NOTIFICATION_EMAIL_PROVIDER", ""),
+            "notification-email-provider-url": os.getenv("NOTIFICATION_EMAIL_PROVIDER_URL", ""),
+            "notification-email-from-email": os.getenv("NOTIFICATION_EMAIL_FROM_EMAIL", ""),
+            "notification-email-from-name": os.getenv("NOTIFICATION_EMAIL_FROM_NAME", ""),
+            "notification-email-seed-recipient-email": os.getenv("NOTIFICATION_EMAIL_SEED_RECIPIENT_EMAIL", ""),
+            "notification-yandex-postbox-metadata-token-url": os.getenv("NOTIFICATION_YANDEX_POSTBOX_METADATA_TOKEN_URL", ""),
+        }
+
+        def quote(value: str) -> str:
+            return "'" + value.replace("'", "''") + "'"
+
+        lines = []
+        for line in Path(source).read_text(encoding="utf-8").splitlines():
+            key = line.split(":", 1)[0]
+            if key in replacements and replacements[key] != "":
+                lines.append(f"{key}: {quote(replacements[key])}")
+                continue
+            lines.append(line)
+        Path(destination).write_text("\n".join(lines) + "\n", encoding="utf-8")
+        PY
+        exec /opt/netwatch/bin/notification_service \
+          --config /opt/netwatch/etc/notification_service/static_config.yaml \
+          --config_vars /tmp/config_vars.yaml
+
   monitor-service:
     <<: *app-common
     image: ${NETWATCH_IMAGE_REGISTRY:-ghcr.io/arthast/netwatch}/monitor-service:${NETWATCH_IMAGE_TAG:-main}
@@ -337,4 +445,5 @@ volumes:
   netwatch-target-postgres-data:
   netwatch-monitor-postgres-data:
   netwatch-alert-postgres-data:
+  netwatch-notification-postgres-data:
   netwatch-kafka-data:
