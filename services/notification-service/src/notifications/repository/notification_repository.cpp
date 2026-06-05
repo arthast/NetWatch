@@ -49,10 +49,35 @@ NotificationProcessResult NotificationRepository::ProcessAlertEvent(
                 ON CONFLICT (event_id) DO NOTHING
                 RETURNING event_id
             ),
+            event_context AS (
+                SELECT
+                    incoming.event_id,
+                    NULLIF($3::jsonb #>> '{target,name}', '') AS target_name,
+                    NULLIF($3::jsonb #>> '{target,type}', '') AS target_type
+                FROM incoming
+            ),
+            suppression AS (
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM notification_events AS previous_event
+                    WHERE $2 = 'alert.opened'
+                      AND event_context.target_name IS NOT NULL
+                      AND event_context.target_type IS NOT NULL
+                      AND previous_event.event_id <> event_context.event_id
+                      AND previous_event.event_type = 'alert.opened'
+                      AND NULLIF(previous_event.payload #>> '{target,name}', '') =
+                          event_context.target_name
+                      AND NULLIF(previous_event.payload #>> '{target,type}', '') =
+                          event_context.target_type
+                      AND previous_event.received_at >= NOW() - INTERVAL '15 minutes'
+                ) AS suppressed
+                FROM event_context
+            ),
             enabled_recipients AS (
                 SELECT id, email
                 FROM notification_recipients
                 WHERE is_enabled = TRUE
+                  AND NOT COALESCE((SELECT suppressed FROM suppression), FALSE)
                 ORDER BY id
             ),
             recipient_deliveries AS (
@@ -75,6 +100,24 @@ NotificationProcessResult NotificationRepository::ProcessAlertEvent(
                 CROSS JOIN enabled_recipients
                 RETURNING id
             ),
+            suppressed_delivery AS (
+                INSERT INTO notification_deliveries (
+                    event_id,
+                    channel,
+                    status,
+                    payload,
+                    error_message
+                )
+                SELECT
+                    incoming.event_id,
+                    'email',
+                    'skipped',
+                    $3::jsonb,
+                    'suppressed duplicate alert.opened email for target within 15 minutes'
+                FROM incoming
+                WHERE COALESCE((SELECT suppressed FROM suppression), FALSE)
+                RETURNING id
+            ),
             skipped_delivery AS (
                 INSERT INTO notification_deliveries (
                     event_id,
@@ -90,14 +133,17 @@ NotificationProcessResult NotificationRepository::ProcessAlertEvent(
                     $3::jsonb,
                     'no enabled email recipients'
                 FROM incoming
-                WHERE NOT EXISTS (SELECT 1 FROM enabled_recipients)
+                WHERE NOT COALESCE((SELECT suppressed FROM suppression), FALSE)
+                  AND NOT EXISTS (SELECT 1 FROM enabled_recipients)
                 RETURNING id
             )
             SELECT
                 EXISTS(SELECT 1 FROM incoming) AS inserted,
+                COALESCE((SELECT suppressed FROM suppression), FALSE) AS suppressed,
                 (SELECT COUNT(*) FROM enabled_recipients) AS recipients_count,
                 (
                     (SELECT COUNT(*) FROM recipient_deliveries) +
+                    (SELECT COUNT(*) FROM suppressed_delivery) +
                     (SELECT COUNT(*) FROM skipped_delivery)
                 ) AS deliveries_count
         )",
@@ -106,6 +152,7 @@ NotificationProcessResult NotificationRepository::ProcessAlertEvent(
   const auto& row = result.Front();
   return NotificationProcessResult{
       .inserted = row["inserted"].As<bool>(),
+      .suppressed = row["suppressed"].As<bool>(),
       .recipients_count = row["recipients_count"].As<std::int64_t>(),
       .deliveries_count = row["deliveries_count"].As<std::int64_t>(),
   };
