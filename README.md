@@ -16,6 +16,7 @@ C++ и userver. Проект построен как микросервисна�
 - gRPC / Protocol Buffers
 - Kafka
 - PostgreSQL
+- Mailpit
 - Docker / Docker Compose
 - CMake / Ninja
 - Swagger / OpenAPI
@@ -30,6 +31,7 @@ C++ и userver. Проект построен как микросервисна�
 - возвращать текущий статус target
 - создавать active alert при падении target
 - закрывать alert при восстановлении target
+- отправлять email-уведомления по alert events через Kafka
 - отдавать Swagger UI и OpenAPI contract
 - собираться и проверяться через CI/CD
 
@@ -54,11 +56,12 @@ flowchart LR
     monitor -->|gRPC: check snapshots| alert
     alert -->|Kafka: alert.opened / alert.resolved| kafka["Kafka<br/>netwatch.alert.events.v1"]
     kafka -->|consume alert events| notification["notification-service"]
-    notification -->|SMTP / email API| email["Email provider"]
+    notification -->|HTTP email API| email["Mailpit / Email provider"]
 
     target --> target_db[("target-postgres<br/>targets")]
     monitor --> monitor_db[("monitor-postgres<br/>check_results")]
     alert --> alert_db[("alert-postgres<br/>alerts<br/>alert_outbox_events")]
+    notification --> notification_db[("notification-postgres<br/>notification_events<br/>notification_deliveries")]
 ```
 
 Снаружи открыт только `api-gateway`. Остальные сервисы считаются внутренними и
@@ -74,7 +77,7 @@ flowchart LR
 | `target-service` | target domain, CRUD, PATCH, validation | `target_service_db` |
 | `monitor-service` | check runner, scheduler, check history, target status | `monitor_service_db` |
 | `alert-service` | alert lifecycle, active/resolved alerts, Kafka outbox events | `alert_service_db` |
-| `notification-service` | Kafka consumer для alert events, email notification delivery | будет определено при реализации |
+| `notification-service` | Kafka consumer для alert events, email delivery sender | `notification_service_db` |
 
 ### `api-gateway`
 
@@ -103,11 +106,18 @@ check results, открывает `target_down` alert при падении и �
 
 ### `notification-service`
 
-Сервис уведомлений. Он будет читать события `alert.opened` и `alert.resolved`
-из Kafka, применять настройки получателей/каналов и отправлять email через
-SMTP или внешний email API. Этот сервис не должен вызываться синхронно из
-`monitor-service` или `alert-service`: доставка уведомлений живет отдельно от
-основного мониторинга.
+Сервис уведомлений. Он читает события `alert.opened` и `alert.resolved` из
+Kafka в отдельной consumer group, idempotently сохраняет `event_id` в своей БД
+и создает delivery records для email-канала. Отдельный sender периодически
+берет `pending` deliveries, отправляет письмо через HTTP email API и помечает
+доставку как `sent` или `failed`. Локально роль email provider выполняет
+Mailpit; в production сервис можно переключить на Yandex Cloud Postbox через
+`NOTIFICATION_EMAIL_PROVIDER=yandex-postbox`. В Yandex Cloud VM сервис получает
+IAM-токен через metadata service привязанного service account и отправляет
+письма в Postbox HTTP API. Если включенных получателей нет, событие фиксируется
+как `skipped`, чтобы было видно, что Kafka flow дошел до сервиса. Этот сервис
+не вызывается синхронно из `monitor-service` или `alert-service`: доставка
+уведомлений живет отдельно от основного мониторинга.
 
 ## Границы владения в коде
 
@@ -118,7 +128,7 @@ services/
   monitor-service/   check domain, runner, scheduler, storage, gRPC service
   alert-service/     alert domain, lifecycle, storage, gRPC service
   notification-service/
-                     planned notification domain, Kafka consumer, email delivery
+                     notification domain, Kafka consumer, email delivery sender
 
 libs/
   netwatch-proto/    service-specific generated gRPC targets
@@ -138,7 +148,9 @@ scripts/             local verification helpers
 
 - `target-service` владеет таблицей `targets`;
 - `monitor-service` владеет таблицами `check_results` и `target_check_leases`;
-- `alert-service` владеет таблицами `alerts` и `alert_outbox_events`.
+- `alert-service` владеет таблицами `alerts` и `alert_outbox_events`;
+- `notification-service` владеет таблицами `notification_recipients`,
+  `notification_events` и `notification_deliveries`.
 
 Между базами нет shared tables, foreign keys и прямых SQL-запросов из чужого
 сервиса. Синхронные связи между доменами проходят через gRPC contracts, а
@@ -148,7 +160,8 @@ scripts/             local verification helpers
 
 - `target-migrations`;
 - `monitor-migrations`;
-- `alert-migrations`.
+- `alert-migrations`;
+- `notification-migrations`.
 
 Каждый job запускает `scripts/apply_migrations.sh`, применяет SQL-файлы из
 service-owned `postgresql/migrations` и фиксирует версии в `schema_migrations`.
@@ -181,7 +194,7 @@ service-owned `postgresql/migrations` и фиксирует версии в `sch
 
 Payload события содержит `event_id`, `event_type`, `producer`, `occurred_at`,
 snapshot alert и snapshot target. Эти события предназначены для
-`notification-service`, который будет отправлять email-уведомления независимо
+`notification-service`, который создает и отправляет email-delivery независимо
 от основного request flow.
 
 ## Основной runtime flow
@@ -210,7 +223,8 @@ sequenceDiagram
     A->>A: open/resolve alert
     A-->>K: publish alert.opened / alert.resolved
     K-->>N: consume alert event
-    N-->>N: send email notification
+    N-->>N: persist event + prepare email delivery
+    N-->>N: send pending email delivery
     M-->>G: CheckResult
     G-->>C: 201 Created
 ```
@@ -246,10 +260,12 @@ sequenceDiagram
 | Swagger UI | `http://localhost:8081/docs` |
 | OpenAPI JSON | `http://localhost:8081/openapi.json` |
 | Target service healthcheck | `http://localhost:8082/ping` |
+| Mailpit UI | `http://localhost:8025` |
 | Kafka bootstrap | `localhost:19092` |
 | Target PostgreSQL | `localhost:15432` |
 | Monitor PostgreSQL | `localhost:15434` |
 | Alert PostgreSQL | `localhost:15435` |
+| Notification PostgreSQL | `localhost:15436` |
 
 Внутренние gRPC endpoints внутри Docker Compose:
 
@@ -293,4 +309,5 @@ checks, собирает production-like Docker images и публикует и�
 - `ghcr.io/<owner>/<repo>/api-gateway:<sha|branch>`;
 - `ghcr.io/<owner>/<repo>/target-service:<sha|branch>`;
 - `ghcr.io/<owner>/<repo>/monitor-service:<sha|branch>`;
-- `ghcr.io/<owner>/<repo>/alert-service:<sha|branch>`.
+- `ghcr.io/<owner>/<repo>/alert-service:<sha|branch>`;
+- `ghcr.io/<owner>/<repo>/notification-service:<sha|branch>`.

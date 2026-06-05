@@ -20,3 +20,10 @@ userver_add_grpc_library(
     PROTOS
         netwatch/alert_service.proto
 )
+
+userver_add_grpc_library(
+    netwatch_notification_proto
+    SOURCE_PATH "${NETWATCH_PROTO_DIR}"
+    PROTOS
+        netwatch/notification_service.proto
+)

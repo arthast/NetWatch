@@ -9,3 +9,4 @@ server-port: 8080
 target-service-grpc-endpoint: localhost:8090
 monitor-service-grpc-endpoint: localhost:8091
 alert-service-grpc-endpoint: localhost:8092
+notification-service-grpc-endpoint: localhost:8093

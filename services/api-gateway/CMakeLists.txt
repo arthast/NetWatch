@@ -20,6 +20,7 @@ endif()
 
 set(NETWATCH_ALERT_CLIENT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/alert-client")
 set(NETWATCH_MONITOR_CLIENT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/monitor-client")
+set(NETWATCH_NOTIFICATION_CLIENT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/notification-client")
 set(NETWATCH_PROTO_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/netwatch-proto")
 set(NETWATCH_TARGET_CLIENT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/target-client")
 
@@ -33,6 +34,10 @@ endif()
 
 if(NOT TARGET netwatch_alert_client)
     add_subdirectory("${NETWATCH_ALERT_CLIENT_DIR}" netwatch_alert_client)
+endif()
+
+if(NOT TARGET netwatch_notification_client)
+    add_subdirectory("${NETWATCH_NOTIFICATION_CLIENT_DIR}" netwatch_notification_client)
 endif()
 
 if(NOT TARGET netwatch_target_client)
@@ -54,6 +59,11 @@ add_library(
     src/checks/service/checks_service_component.cpp
     src/common/http_response.cpp
     src/common/path_params.cpp
+    src/notifications/handlers/notification_recipient_by_id_handler.cpp
+    src/notifications/handlers/notification_recipients_handler.cpp
+    src/notifications/json/recipient_json.cpp
+    src/notifications/service/notifications_service.cpp
+    src/notifications/service/notifications_service_component.cpp
     src/targets/handlers/target_by_id_handler.cpp
     src/targets/handlers/targets_handler.cpp
     src/targets/json/target_json.cpp
@@ -74,6 +84,7 @@ target_link_libraries(
            userver::grpc
            netwatch_alert_client
            netwatch_monitor_client
+           netwatch_notification_client
            netwatch_target_client
 )
 

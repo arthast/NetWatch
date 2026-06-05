@@ -60,6 +60,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /opt/netwatch /opt/netwatch
+COPY docker/runtime-entrypoint.sh /usr/local/bin/netwatch-runtime-entrypoint
+RUN chmod +x /usr/local/bin/netwatch-runtime-entrypoint
 
 WORKDIR /opt/netwatch
-CMD ["/bin/bash", "-lc", "exec /opt/netwatch/bin/${NETWATCH_SERVICE} --config /opt/netwatch/etc/${NETWATCH_SERVICE}/static_config.yaml --config_vars /opt/netwatch/etc/${NETWATCH_SERVICE}/config_vars.compose.yaml"]
+CMD ["/usr/local/bin/netwatch-runtime-entrypoint"]

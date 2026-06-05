@@ -76,7 +76,33 @@ with open(sys.argv[1], encoding="utf-8") as body:
 assert spec["openapi"] == "3.0.3"
 assert "/api/v1/targets" in spec["paths"]
 assert "/api/v1/alerts/active" in spec["paths"]
+assert "/api/v1/notifications/recipients" in spec["paths"]
 PY
+
+RECIPIENT_EMAIL="smoke-$(date +%s)-$$@example.test"
+
+step "Creating notification recipient"
+request POST /api/v1/notifications/recipients 201 "{\"email\":\"${RECIPIENT_EMAIL}\"}"
+RECIPIENT_ID="$(json_value 'data["id"]')"
+
+step "Checking notification recipient ${RECIPIENT_ID}"
+request GET "/api/v1/notifications/recipients/${RECIPIENT_ID}" 200
+SAVED_RECIPIENT_EMAIL="$(json_value 'data["email"]')"
+if [[ "$SAVED_RECIPIENT_EMAIL" != "$RECIPIENT_EMAIL" ]]; then
+  echo "Expected recipient email $RECIPIENT_EMAIL, got: $SAVED_RECIPIENT_EMAIL" >&2
+  exit 1
+fi
+
+step "Disabling notification recipient ${RECIPIENT_ID}"
+request PATCH "/api/v1/notifications/recipients/${RECIPIENT_ID}" 200 '{"is_enabled":false}'
+RECIPIENT_ENABLED="$(json_value 'data["is_enabled"]')"
+if [[ "$RECIPIENT_ENABLED" != "False" ]]; then
+  echo "Expected recipient to be disabled, got: $RECIPIENT_ENABLED" >&2
+  exit 1
+fi
+
+step "Deleting notification recipient ${RECIPIENT_ID}"
+request DELETE "/api/v1/notifications/recipients/${RECIPIENT_ID}" 204
 
 step "Creating HTTP target"
 request POST /api/v1/targets 201 '{
