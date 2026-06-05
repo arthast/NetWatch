@@ -46,6 +46,9 @@ components_manager:
         alert-service-client:
             endpoint: $alert-service-grpc-endpoint
 
+        notification-service-client:
+            endpoint: $notification-service-grpc-endpoint
+
         target-client:
             transport: grpc
 
@@ -58,6 +61,10 @@ components_manager:
         alert-client: {}
 
         alerts-service: {}
+
+        notification-client: {}
+
+        notifications-service: {}
 
         tests-control:
             load-enabled: $is-testing
@@ -117,4 +124,14 @@ components_manager:
         handler-active-alerts:
             path: /api/v1/alerts/active
             method: GET
+            task_processor: main-task-processor
+
+        handler-notification-recipients:
+            path: /api/v1/notifications/recipients
+            method: GET,POST
+            task_processor: main-task-processor
+
+        handler-notification-recipient-by-id:
+            path: /api/v1/notifications/recipients/{id}
+            method: GET,PATCH,DELETE
             task_processor: main-task-processor

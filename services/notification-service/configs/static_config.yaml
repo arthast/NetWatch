@@ -54,6 +54,13 @@ components_manager:
 
         secdist: {}
 
+        grpc-server:
+            port: $grpc-server-port
+            completion-queue-count: 3
+
+        notification-grpc-service:
+            task-processor: main-task-processor
+
         kafka-consumer-alert-events:
             task-processor: main-task-processor
             consumer-task-processor: consumer-task-processor

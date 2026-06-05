@@ -446,6 +446,8 @@ services:
         condition: service_healthy
       alert-service:
         condition: service_healthy
+      notification-service:
+        condition: service_healthy
     healthcheck: *service-healthcheck
     networks:
       - edge

@@ -6,6 +6,28 @@
 #include <utility>
 
 namespace netwatch::notification_service::notifications {
+namespace {
+
+EmailRecipient RecipientFromRow(
+    const userver::storages::postgres::Row& row) {
+  return EmailRecipient{
+      .id = row["id"].As<std::int64_t>(),
+      .email = row["email"].As<std::string>(),
+      .is_enabled = row["is_enabled"].As<bool>(),
+      .created_at = row["created_at"].As<std::string>(),
+      .updated_at = row["updated_at"].As<std::string>(),
+  };
+}
+
+constexpr std::string_view kRecipientFields = R"(
+    id,
+    email,
+    is_enabled,
+    to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,
+    to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS updated_at
+)";
+
+}  // namespace
 
 NotificationRepository::NotificationRepository(
     userver::storages::postgres::ClusterPtr pg_cluster)
@@ -185,6 +207,108 @@ void NotificationRepository::EnsureRecipient(std::string_view email) const {
                 updated_at = NOW()
         )",
                        email);
+}
+
+std::vector<EmailRecipient> NotificationRepository::ListRecipients() const {
+  const auto result = pg_cluster_->Execute(
+      userver::storages::postgres::ClusterHostType::kSlave,
+      "SELECT " + std::string{kRecipientFields} +
+          R"(
+            FROM notification_recipients
+            ORDER BY id
+          )");
+
+  std::vector<EmailRecipient> recipients;
+  recipients.reserve(result.Size());
+  for (const auto& row : result) {
+    recipients.push_back(RecipientFromRow(row));
+  }
+  return recipients;
+}
+
+std::optional<EmailRecipient> NotificationRepository::GetRecipientById(
+    std::int64_t recipient_id) const {
+  const auto result = pg_cluster_->Execute(
+      userver::storages::postgres::ClusterHostType::kSlave,
+      "SELECT " + std::string{kRecipientFields} +
+          R"(
+            FROM notification_recipients
+            WHERE id = $1
+          )",
+      recipient_id);
+
+  if (result.Size() == 0) {
+    return std::nullopt;
+  }
+  return RecipientFromRow(result.Front());
+}
+
+std::optional<EmailRecipient> NotificationRepository::GetRecipientByEmail(
+    std::string_view email) const {
+  const auto result = pg_cluster_->Execute(
+      userver::storages::postgres::ClusterHostType::kSlave,
+      "SELECT " + std::string{kRecipientFields} +
+          R"(
+            FROM notification_recipients
+            WHERE email = $1
+          )",
+      email);
+
+  if (result.Size() == 0) {
+    return std::nullopt;
+  }
+  return RecipientFromRow(result.Front());
+}
+
+EmailRecipient NotificationRepository::CreateRecipient(
+    std::string_view email) const {
+  const auto result = pg_cluster_->Execute(
+      userver::storages::postgres::ClusterHostType::kMaster,
+      "INSERT INTO notification_recipients (email, is_enabled) "
+      "VALUES ($1, TRUE) "
+      "ON CONFLICT (email) DO UPDATE "
+      "SET is_enabled = TRUE, updated_at = NOW() "
+      "RETURNING " +
+          std::string{kRecipientFields},
+      email);
+
+  return RecipientFromRow(result.Front());
+}
+
+std::optional<EmailRecipient> NotificationRepository::UpdateRecipient(
+    std::int64_t recipient_id, const std::optional<std::string>& email,
+    const std::optional<bool>& is_enabled) const {
+  const auto result = pg_cluster_->Execute(
+      userver::storages::postgres::ClusterHostType::kMaster,
+      "UPDATE notification_recipients "
+      "SET email = COALESCE($2, email), "
+      "    is_enabled = COALESCE($3, is_enabled), "
+      "    updated_at = NOW() "
+      "WHERE id = $1 "
+      "RETURNING " +
+          std::string{kRecipientFields},
+      recipient_id, email, is_enabled);
+
+  if (result.Size() == 0) {
+    return std::nullopt;
+  }
+  return RecipientFromRow(result.Front());
+}
+
+bool NotificationRepository::DisableRecipient(std::int64_t recipient_id) const {
+  const auto result = pg_cluster_->Execute(
+      userver::storages::postgres::ClusterHostType::kMaster,
+      R"(
+            UPDATE notification_recipients
+            SET
+                is_enabled = FALSE,
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING id
+        )",
+      recipient_id);
+
+  return result.Size() != 0;
 }
 
 }  // namespace netwatch::notification_service::notifications

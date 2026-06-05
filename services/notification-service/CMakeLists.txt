@@ -8,6 +8,7 @@ if(NOT TARGET userver::core)
     find_package(
         userver
         COMPONENTS core
+                   grpc
                    kafka
                    postgresql
         QUIET
@@ -23,9 +24,16 @@ if(NOT TARGET userver::kafka)
     find_package(userver REQUIRED COMPONENTS kafka)
 endif()
 
+set(NETWATCH_PROTO_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/netwatch-proto")
+
+if(NOT TARGET netwatch_notification_proto)
+    add_subdirectory("${NETWATCH_PROTO_LIB_DIR}" netwatch_proto)
+endif()
+
 add_library(
     ${PROJECT_NAME}_objs OBJECT
     src/notifications/events/alert_event.cpp
+    src/notifications/grpc/notification_grpc_service.cpp
     src/notifications/repository/notification_repository.cpp
     src/notifications/service/email_provider.cpp
     src/notifications/service/email_delivery_sender.cpp
@@ -40,8 +48,10 @@ target_include_directories(
 target_link_libraries(
     ${PROJECT_NAME}_objs
     PUBLIC userver::core
+           userver::grpc
            userver::kafka
            userver::postgresql
+           netwatch_notification_proto
 )
 
 add_executable(${PROJECT_NAME} src/main.cpp)

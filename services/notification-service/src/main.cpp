@@ -11,8 +11,10 @@
 #include <userver/storages/secdist/component.hpp>
 #include <userver/storages/secdist/provider_component.hpp>
 #include <userver/testsuite/testsuite_support.hpp>
+#include <userver/ugrpc/server/component_list.hpp>
 #include <userver/utils/daemon_run.hpp>
 
+#include <notifications/grpc/notification_grpc_service.hpp>
 #include <notifications/service/email_delivery_sender.hpp>
 #include <notifications/service/notification_consumer.hpp>
 
@@ -30,6 +32,9 @@ int main(int argc, char* argv[]) {
           .Append<userver::kafka::ConsumerComponent>(
               "kafka-consumer-alert-events")
           .Append<userver::components::Postgres>("postgres-db-1")
+          .AppendComponentList(userver::ugrpc::server::MinimalComponentList())
+          .Append<netwatch::notification_service::notifications::
+                      NotificationGrpcService>()
           .Append<netwatch::notification_service::notifications::
                       EmailDeliverySender>()
           .Append<netwatch::notification_service::notifications::

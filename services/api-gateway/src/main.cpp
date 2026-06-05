@@ -12,6 +12,7 @@
 
 #include <netwatch/alert_service_client.usrv.pb.hpp>
 #include <netwatch/monitor_service_client.usrv.pb.hpp>
+#include <netwatch/notification_service_client.usrv.pb.hpp>
 #include <netwatch/target_service_client.usrv.pb.hpp>
 
 #include <alert_client/client/alert_client.hpp>
@@ -23,6 +24,10 @@
 #include <checks/handlers/target_status_handler.hpp>
 #include <checks/service/checks_service_component.hpp>
 #include <monitor_client/client/check_client.hpp>
+#include <notification_client/client/notification_client.hpp>
+#include <notifications/handlers/notification_recipient_by_id_handler.hpp>
+#include <notifications/handlers/notification_recipients_handler.hpp>
+#include <notifications/service/notifications_service_component.hpp>
 #include <target_client/client/target_client.hpp>
 #include <targets/handlers/target_by_id_handler.hpp>
 #include <targets/handlers/targets_handler.hpp>
@@ -47,12 +52,18 @@ int main(int argc, char* argv[]) {
               "check-service-client")
           .Append<userver::ugrpc::client::SimpleClientComponent<
               netwatch::alert::v1::AlertServiceClient>>("alert-service-client")
+          .Append<userver::ugrpc::client::SimpleClientComponent<
+              netwatch::notification::v1::NotificationServiceClient>>(
+              "notification-service-client")
           .Append<netwatch::target_client::TargetClient>()
           .Append<netwatch::monitor_client::CheckClient>()
           .Append<netwatch::alert_client::AlertClient>()
+          .Append<netwatch::notification_client::NotificationClient>()
           .Append<netwatch::api_gateway::targets::TargetsServiceComponent>()
           .Append<netwatch::api_gateway::checks::ChecksServiceComponent>()
           .Append<netwatch::api_gateway::alerts::AlertsServiceComponent>()
+          .Append<netwatch::api_gateway::notifications::
+                      NotificationsServiceComponent>()
           .Append<netwatch::api_gateway::web::SwaggerUiHandler>()
           .Append<netwatch::api_gateway::web::OpenApiHandler>()
           .Append<netwatch::api_gateway::alerts::AlertsHandler>()
@@ -60,6 +71,10 @@ int main(int argc, char* argv[]) {
           .Append<netwatch::api_gateway::checks::ManualCheckHandler>()
           .Append<netwatch::api_gateway::checks::TargetChecksHandler>()
           .Append<netwatch::api_gateway::checks::TargetStatusHandler>()
+          .Append<netwatch::api_gateway::notifications::
+                      NotificationRecipientByIdHandler>()
+          .Append<netwatch::api_gateway::notifications::
+                      NotificationRecipientsHandler>()
           .Append<netwatch::api_gateway::targets::TargetByIdHandler>()
           .Append<netwatch::api_gateway::targets::TargetsHandler>();
 

@@ -50,6 +50,24 @@ std::string ReadStringOr(const userver::formats::json::Value& json,
   return value.As<std::string>();
 }
 
+std::string AlertMessage(const userver::formats::json::Value& alert,
+                         std::string_view event_type,
+                         std::string_view target_name) {
+  if (event_type == "alert.resolved") {
+    return "Target " + std::string{target_name} + " recovered";
+  }
+
+  const auto message = ReadStringOr(alert, "message");
+  if (!message.empty()) {
+    return message;
+  }
+
+  if (event_type == "alert.opened") {
+    return "Target " + std::string{target_name} + " is down";
+  }
+  return {};
+}
+
 std::string BuildSubject(const PendingNotificationDelivery& delivery,
                          const userver::formats::json::Value& payload) {
   const auto target = payload["target"];
@@ -64,12 +82,14 @@ std::string BuildText(const PendingNotificationDelivery& delivery,
   const auto target = payload["target"];
 
   std::string text;
+  const auto target_name = ReadStringOr(target, "name", "target");
   text += "NetWatch alert\n\n";
-  text += "Target: " + ReadStringOr(target, "name", "target") + "\n";
+  text += "Target: " + target_name + "\n";
   text += "Status: " + AlertStatusTitle(delivery.event_type) + "\n";
   text += "Severity: " + ReadStringOr(alert, "severity", "unknown") + "\n";
   text += "Type: " + ReadStringOr(alert, "type", "unknown") + "\n";
-  if (const auto message = ReadStringOr(alert, "message"); !message.empty()) {
+  if (const auto message = AlertMessage(alert, delivery.event_type, target_name);
+      !message.empty()) {
     text += "Message: " + message + "\n";
   }
   if (const auto occurred_at = ReadStringOr(payload, "occurred_at");

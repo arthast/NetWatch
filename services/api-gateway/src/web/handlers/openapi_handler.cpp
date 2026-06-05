@@ -23,7 +23,8 @@ constexpr std::string_view kOpenApiSpec = R"json({
     { "name": "health" },
     { "name": "targets" },
     { "name": "checks" },
-    { "name": "alerts" }
+    { "name": "alerts" },
+    { "name": "notifications" }
   ],
   "paths": {
     "/ping": {
@@ -300,11 +301,156 @@ constexpr std::string_view kOpenApiSpec = R"json({
           }
         }
       }
+    },
+    "/api/v1/notifications/recipients": {
+      "get": {
+        "tags": ["notifications"],
+        "summary": "List email notification recipients",
+        "responses": {
+          "200": {
+            "description": "Email notification recipients",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/EmailRecipient" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["notifications"],
+        "summary": "Create or re-enable email notification recipient",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateEmailRecipientRequest" },
+              "example": {
+                "email": "alerts@example.com"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created or re-enabled recipient",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/EmailRecipient" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/recipients/{id}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/RecipientId" }
+      ],
+      "get": {
+        "tags": ["notifications"],
+        "summary": "Get email notification recipient by id",
+        "responses": {
+          "200": {
+            "description": "Email notification recipient",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/EmailRecipient" }
+              }
+            }
+          },
+          "404": {
+            "description": "Email recipient not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["notifications"],
+        "summary": "Update email notification recipient",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateEmailRecipientRequest" },
+              "example": {
+                "is_enabled": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated email notification recipient",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/EmailRecipient" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Email recipient not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["notifications"],
+        "summary": "Disable email notification recipient",
+        "responses": {
+          "204": { "description": "Email recipient disabled" },
+          "404": {
+            "description": "Email recipient not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "parameters": {
       "TargetId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 1
+        }
+      },
+      "RecipientId": {
         "name": "id",
         "in": "path",
         "required": true,
@@ -403,6 +549,31 @@ constexpr std::string_view kOpenApiSpec = R"json({
           "message": { "type": "string" },
           "created_at": { "type": "string", "format": "date-time" },
           "resolved_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateEmailRecipientRequest": {
+        "type": "object",
+        "required": ["email"],
+        "properties": {
+          "email": { "type": "string", "format": "email" }
+        }
+      },
+      "UpdateEmailRecipientRequest": {
+        "type": "object",
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "is_enabled": { "type": "boolean" }
+        }
+      },
+      "EmailRecipient": {
+        "type": "object",
+        "required": ["id", "email", "is_enabled", "created_at", "updated_at"],
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "email": { "type": "string", "format": "email" },
+          "is_enabled": { "type": "boolean" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
         }
       },
       "Error": {

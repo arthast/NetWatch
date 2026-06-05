@@ -205,6 +205,8 @@ services:
         condition: service_healthy
       alert-service:
         condition: service_healthy
+      notification-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
       start_period: 120s
@@ -342,6 +344,7 @@ services:
         -B build-compose-debug
         -G Ninja
         -DCMAKE_BUILD_TYPE=Debug
+        -DUSERVER_FEATURE_GRPC=ON
         -DUSERVER_FEATURE_KAFKA=ON
         -DUSERVER_FEATURE_POSTGRESQL=ON
         -DUSERVER_SANITIZE='${NETWATCH_COMPOSE_SANITIZE:-}'
