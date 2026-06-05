@@ -18,6 +18,7 @@ notification-consumer-group: netwatch.notification-service.v1
 notification-consumer-max-batch-size: 50
 notification-consumer-poll-timeout: 1s
 notification-consumer-restart-after-failure-delay: 5s
+notification-consumer-auto-offset-reset: largest
 
 notification-email-sender-enabled: true
 notification-email-provider: mailpit

@@ -13,6 +13,7 @@ namespace netwatch::notification_service::notifications {
 
 struct NotificationProcessResult final {
   bool inserted{false};
+  bool suppressed{false};
   std::int64_t recipients_count{0};
   std::int64_t deliveries_count{0};
 };

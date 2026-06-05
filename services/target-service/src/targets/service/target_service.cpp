@@ -50,6 +50,10 @@ Target TargetService::CreateTarget(CreateTargetRequest request) const {
   ApplyCreateDefaults(request);
   ValidateCreateRequest(request);
 
+  if (const auto existing = repository_.FindActiveEquivalentTarget(request)) {
+    return *existing;
+  }
+
   return repository_.CreateTarget(request);
 }
 

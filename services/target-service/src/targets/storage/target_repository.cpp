@@ -69,6 +69,48 @@ Target TargetRepository::CreateTarget(
   return TargetFromRow(result.Front());
 }
 
+std::optional<Target> TargetRepository::FindActiveEquivalentTarget(
+    const CreateTargetRequest& request) const {
+  const auto result = pg_cluster_->Execute(
+      userver::storages::postgres::ClusterHostType::kMaster,
+      R"(
+            SELECT
+                id,
+                name,
+                type,
+                url,
+                method,
+                expected_status_code,
+                host,
+                port,
+                interval_seconds,
+                timeout_ms,
+                is_active
+            FROM targets
+            WHERE is_active = TRUE
+              AND name = $1
+              AND type = $2
+              AND url IS NOT DISTINCT FROM $3
+              AND method IS NOT DISTINCT FROM $4
+              AND expected_status_code IS NOT DISTINCT FROM $5
+              AND host IS NOT DISTINCT FROM $6
+              AND port IS NOT DISTINCT FROM $7
+              AND interval_seconds = $8
+              AND timeout_ms = $9
+            ORDER BY id
+            LIMIT 1
+        )",
+      request.name, TargetTypeToString(request.type), request.url,
+      request.method, request.expected_status_code, request.host, request.port,
+      request.interval_seconds, request.timeout_ms);
+
+  if (result.Size() == 0) {
+    return std::nullopt;
+  }
+
+  return TargetFromRow(result.Front());
+}
+
 std::vector<Target> TargetRepository::ListTargets() const {
   const auto result = pg_cluster_->Execute(
       userver::storages::postgres::ClusterHostType::kMaster,

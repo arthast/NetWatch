@@ -65,6 +65,7 @@ void NotificationConsumer::ProcessBatch(
                 LOG_INFO() << "Processed alert notification event, "
                         << "event_id=" << event.event_id
                         << ", event_type=" << event.event_type
+                        << ", suppressed=" << result.suppressed
                         << ", deliveries=" << result.deliveries_count
                         << ", recipients=" << result.recipients_count;
             } else {

@@ -14,6 +14,9 @@ class TargetRepository {
 
   Target CreateTarget(const CreateTargetRequest& request) const;
 
+  std::optional<Target> FindActiveEquivalentTarget(
+      const CreateTargetRequest& request) const;
+
   std::vector<Target> ListTargets() const;
 
   std::vector<Target> ListActiveTargets() const;

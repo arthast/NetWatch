@@ -72,7 +72,7 @@ components_manager:
             max_batch_size: $notification-consumer-max-batch-size
             poll_timeout: $notification-consumer-poll-timeout
             restart_after_failure_delay: $notification-consumer-restart-after-failure-delay
-            auto_offset_reset: smallest
+            auto_offset_reset: $notification-consumer-auto-offset-reset
             security_protocol: PLAINTEXT
 
         notification-consumer:
