@@ -10,6 +10,20 @@ message EmailRecipient {
   string updated_at = 5;
 }
 
+message NotificationDelivery {
+  int64 id = 1;
+  string event_id = 2;
+  string event_type = 3;
+  string recipient_email = 4;
+  string channel = 5;
+  string status = 6;
+  int32 attempts = 7;
+  string error_message = 8;
+  string created_at = 9;
+  string updated_at = 10;
+  string delivered_at = 11;
+}
+
 message RecipientIdRequest {
   int64 id = 1;
 }
@@ -36,10 +50,30 @@ message EmailRecipientResponse {
 
 message DeleteEmailRecipientResponse {}
 
+message ListNotificationDeliveriesRequest {
+  int32 limit = 1;
+}
+
+message ListNotificationDeliveriesResponse {
+  repeated NotificationDelivery deliveries = 1;
+}
+
+message SendTestEmailRequest {
+  optional string email = 1;
+}
+
+message SendTestEmailResponse {
+  string event_id = 1;
+  int64 recipients_count = 2;
+  int64 deliveries_count = 3;
+}
+
 service NotificationService {
   rpc ListEmailRecipients(ListEmailRecipientsRequest) returns (ListEmailRecipientsResponse) {}
   rpc GetEmailRecipient(RecipientIdRequest) returns (EmailRecipientResponse) {}
   rpc CreateEmailRecipient(CreateEmailRecipientRequest) returns (EmailRecipientResponse) {}
   rpc UpdateEmailRecipient(UpdateEmailRecipientRequest) returns (EmailRecipientResponse) {}
   rpc DeleteEmailRecipient(RecipientIdRequest) returns (DeleteEmailRecipientResponse) {}
+  rpc ListNotificationDeliveries(ListNotificationDeliveriesRequest) returns (ListNotificationDeliveriesResponse) {}
+  rpc SendTestEmail(SendTestEmailRequest) returns (SendTestEmailResponse) {}
 }

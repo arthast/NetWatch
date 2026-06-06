@@ -51,4 +51,15 @@ bool NotificationsService::DeleteEmailRecipient(
   return notification_client_.DeleteEmailRecipient(recipient_id);
 }
 
+std::vector<netwatch::notification_client::NotificationDelivery>
+NotificationsService::ListNotificationDeliveries(std::int32_t limit) const {
+  return notification_client_.ListNotificationDeliveries(limit);
+}
+
+netwatch::notification_client::SendTestEmailResult
+NotificationsService::SendTestEmail(
+    const netwatch::notification_client::SendTestEmailRequest& request) const {
+  return notification_client_.SendTestEmail(request);
+}
+
 }  // namespace netwatch::api_gateway::notifications

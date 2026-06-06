@@ -70,6 +70,10 @@ std::string AlertMessage(const userver::formats::json::Value& alert,
 
 std::string BuildSubject(const PendingNotificationDelivery& delivery,
                          const userver::formats::json::Value& payload) {
+  if (ReadStringOr(payload, "notification_kind") == "test_email") {
+    return "[NetWatch] Test notification";
+  }
+
   const auto target = payload["target"];
   const auto target_name = ReadStringOr(target, "name", "target");
   return "[NetWatch] " + AlertSubjectPrefix(delivery.event_type) + ": " +
@@ -78,6 +82,20 @@ std::string BuildSubject(const PendingNotificationDelivery& delivery,
 
 std::string BuildText(const PendingNotificationDelivery& delivery,
                       const userver::formats::json::Value& payload) {
+  if (ReadStringOr(payload, "notification_kind") == "test_email") {
+    std::string text;
+    text += "NetWatch test notification\n\n";
+    text += "This email confirms that NetWatch can send email notifications.\n";
+    if (const auto occurred_at = ReadStringOr(payload, "occurred_at");
+        !occurred_at.empty()) {
+      text += "Time: " + occurred_at + "\n";
+    }
+    text += "\nTechnical details\n";
+    text += "Event: " + delivery.event_type + "\n";
+    text += "Event ID: " + delivery.event_id + "\n";
+    return text;
+  }
+
   const auto alert = payload["alert"];
   const auto target = payload["target"];
 

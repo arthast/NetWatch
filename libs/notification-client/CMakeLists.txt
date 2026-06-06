@@ -8,6 +8,7 @@ add_library(
     netwatch_notification_client STATIC
     src/notification_client/client/notification_client.cpp
     src/notification_client/model/email_recipient.cpp
+    src/notification_client/model/notification_delivery.cpp
 )
 
 target_include_directories(

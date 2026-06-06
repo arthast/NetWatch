@@ -66,11 +66,57 @@ void FillProtoRecipient(const EmailRecipient& source,
   target.set_updated_at(source.updated_at);
 }
 
+void FillProtoDelivery(const NotificationDelivery& source,
+                       proto::NotificationDelivery& target) {
+  target.set_id(source.id);
+  target.set_event_id(source.event_id);
+  target.set_event_type(source.event_type);
+  target.set_recipient_email(source.recipient_email);
+  target.set_channel(source.channel);
+  target.set_status(source.status);
+  target.set_attempts(source.attempts);
+  target.set_error_message(source.error_message);
+  target.set_created_at(source.created_at);
+  target.set_updated_at(source.updated_at);
+  target.set_delivered_at(source.delivered_at);
+}
+
 proto::EmailRecipientResponse MakeRecipientResponse(
     const EmailRecipient& recipient) {
   proto::EmailRecipientResponse response;
   FillProtoRecipient(recipient, *response.mutable_recipient());
   return response;
+}
+
+proto::ListNotificationDeliveriesResponse MakeDeliveriesResponse(
+    const std::vector<NotificationDelivery>& deliveries) {
+  proto::ListNotificationDeliveriesResponse response;
+  for (const auto& delivery : deliveries) {
+    FillProtoDelivery(delivery, *response.add_deliveries());
+  }
+  return response;
+}
+
+proto::SendTestEmailResponse MakeTestEmailResponse(
+    const TestEmailResult& result) {
+  proto::SendTestEmailResponse response;
+  response.set_event_id(result.event_id);
+  response.set_recipients_count(result.recipients_count);
+  response.set_deliveries_count(result.deliveries_count);
+  return response;
+}
+
+int NormalizeDeliveriesLimit(int limit) {
+  constexpr int kDefaultLimit = 100;
+  constexpr int kMaxLimit = 500;
+
+  if (limit == 0) {
+    return kDefaultLimit;
+  }
+  if (limit < 0 || limit > kMaxLimit) {
+    throw std::invalid_argument{"limit must be between 1 and 500"};
+  }
+  return limit;
 }
 
 proto::ListEmailRecipientsResponse MakeRecipientsResponse(
@@ -173,6 +219,31 @@ NotificationGrpcService::DeleteEmailRecipient(
       return NotFound("email recipient not found");
     }
     return proto::DeleteEmailRecipientResponse{};
+  } catch (const std::invalid_argument& ex) {
+    return InvalidArgument(ex.what());
+  }
+}
+
+NotificationGrpcService::ListNotificationDeliveriesResult
+NotificationGrpcService::ListNotificationDeliveries(
+    CallContext&, proto::ListNotificationDeliveriesRequest&& request) {
+  try {
+    return MakeDeliveriesResponse(
+        repository_.ListDeliveries(NormalizeDeliveriesLimit(request.limit())));
+  } catch (const std::invalid_argument& ex) {
+    return InvalidArgument(ex.what());
+  }
+}
+
+NotificationGrpcService::SendTestEmailResult
+NotificationGrpcService::SendTestEmail(CallContext&,
+                                       proto::SendTestEmailRequest&& request) {
+  try {
+    if (request.has_email()) {
+      ValidateEmail(request.email());
+    }
+    return MakeTestEmailResponse(
+        repository_.QueueTestEmail(request.has_email() ? request.email() : ""));
   } catch (const std::invalid_argument& ex) {
     return InvalidArgument(ex.what());
   }

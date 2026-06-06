@@ -22,6 +22,23 @@ EmailRecipient ToDomainRecipient(const proto::EmailRecipient& recipient) {
   };
 }
 
+NotificationDelivery ToDomainDelivery(
+    const proto::NotificationDelivery& delivery) {
+  return NotificationDelivery{
+      .id = delivery.id(),
+      .event_id = delivery.event_id(),
+      .event_type = delivery.event_type(),
+      .recipient_email = delivery.recipient_email(),
+      .channel = delivery.channel(),
+      .status = delivery.status(),
+      .attempts = delivery.attempts(),
+      .error_message = delivery.error_message(),
+      .created_at = delivery.created_at(),
+      .updated_at = delivery.updated_at(),
+      .delivered_at = delivery.delivered_at(),
+  };
+}
+
 std::vector<EmailRecipient> ToDomainRecipients(
     const proto::ListEmailRecipientsResponse& response) {
   std::vector<EmailRecipient> recipients;
@@ -30,6 +47,16 @@ std::vector<EmailRecipient> ToDomainRecipients(
     recipients.push_back(ToDomainRecipient(recipient));
   }
   return recipients;
+}
+
+std::vector<NotificationDelivery> ToDomainDeliveries(
+    const proto::ListNotificationDeliveriesResponse& response) {
+  std::vector<NotificationDelivery> deliveries;
+  deliveries.reserve(response.deliveries_size());
+  for (const auto& delivery : response.deliveries()) {
+    deliveries.push_back(ToDomainDelivery(delivery));
+  }
+  return deliveries;
 }
 
 proto::RecipientIdRequest MakeRecipientIdRequest(std::int64_t recipient_id) {
@@ -41,6 +68,15 @@ proto::RecipientIdRequest MakeRecipientIdRequest(std::int64_t recipient_id) {
 std::invalid_argument ToInvalidArgument(
     const userver::ugrpc::client::InvalidArgumentError& ex) {
   return std::invalid_argument{ex.GetStatus().error_message()};
+}
+
+SendTestEmailResult ToDomainTestEmailResult(
+    const proto::SendTestEmailResponse& response) {
+  return SendTestEmailResult{
+      .event_id = response.event_id(),
+      .recipients_count = response.recipients_count(),
+      .deliveries_count = response.deliveries_count(),
+  };
 }
 
 }  // namespace
@@ -122,6 +158,30 @@ bool NotificationClient::DeleteEmailRecipient(std::int64_t recipient_id) const {
     return true;
   } catch (const userver::ugrpc::client::NotFoundError&) {
     return false;
+  }
+}
+
+std::vector<NotificationDelivery>
+NotificationClient::ListNotificationDeliveries(std::int32_t limit) const {
+  proto::ListNotificationDeliveriesRequest request;
+  request.set_limit(limit);
+
+  return ToDomainDeliveries(grpc_client_->ListNotificationDeliveries(
+      request, client_common::MakeGrpcCallOptions()));
+}
+
+SendTestEmailResult NotificationClient::SendTestEmail(
+    const SendTestEmailRequest& request) const {
+  proto::SendTestEmailRequest proto_request;
+  if (!request.email.empty()) {
+    proto_request.set_email(request.email);
+  }
+
+  try {
+    return ToDomainTestEmailResult(grpc_client_->SendTestEmail(
+        proto_request, client_common::MakeGrpcCallOptions()));
+  } catch (const userver::ugrpc::client::InvalidArgumentError& ex) {
+    throw ToInvalidArgument(ex);
   }
 }
 

@@ -436,6 +436,82 @@ constexpr std::string_view kOpenApiSpec = R"json({
           }
         }
       }
+    },
+    "/api/v1/notifications/deliveries": {
+      "get": {
+        "tags": ["notifications"],
+        "summary": "List notification delivery attempts",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notification deliveries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/NotificationDelivery" }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/test-email": {
+      "post": {
+        "tags": ["notifications"],
+        "summary": "Queue a test email notification",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SendTestEmailRequest" },
+              "example": {
+                "email": "alerts@example.com"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Test email queued",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SendTestEmailResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -574,6 +650,54 @@ constexpr std::string_view kOpenApiSpec = R"json({
           "is_enabled": { "type": "boolean" },
           "created_at": { "type": "string", "format": "date-time" },
           "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "NotificationDelivery": {
+        "type": "object",
+        "required": [
+          "id",
+          "event_id",
+          "event_type",
+          "recipient_email",
+          "channel",
+          "status",
+          "attempts",
+          "error_message",
+          "created_at",
+          "updated_at",
+          "delivered_at"
+        ],
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "event_id": { "type": "string" },
+          "event_type": { "type": "string", "enum": ["alert.opened", "alert.resolved"] },
+          "recipient_email": { "type": "string" },
+          "channel": { "type": "string", "enum": ["email"] },
+          "status": { "type": "string", "enum": ["pending", "sending", "sent", "skipped", "failed"] },
+          "attempts": { "type": "integer", "format": "int32" },
+          "error_message": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" },
+          "delivered_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "SendTestEmailRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Optional direct recipient. When omitted, the test email is queued for all enabled recipients."
+          }
+        }
+      },
+      "SendTestEmailResponse": {
+        "type": "object",
+        "required": ["event_id", "recipients_count", "deliveries_count"],
+        "properties": {
+          "event_id": { "type": "string" },
+          "recipients_count": { "type": "integer", "format": "int64" },
+          "deliveries_count": { "type": "integer", "format": "int64" }
         }
       },
       "Error": {

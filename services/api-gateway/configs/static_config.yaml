@@ -135,3 +135,13 @@ components_manager:
             path: /api/v1/notifications/recipients/{id}
             method: GET,PATCH,DELETE
             task_processor: main-task-processor
+
+        handler-notification-deliveries:
+            path: /api/v1/notifications/deliveries
+            method: GET
+            task_processor: main-task-processor
+
+        handler-notification-test-email:
+            path: /api/v1/notifications/test-email
+            method: POST
+            task_processor: main-task-processor

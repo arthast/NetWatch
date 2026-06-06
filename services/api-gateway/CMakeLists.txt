@@ -60,8 +60,12 @@ add_library(
     src/common/http_response.cpp
     src/common/path_params.cpp
     src/notifications/handlers/notification_recipient_by_id_handler.cpp
+    src/notifications/handlers/notification_deliveries_handler.cpp
     src/notifications/handlers/notification_recipients_handler.cpp
+    src/notifications/handlers/notification_test_email_handler.cpp
+    src/notifications/json/delivery_json.cpp
     src/notifications/json/recipient_json.cpp
+    src/notifications/json/test_email_json.cpp
     src/notifications/service/notifications_service.cpp
     src/notifications/service/notifications_service_component.cpp
     src/targets/handlers/target_by_id_handler.cpp
