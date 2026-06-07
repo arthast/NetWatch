@@ -24,7 +24,6 @@ CREATE TABLE IF NOT EXISTS notification_deliveries (
     payload JSONB NOT NULL,
     attempts INT NOT NULL DEFAULT 0 CHECK (attempts >= 0),
     error_message TEXT,
-    next_retry_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     delivered_at TIMESTAMPTZ,
@@ -37,7 +36,3 @@ CREATE INDEX IF NOT EXISTS idx_notification_recipients_enabled
 
 CREATE INDEX IF NOT EXISTS idx_notification_deliveries_status
     ON notification_deliveries(status, created_at, id);
-
-CREATE INDEX IF NOT EXISTS idx_notification_deliveries_retry
-    ON notification_deliveries(status, next_retry_at, created_at, id)
-    WHERE status IN ('pending', 'retry_scheduled', 'sending');

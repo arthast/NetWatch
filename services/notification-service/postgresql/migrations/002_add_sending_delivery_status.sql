@@ -3,4 +3,4 @@ ALTER TABLE notification_deliveries
 
 ALTER TABLE notification_deliveries
     ADD CONSTRAINT notification_deliveries_status_check
-    CHECK (status IN ('pending', 'sending', 'retry_scheduled', 'sent', 'skipped', 'failed'));
+    CHECK (status IN ('pending', 'sending', 'sent', 'skipped', 'failed'));
