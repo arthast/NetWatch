@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
 
 namespace netwatch::notification_client {
@@ -14,9 +15,17 @@ struct NotificationDelivery {
   std::string status;
   std::int32_t attempts{0};
   std::string error_message;
+  std::string next_retry_at;
   std::string created_at;
   std::string updated_at;
   std::string delivered_at;
+};
+
+struct ListNotificationDeliveriesRequest {
+  std::int32_t limit{100};
+  std::optional<std::string> status;
+  std::optional<std::string> event_type;
+  std::optional<std::string> recipient_email;
 };
 
 struct SendTestEmailRequest {

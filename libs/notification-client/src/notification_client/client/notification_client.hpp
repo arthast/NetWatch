@@ -35,7 +35,10 @@ class NotificationClient final : public userver::components::ComponentBase {
   bool DeleteEmailRecipient(std::int64_t recipient_id) const;
 
   std::vector<NotificationDelivery> ListNotificationDeliveries(
-      std::int32_t limit) const;
+      const ListNotificationDeliveriesRequest& request) const;
+
+  std::optional<NotificationDelivery> RetryNotificationDelivery(
+      std::int64_t delivery_id) const;
 
   SendTestEmailResult SendTestEmail(
       const SendTestEmailRequest& request) const;

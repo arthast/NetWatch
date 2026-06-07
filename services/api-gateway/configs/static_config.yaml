@@ -141,6 +141,11 @@ components_manager:
             method: GET
             task_processor: main-task-processor
 
+        handler-notification-delivery-retry:
+            path: /api/v1/notifications/deliveries/{id}/retry
+            method: POST
+            task_processor: main-task-processor
+
         handler-notification-test-email:
             path: /api/v1/notifications/test-email
             method: POST

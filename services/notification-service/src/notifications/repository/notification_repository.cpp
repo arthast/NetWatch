@@ -30,6 +30,7 @@ NotificationDelivery DeliveryFromRow(
       .status = row["status"].As<std::string>(),
       .attempts = row["attempts"].As<std::int32_t>(),
       .error_message = row["error_message"].As<std::string>(),
+      .next_retry_at = row["next_retry_at"].As<std::string>(),
       .created_at = row["created_at"].As<std::string>(),
       .updated_at = row["updated_at"].As<std::string>(),
       .delivered_at = row["delivered_at"].As<std::string>(),
@@ -53,6 +54,7 @@ constexpr std::string_view kDeliveryFields = R"(
     delivery.status,
     delivery.attempts,
     COALESCE(delivery.error_message, '') AS error_message,
+    COALESCE(to_char(delivery.next_retry_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'), '') AS next_retry_at,
     to_char(delivery.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,
     to_char(delivery.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS updated_at,
     COALESCE(to_char(delivery.delivered_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'), '') AS delivered_at
@@ -200,10 +202,14 @@ NotificationRepository::AcquirePendingDeliveries(int batch_size) const {
                 WHERE
                     delivery.status = 'pending'
                     OR (
+                        delivery.status = 'retry_scheduled'
+                        AND delivery.next_retry_at <= NOW()
+                    )
+                    OR (
                         delivery.status = 'sending'
                         AND delivery.updated_at < NOW() - INTERVAL '5 minutes'
                     )
-                ORDER BY delivery.created_at, delivery.id
+                ORDER BY COALESCE(delivery.next_retry_at, delivery.created_at), delivery.id
                 FOR UPDATE SKIP LOCKED
                 LIMIT $1
             )
@@ -212,6 +218,7 @@ NotificationRepository::AcquirePendingDeliveries(int batch_size) const {
                 status = 'sending',
                 attempts = attempts + 1,
                 error_message = NULL,
+                next_retry_at = NULL,
                 updated_at = NOW()
             FROM acquired
             JOIN notification_events AS event
@@ -247,6 +254,7 @@ void NotificationRepository::MarkDeliverySent(std::int64_t delivery_id) const {
             SET
                 status = 'sent',
                 error_message = NULL,
+                next_retry_at = NULL,
                 updated_at = NOW(),
                 delivered_at = NOW()
             WHERE id = $1
@@ -256,7 +264,8 @@ void NotificationRepository::MarkDeliverySent(std::int64_t delivery_id) const {
 }
 
 void NotificationRepository::MarkDeliveryFailed(
-    std::int64_t delivery_id, std::string_view error_message) const {
+    std::int64_t delivery_id, std::string_view error_message, int max_attempts,
+    std::chrono::milliseconds retry_delay) const {
   constexpr std::size_t kMaxErrorLength = 1000;
   const auto error = std::string{
       error_message.substr(0, std::min(error_message.size(), kMaxErrorLength))};
@@ -265,13 +274,21 @@ void NotificationRepository::MarkDeliveryFailed(
                        R"(
             UPDATE notification_deliveries
             SET
-                status = 'failed',
+                status = CASE
+                    WHEN attempts < $3 THEN 'retry_scheduled'
+                    ELSE 'failed'
+                END,
                 error_message = $2,
+                next_retry_at = CASE
+                    WHEN attempts < $3 THEN NOW() + ($4::TEXT || ' milliseconds')::INTERVAL
+                    ELSE NULL
+                END,
                 updated_at = NOW()
             WHERE id = $1
               AND status = 'sending'
         )",
-                       delivery_id, error);
+                       delivery_id, error, max_attempts,
+                       retry_delay.count());
 }
 
 void NotificationRepository::EnsureRecipient(std::string_view email) const {
@@ -390,7 +407,7 @@ bool NotificationRepository::DisableRecipient(std::int64_t recipient_id) const {
 }
 
 std::vector<NotificationDelivery> NotificationRepository::ListDeliveries(
-    int limit) const {
+    const ListDeliveriesFilter& filter) const {
   const auto result = pg_cluster_->Execute(
       userver::storages::postgres::ClusterHostType::kSlave,
       "SELECT " + std::string{kDeliveryFields} +
@@ -398,10 +415,13 @@ std::vector<NotificationDelivery> NotificationRepository::ListDeliveries(
             FROM notification_deliveries AS delivery
             JOIN notification_events AS event
                 ON event.event_id = delivery.event_id
+            WHERE ($1::TEXT IS NULL OR delivery.status = $1)
+              AND ($2::TEXT IS NULL OR event.event_type = $2)
+              AND ($3::TEXT IS NULL OR delivery.recipient_email = $3)
             ORDER BY delivery.created_at DESC, delivery.id DESC
-            LIMIT $1
+            LIMIT $4
           )",
-      limit);
+      filter.status, filter.event_type, filter.recipient_email, filter.limit);
 
   std::vector<NotificationDelivery> deliveries;
   deliveries.reserve(result.Size());
@@ -409,6 +429,33 @@ std::vector<NotificationDelivery> NotificationRepository::ListDeliveries(
     deliveries.push_back(DeliveryFromRow(row));
   }
   return deliveries;
+}
+
+std::optional<NotificationDelivery> NotificationRepository::RetryDelivery(
+    std::int64_t delivery_id) const {
+  const auto result = pg_cluster_->Execute(
+      userver::storages::postgres::ClusterHostType::kMaster,
+      "WITH updated AS ("
+      "    UPDATE notification_deliveries "
+      "    SET status = 'pending', "
+      "        error_message = NULL, "
+      "        next_retry_at = NULL, "
+      "        updated_at = NOW() "
+      "    WHERE id = $1 "
+      "      AND status IN ('failed', 'retry_scheduled') "
+      "    RETURNING * "
+      ") "
+      "SELECT " +
+          std::string{kDeliveryFields} +
+          " FROM updated AS delivery "
+          " JOIN notification_events AS event "
+          "   ON event.event_id = delivery.event_id",
+      delivery_id);
+
+  if (result.Size() == 0) {
+    return std::nullopt;
+  }
+  return DeliveryFromRow(result.Front());
 }
 
 TestEmailResult NotificationRepository::QueueTestEmail(

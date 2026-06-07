@@ -78,6 +78,7 @@ assert "/api/v1/targets" in spec["paths"]
 assert "/api/v1/alerts/active" in spec["paths"]
 assert "/api/v1/notifications/recipients" in spec["paths"]
 assert "/api/v1/notifications/deliveries" in spec["paths"]
+assert "/api/v1/notifications/deliveries/{id}/retry" in spec["paths"]
 assert "/api/v1/notifications/test-email" in spec["paths"]
 PY
 
@@ -116,6 +117,19 @@ with open(sys.argv[1], encoding="utf-8") as body:
     deliveries = json.load(body)
 
 assert isinstance(deliveries, list)
+PY
+
+step "Checking notification deliveries filters"
+request GET "/api/v1/notifications/deliveries?limit=10&status=sent" 200
+python3 - "$HTTP_BODY_FILE" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as body:
+    deliveries = json.load(body)
+
+assert isinstance(deliveries, list)
+assert all(item["status"] == "sent" for item in deliveries)
 PY
 
 step "Checking test email validation"

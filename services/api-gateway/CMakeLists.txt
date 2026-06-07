@@ -59,6 +59,7 @@ add_library(
     src/checks/service/checks_service_component.cpp
     src/common/http_response.cpp
     src/common/path_params.cpp
+    src/notifications/handlers/notification_delivery_retry_handler.cpp
     src/notifications/handlers/notification_recipient_by_id_handler.cpp
     src/notifications/handlers/notification_deliveries_handler.cpp
     src/notifications/handlers/notification_recipients_handler.cpp

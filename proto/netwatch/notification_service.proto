@@ -19,12 +19,17 @@ message NotificationDelivery {
   string status = 6;
   int32 attempts = 7;
   string error_message = 8;
-  string created_at = 9;
-  string updated_at = 10;
-  string delivered_at = 11;
+  string next_retry_at = 9;
+  string created_at = 10;
+  string updated_at = 11;
+  string delivered_at = 12;
 }
 
 message RecipientIdRequest {
+  int64 id = 1;
+}
+
+message DeliveryIdRequest {
   int64 id = 1;
 }
 
@@ -52,10 +57,17 @@ message DeleteEmailRecipientResponse {}
 
 message ListNotificationDeliveriesRequest {
   int32 limit = 1;
+  optional string status = 2;
+  optional string event_type = 3;
+  optional string recipient_email = 4;
 }
 
 message ListNotificationDeliveriesResponse {
   repeated NotificationDelivery deliveries = 1;
+}
+
+message NotificationDeliveryResponse {
+  NotificationDelivery delivery = 1;
 }
 
 message SendTestEmailRequest {
@@ -75,5 +87,6 @@ service NotificationService {
   rpc UpdateEmailRecipient(UpdateEmailRecipientRequest) returns (EmailRecipientResponse) {}
   rpc DeleteEmailRecipient(RecipientIdRequest) returns (DeleteEmailRecipientResponse) {}
   rpc ListNotificationDeliveries(ListNotificationDeliveriesRequest) returns (ListNotificationDeliveriesResponse) {}
+  rpc RetryNotificationDelivery(DeliveryIdRequest) returns (NotificationDeliveryResponse) {}
   rpc SendTestEmail(SendTestEmailRequest) returns (SendTestEmailResponse) {}
 }

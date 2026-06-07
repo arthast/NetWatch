@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <userver/components/component_context.hpp>
 #include <userver/server/http/http_method.hpp>
 #include <userver/server/http/http_request.hpp>
@@ -18,6 +19,16 @@ using common::ErrorResponse;
 using common::JsonResponse;
 namespace {
 
+bool IsValidDeliveryStatus(std::string_view status) {
+  return status == "pending" || status == "sending" ||
+         status == "retry_scheduled" || status == "sent" ||
+         status == "skipped" || status == "failed";
+}
+
+bool IsValidEventType(std::string_view event_type) {
+  return event_type == "alert.opened" || event_type == "alert.resolved";
+}
+
 std::optional<std::int32_t> ParseLimit(std::string_view value) {
   if (value.empty()) {
     return 100;
@@ -30,6 +41,15 @@ std::optional<std::int32_t> ParseLimit(std::string_view value) {
     return std::nullopt;
   }
   return static_cast<std::int32_t>(limit);
+}
+
+std::optional<std::string> ReadOptionalQueryArg(
+    const userver::server::http::HttpRequest& request, std::string_view name) {
+  const auto value = request.GetArg(std::string{name});
+  if (value.empty()) {
+    return std::nullopt;
+  }
+  return value;
 }
 
 }  // namespace
@@ -58,11 +78,31 @@ std::string NotificationDeliveriesHandler::HandleRequestThrow(
                          "limit must be between 1 and 500");
   }
 
+  auto filter =
+      netwatch::notification_client::ListNotificationDeliveriesRequest{
+          .limit = *limit,
+          .status = ReadOptionalQueryArg(request, "status"),
+          .event_type = ReadOptionalQueryArg(request, "event_type"),
+          .recipient_email = ReadOptionalQueryArg(request, "recipient_email"),
+      };
+
+  if (filter.status && !IsValidDeliveryStatus(*filter.status)) {
+    return ErrorResponse(
+        request, userver::server::http::HttpStatus::kBadRequest,
+        "status must be one of pending, sending, retry_scheduled, sent, "
+        "skipped, failed");
+  }
+  if (filter.event_type && !IsValidEventType(*filter.event_type)) {
+    return ErrorResponse(request,
+                         userver::server::http::HttpStatus::kBadRequest,
+                         "event_type must be alert.opened or alert.resolved");
+  }
+
   try {
     return JsonResponse(
         request,
         SerializeNotificationDeliveries(
-            notifications_service_.ListNotificationDeliveries(*limit)));
+            notifications_service_.ListNotificationDeliveries(filter)));
   } catch (const userver::ugrpc::client::BaseError& ex) {
     return common::UpstreamErrorResponse(request, "notification-service", ex);
   }

@@ -17,6 +17,7 @@ userver::formats::json::Value SerializeNotificationDelivery(
   builder["status"] = delivery.status;
   builder["attempts"] = delivery.attempts;
   builder["error_message"] = delivery.error_message;
+  builder["next_retry_at"] = delivery.next_retry_at;
   builder["created_at"] = delivery.created_at;
   builder["updated_at"] = delivery.updated_at;
   builder["delivered_at"] = delivery.delivered_at;

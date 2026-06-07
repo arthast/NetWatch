@@ -33,6 +33,7 @@ NotificationDelivery ToDomainDelivery(
       .status = delivery.status(),
       .attempts = delivery.attempts(),
       .error_message = delivery.error_message(),
+      .next_retry_at = delivery.next_retry_at(),
       .created_at = delivery.created_at(),
       .updated_at = delivery.updated_at(),
       .delivered_at = delivery.delivered_at(),
@@ -62,6 +63,12 @@ std::vector<NotificationDelivery> ToDomainDeliveries(
 proto::RecipientIdRequest MakeRecipientIdRequest(std::int64_t recipient_id) {
   proto::RecipientIdRequest request;
   request.set_id(recipient_id);
+  return request;
+}
+
+proto::DeliveryIdRequest MakeDeliveryIdRequest(std::int64_t delivery_id) {
+  proto::DeliveryIdRequest request;
+  request.set_id(delivery_id);
   return request;
 }
 
@@ -162,12 +169,37 @@ bool NotificationClient::DeleteEmailRecipient(std::int64_t recipient_id) const {
 }
 
 std::vector<NotificationDelivery>
-NotificationClient::ListNotificationDeliveries(std::int32_t limit) const {
-  proto::ListNotificationDeliveriesRequest request;
-  request.set_limit(limit);
+NotificationClient::ListNotificationDeliveries(
+    const ListNotificationDeliveriesRequest& request) const {
+  proto::ListNotificationDeliveriesRequest proto_request;
+  proto_request.set_limit(request.limit);
+  if (request.status) {
+    proto_request.set_status(*request.status);
+  }
+  if (request.event_type) {
+    proto_request.set_event_type(*request.event_type);
+  }
+  if (request.recipient_email) {
+    proto_request.set_recipient_email(*request.recipient_email);
+  }
 
   return ToDomainDeliveries(grpc_client_->ListNotificationDeliveries(
-      request, client_common::MakeGrpcCallOptions()));
+      proto_request, client_common::MakeGrpcCallOptions()));
+}
+
+std::optional<NotificationDelivery>
+NotificationClient::RetryNotificationDelivery(std::int64_t delivery_id) const {
+  try {
+    return ToDomainDelivery(
+        grpc_client_
+            ->RetryNotificationDelivery(MakeDeliveryIdRequest(delivery_id),
+                                        client_common::MakeGrpcCallOptions())
+            .delivery());
+  } catch (const userver::ugrpc::client::NotFoundError&) {
+    return std::nullopt;
+  } catch (const userver::ugrpc::client::InvalidArgumentError& ex) {
+    throw ToInvalidArgument(ex);
+  }
 }
 
 SendTestEmailResult NotificationClient::SendTestEmail(

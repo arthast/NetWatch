@@ -29,6 +29,8 @@ notification-email-seed-recipient-email: ''
 notification-email-sender-batch-size: 20
 notification-email-sender-period-ms: 1000
 notification-email-request-timeout-ms: 3000
+notification-email-max-attempts: 3
+notification-email-retry-delay-ms: 30000
 notification-yandex-postbox-iam-token: ''
 notification-yandex-postbox-metadata-token-url: http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token
 notification-yandex-postbox-token-refresh-skew-sec: 300

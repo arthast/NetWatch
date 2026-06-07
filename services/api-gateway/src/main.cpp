@@ -25,6 +25,7 @@
 #include <checks/service/checks_service_component.hpp>
 #include <monitor_client/client/check_client.hpp>
 #include <notification_client/client/notification_client.hpp>
+#include <notifications/handlers/notification_delivery_retry_handler.hpp>
 #include <notifications/handlers/notification_deliveries_handler.hpp>
 #include <notifications/handlers/notification_recipient_by_id_handler.hpp>
 #include <notifications/handlers/notification_recipients_handler.hpp>
@@ -77,6 +78,8 @@ int main(int argc, char* argv[]) {
                       NotificationRecipientByIdHandler>()
           .Append<netwatch::api_gateway::notifications::
                       NotificationDeliveriesHandler>()
+          .Append<netwatch::api_gateway::notifications::
+                      NotificationDeliveryRetryHandler>()
           .Append<netwatch::api_gateway::notifications::
                       NotificationRecipientsHandler>()
           .Append<netwatch::api_gateway::notifications::
