@@ -19,7 +19,9 @@ namespace {
 
 constexpr auto kDefaultSendPeriod = std::chrono::milliseconds{1000};
 constexpr auto kDefaultRequestTimeout = std::chrono::milliseconds{3000};
+constexpr auto kDefaultRetryDelay = std::chrono::milliseconds{30000};
 constexpr int kDefaultBatchSize = 20;
+constexpr int kDefaultMaxAttempts = 3;
 
 std::string AlertSubjectPrefix(std::string_view event_type) {
   if (event_type == "alert.opened") {
@@ -70,6 +72,10 @@ std::string AlertMessage(const userver::formats::json::Value& alert,
 
 std::string BuildSubject(const PendingNotificationDelivery& delivery,
                          const userver::formats::json::Value& payload) {
+  if (ReadStringOr(payload, "notification_kind") == "test_email") {
+    return "[NetWatch] Test notification";
+  }
+
   const auto target = payload["target"];
   const auto target_name = ReadStringOr(target, "name", "target");
   return "[NetWatch] " + AlertSubjectPrefix(delivery.event_type) + ": " +
@@ -78,6 +84,20 @@ std::string BuildSubject(const PendingNotificationDelivery& delivery,
 
 std::string BuildText(const PendingNotificationDelivery& delivery,
                       const userver::formats::json::Value& payload) {
+  if (ReadStringOr(payload, "notification_kind") == "test_email") {
+    std::string text;
+    text += "NetWatch test notification\n\n";
+    text += "This email confirms that NetWatch can send email notifications.\n";
+    if (const auto occurred_at = ReadStringOr(payload, "occurred_at");
+        !occurred_at.empty()) {
+      text += "Time: " + occurred_at + "\n";
+    }
+    text += "\nTechnical details\n";
+    text += "Event: " + delivery.event_type + "\n";
+    text += "Event ID: " + delivery.event_id + "\n";
+    return text;
+  }
+
   const auto alert = payload["alert"];
   const auto target = payload["target"];
 
@@ -131,6 +151,20 @@ EmailDeliverySender::EmailDeliverySender(
   if (batch_size_ <= 0) {
     throw std::invalid_argument{
         "email-delivery-sender.batch-size must be positive"};
+  }
+
+  max_attempts_ = config["max-attempts"].As<int>(kDefaultMaxAttempts);
+  if (max_attempts_ <= 0) {
+    throw std::invalid_argument{
+        "email-delivery-sender.max-attempts must be positive"};
+  }
+
+  retry_delay_ =
+      std::chrono::milliseconds{config["retry-delay-ms"].As<int>(
+          static_cast<int>(kDefaultRetryDelay.count()))};
+  if (retry_delay_.count() <= 0) {
+    throw std::invalid_argument{
+        "email-delivery-sender.retry-delay-ms must be positive"};
   }
 
   request_timeout_ =
@@ -215,6 +249,14 @@ properties:
         type: integer
         description: email provider HTTP request timeout in milliseconds
         defaultDescription: 3000
+    max-attempts:
+        type: integer
+        description: maximum send attempts before a delivery becomes failed
+        defaultDescription: 3
+    retry-delay-ms:
+        type: integer
+        description: delay before retrying a failed delivery in milliseconds
+        defaultDescription: 30000
     yandex-postbox-iam-token:
         type: string
         description: optional IAM token for Yandex Cloud Postbox; metadata token URL is used when empty
@@ -242,7 +284,8 @@ void EmailDeliverySender::Tick() {
                  << delivery.id << ", event_id=" << delivery.event_id
                  << ", recipient=" << delivery.recipient_email;
     } catch (const std::exception& ex) {
-      notification_repository_.MarkDeliveryFailed(delivery.id, ex.what());
+      notification_repository_.MarkDeliveryFailed(
+          delivery.id, ex.what(), max_attempts_, retry_delay_);
       LOG_WARNING() << "Failed to send notification email delivery, "
                     << "delivery_id=" << delivery.id
                     << ", event_id=" << delivery.event_id

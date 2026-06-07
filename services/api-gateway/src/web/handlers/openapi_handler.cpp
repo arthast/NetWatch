@@ -31,6 +31,7 @@ constexpr std::string_view kOpenApiSpec = R"json({
       "get": {
         "tags": ["health"],
         "summary": "Healthcheck",
+        "security": [],
         "responses": {
           "200": { "description": "Service is alive" }
         }
@@ -436,6 +437,136 @@ constexpr std::string_view kOpenApiSpec = R"json({
           }
         }
       }
+    },
+    "/api/v1/notifications/deliveries": {
+      "get": {
+        "tags": ["notifications"],
+        "summary": "List notification delivery attempts",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["pending", "sending", "retry_scheduled", "sent", "skipped", "failed"]
+            }
+          },
+          {
+            "name": "event_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["alert.opened", "alert.resolved"]
+            }
+          },
+          {
+            "name": "recipient_email",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "email"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notification deliveries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/NotificationDelivery" }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/deliveries/{id}/retry": {
+      "parameters": [
+        { "$ref": "#/components/parameters/DeliveryId" }
+      ],
+      "post": {
+        "tags": ["notifications"],
+        "summary": "Retry failed or scheduled notification delivery",
+        "responses": {
+          "200": {
+            "description": "Delivery moved back to pending",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NotificationDelivery" }
+              }
+            }
+          },
+          "404": {
+            "description": "Delivery not found or cannot be retried",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/test-email": {
+      "post": {
+        "tags": ["notifications"],
+        "summary": "Queue a test email notification",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SendTestEmailRequest" },
+              "example": {
+                "email": "alerts@example.com"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Test email queued",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SendTestEmailResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -451,6 +582,16 @@ constexpr std::string_view kOpenApiSpec = R"json({
         }
       },
       "RecipientId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 1
+        }
+      },
+      "DeliveryId": {
         "name": "id",
         "in": "path",
         "required": true,
@@ -574,6 +715,56 @@ constexpr std::string_view kOpenApiSpec = R"json({
           "is_enabled": { "type": "boolean" },
           "created_at": { "type": "string", "format": "date-time" },
           "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "NotificationDelivery": {
+        "type": "object",
+        "required": [
+          "id",
+          "event_id",
+          "event_type",
+          "recipient_email",
+          "channel",
+          "status",
+          "attempts",
+          "error_message",
+          "next_retry_at",
+          "created_at",
+          "updated_at",
+          "delivered_at"
+        ],
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "event_id": { "type": "string" },
+          "event_type": { "type": "string", "enum": ["alert.opened", "alert.resolved"] },
+          "recipient_email": { "type": "string" },
+          "channel": { "type": "string", "enum": ["email"] },
+          "status": { "type": "string", "enum": ["pending", "sending", "retry_scheduled", "sent", "skipped", "failed"] },
+          "attempts": { "type": "integer", "format": "int32" },
+          "error_message": { "type": "string" },
+          "next_retry_at": { "type": "string", "format": "date-time" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" },
+          "delivered_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "SendTestEmailRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Optional direct recipient. When omitted, the test email is queued for all enabled recipients."
+          }
+        }
+      },
+      "SendTestEmailResponse": {
+        "type": "object",
+        "required": ["event_id", "recipients_count", "deliveries_count"],
+        "properties": {
+          "event_id": { "type": "string" },
+          "recipients_count": { "type": "integer", "format": "int64" },
+          "deliveries_count": { "type": "integer", "format": "int64" }
         }
       },
       "Error": {

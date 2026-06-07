@@ -41,6 +41,19 @@ class NotificationGrpcService final
       CallContext& context,
       netwatch::notification::v1::RecipientIdRequest&& request) override;
 
+  ListNotificationDeliveriesResult ListNotificationDeliveries(
+      CallContext& context,
+      netwatch::notification::v1::ListNotificationDeliveriesRequest&& request)
+      override;
+
+  RetryNotificationDeliveryResult RetryNotificationDelivery(
+      CallContext& context,
+      netwatch::notification::v1::DeliveryIdRequest&& request) override;
+
+  SendTestEmailResult SendTestEmail(
+      CallContext& context,
+      netwatch::notification::v1::SendTestEmailRequest&& request) override;
+
  private:
   NotificationRepository repository_;
 };

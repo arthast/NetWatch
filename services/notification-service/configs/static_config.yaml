@@ -88,6 +88,8 @@ components_manager:
             batch-size: $notification-email-sender-batch-size
             send-period-ms: $notification-email-sender-period-ms
             request-timeout-ms: $notification-email-request-timeout-ms
+            max-attempts: $notification-email-max-attempts
+            retry-delay-ms: $notification-email-retry-delay-ms
             yandex-postbox-iam-token: $notification-yandex-postbox-iam-token
             yandex-postbox-iam-token#env: YANDEX_POSTBOX_IAM_TOKEN
             yandex-postbox-metadata-token-url: $notification-yandex-postbox-metadata-token-url

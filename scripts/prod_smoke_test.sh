@@ -77,6 +77,9 @@ assert spec["openapi"] == "3.0.3"
 assert "/api/v1/targets" in spec["paths"]
 assert "/api/v1/alerts/active" in spec["paths"]
 assert "/api/v1/notifications/recipients" in spec["paths"]
+assert "/api/v1/notifications/deliveries" in spec["paths"]
+assert "/api/v1/notifications/deliveries/{id}/retry" in spec["paths"]
+assert "/api/v1/notifications/test-email" in spec["paths"]
 PY
 
 RECIPIENT_EMAIL="smoke-$(date +%s)-$$@example.test"
@@ -104,6 +107,34 @@ fi
 step "Deleting notification recipient ${RECIPIENT_ID}"
 request DELETE "/api/v1/notifications/recipients/${RECIPIENT_ID}" 204
 
+step "Checking notification deliveries endpoint"
+request GET /api/v1/notifications/deliveries?limit=10 200
+python3 - "$HTTP_BODY_FILE" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as body:
+    deliveries = json.load(body)
+
+assert isinstance(deliveries, list)
+PY
+
+step "Checking notification deliveries filters"
+request GET "/api/v1/notifications/deliveries?limit=10&status=sent" 200
+python3 - "$HTTP_BODY_FILE" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as body:
+    deliveries = json.load(body)
+
+assert isinstance(deliveries, list)
+assert all(item["status"] == "sent" for item in deliveries)
+PY
+
+step "Checking test email validation"
+request POST /api/v1/notifications/test-email 400 '{"email":"not-an-email"}'
+
 step "Creating HTTP target"
 request POST /api/v1/targets 201 '{
   "name": "Production smoke HTTP target",
@@ -129,6 +160,9 @@ if [[ "$STATUS_TARGET_ID" != "$TARGET_ID" ]]; then
   echo "Expected status target_id $TARGET_ID, got: $STATUS_TARGET_ID" >&2
   exit 1
 fi
+
+step "Deleting smoke target ${TARGET_ID}"
+request DELETE "/api/v1/targets/${TARGET_ID}" 204
 
 step "Checking active alerts endpoint"
 request GET /api/v1/alerts/active 200

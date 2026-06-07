@@ -9,6 +9,7 @@
 #include <userver/components/component_base.hpp>
 
 #include <notification_client/model/email_recipient.hpp>
+#include <notification_client/model/notification_delivery.hpp>
 
 namespace netwatch::notification_client {
 
@@ -32,6 +33,15 @@ class NotificationClient final : public userver::components::ComponentBase {
       const UpdateEmailRecipientRequest& request) const;
 
   bool DeleteEmailRecipient(std::int64_t recipient_id) const;
+
+  std::vector<NotificationDelivery> ListNotificationDeliveries(
+      const ListNotificationDeliveriesRequest& request) const;
+
+  std::optional<NotificationDelivery> RetryNotificationDelivery(
+      std::int64_t delivery_id) const;
+
+  SendTestEmailResult SendTestEmail(
+      const SendTestEmailRequest& request) const;
 
  private:
   netwatch::notification::v1::NotificationServiceClient* grpc_client_;

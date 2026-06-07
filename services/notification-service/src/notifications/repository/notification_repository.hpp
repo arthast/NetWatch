@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <chrono>
 #include <optional>
 #include <string>
 #include <userver/storages/postgres/cluster.hpp>
@@ -34,6 +35,34 @@ struct EmailRecipient final {
   std::string updated_at;
 };
 
+struct NotificationDelivery final {
+  std::int64_t id{0};
+  std::string event_id;
+  std::string event_type;
+  std::string recipient_email;
+  std::string channel;
+  std::string status;
+  std::int32_t attempts{0};
+  std::string error_message;
+  std::string next_retry_at;
+  std::string created_at;
+  std::string updated_at;
+  std::string delivered_at;
+};
+
+struct ListDeliveriesFilter final {
+  int limit{100};
+  std::optional<std::string> status;
+  std::optional<std::string> event_type;
+  std::optional<std::string> recipient_email;
+};
+
+struct TestEmailResult final {
+  std::string event_id;
+  std::int64_t recipients_count{0};
+  std::int64_t deliveries_count{0};
+};
+
 class NotificationRepository final {
  public:
   explicit NotificationRepository(
@@ -44,7 +73,8 @@ class NotificationRepository final {
       int batch_size) const;
   void MarkDeliverySent(std::int64_t delivery_id) const;
   void MarkDeliveryFailed(std::int64_t delivery_id,
-                          std::string_view error_message) const;
+                          std::string_view error_message, int max_attempts,
+                          std::chrono::milliseconds retry_delay) const;
   void EnsureRecipient(std::string_view email) const;
   std::vector<EmailRecipient> ListRecipients() const;
   std::optional<EmailRecipient> GetRecipientById(std::int64_t recipient_id)
@@ -56,6 +86,11 @@ class NotificationRepository final {
       std::int64_t recipient_id, const std::optional<std::string>& email,
       const std::optional<bool>& is_enabled) const;
   bool DisableRecipient(std::int64_t recipient_id) const;
+  std::vector<NotificationDelivery> ListDeliveries(
+      const ListDeliveriesFilter& filter) const;
+  std::optional<NotificationDelivery> RetryDelivery(
+      std::int64_t delivery_id) const;
+  TestEmailResult QueueTestEmail(std::string_view email) const;
 
  private:
   userver::storages::postgres::ClusterPtr pg_cluster_;

@@ -51,6 +51,12 @@ void ValidateRecipientId(std::int64_t recipient_id) {
   }
 }
 
+void ValidateDeliveryId(std::int64_t delivery_id) {
+  if (delivery_id <= 0) {
+    throw std::invalid_argument{"delivery id must be a positive integer"};
+  }
+}
+
 void ValidateEmail(std::string_view email) {
   if (!IsValidEmail(email)) {
     throw std::invalid_argument{"email must be a valid address"};
@@ -66,11 +72,105 @@ void FillProtoRecipient(const EmailRecipient& source,
   target.set_updated_at(source.updated_at);
 }
 
+void FillProtoDelivery(const NotificationDelivery& source,
+                       proto::NotificationDelivery& target) {
+  target.set_id(source.id);
+  target.set_event_id(source.event_id);
+  target.set_event_type(source.event_type);
+  target.set_recipient_email(source.recipient_email);
+  target.set_channel(source.channel);
+  target.set_status(source.status);
+  target.set_attempts(source.attempts);
+  target.set_error_message(source.error_message);
+  target.set_next_retry_at(source.next_retry_at);
+  target.set_created_at(source.created_at);
+  target.set_updated_at(source.updated_at);
+  target.set_delivered_at(source.delivered_at);
+}
+
 proto::EmailRecipientResponse MakeRecipientResponse(
     const EmailRecipient& recipient) {
   proto::EmailRecipientResponse response;
   FillProtoRecipient(recipient, *response.mutable_recipient());
   return response;
+}
+
+proto::ListNotificationDeliveriesResponse MakeDeliveriesResponse(
+    const std::vector<NotificationDelivery>& deliveries) {
+  proto::ListNotificationDeliveriesResponse response;
+  for (const auto& delivery : deliveries) {
+    FillProtoDelivery(delivery, *response.add_deliveries());
+  }
+  return response;
+}
+
+proto::NotificationDeliveryResponse MakeDeliveryResponse(
+    const NotificationDelivery& delivery) {
+  proto::NotificationDeliveryResponse response;
+  FillProtoDelivery(delivery, *response.mutable_delivery());
+  return response;
+}
+
+proto::SendTestEmailResponse MakeTestEmailResponse(
+    const TestEmailResult& result) {
+  proto::SendTestEmailResponse response;
+  response.set_event_id(result.event_id);
+  response.set_recipients_count(result.recipients_count);
+  response.set_deliveries_count(result.deliveries_count);
+  return response;
+}
+
+int NormalizeDeliveriesLimit(int limit) {
+  constexpr int kDefaultLimit = 100;
+  constexpr int kMaxLimit = 500;
+
+  if (limit == 0) {
+    return kDefaultLimit;
+  }
+  if (limit < 0 || limit > kMaxLimit) {
+    throw std::invalid_argument{"limit must be between 1 and 500"};
+  }
+  return limit;
+}
+
+bool IsValidDeliveryStatus(std::string_view status) {
+  return status == "pending" || status == "sending" ||
+         status == "retry_scheduled" || status == "sent" ||
+         status == "skipped" || status == "failed";
+}
+
+ListDeliveriesFilter MakeDeliveriesFilter(
+    const proto::ListNotificationDeliveriesRequest& request) {
+  ListDeliveriesFilter filter{
+      .limit = NormalizeDeliveriesLimit(request.limit()),
+      .status = std::nullopt,
+      .event_type = std::nullopt,
+      .recipient_email = std::nullopt,
+  };
+
+  if (request.has_status()) {
+    if (!IsValidDeliveryStatus(request.status())) {
+      throw std::invalid_argument{
+          "status must be one of pending, sending, retry_scheduled, sent, "
+          "skipped, failed"};
+    }
+    filter.status = request.status();
+  }
+
+  if (request.has_event_type()) {
+    if (!IsSupportedAlertEventType(request.event_type())) {
+      throw std::invalid_argument{
+          "event_type must be alert.opened or alert.resolved"};
+    }
+    filter.event_type = request.event_type();
+  }
+
+  if (request.has_recipient_email()) {
+    ValidateEmail(request.recipient_email());
+    filter.recipient_email = request.recipient_email();
+  }
+
+  return filter;
 }
 
 proto::ListEmailRecipientsResponse MakeRecipientsResponse(
@@ -173,6 +273,46 @@ NotificationGrpcService::DeleteEmailRecipient(
       return NotFound("email recipient not found");
     }
     return proto::DeleteEmailRecipientResponse{};
+  } catch (const std::invalid_argument& ex) {
+    return InvalidArgument(ex.what());
+  }
+}
+
+NotificationGrpcService::ListNotificationDeliveriesResult
+NotificationGrpcService::ListNotificationDeliveries(
+    CallContext&, proto::ListNotificationDeliveriesRequest&& request) {
+  try {
+    return MakeDeliveriesResponse(
+        repository_.ListDeliveries(MakeDeliveriesFilter(request)));
+  } catch (const std::invalid_argument& ex) {
+    return InvalidArgument(ex.what());
+  }
+}
+
+NotificationGrpcService::RetryNotificationDeliveryResult
+NotificationGrpcService::RetryNotificationDelivery(
+    CallContext&, proto::DeliveryIdRequest&& request) {
+  try {
+    ValidateDeliveryId(request.id());
+    const auto delivery = repository_.RetryDelivery(request.id());
+    if (!delivery) {
+      return NotFound("notification delivery not found or cannot be retried");
+    }
+    return MakeDeliveryResponse(*delivery);
+  } catch (const std::invalid_argument& ex) {
+    return InvalidArgument(ex.what());
+  }
+}
+
+NotificationGrpcService::SendTestEmailResult
+NotificationGrpcService::SendTestEmail(CallContext&,
+                                       proto::SendTestEmailRequest&& request) {
+  try {
+    if (request.has_email()) {
+      ValidateEmail(request.email());
+    }
+    return MakeTestEmailResponse(
+        repository_.QueueTestEmail(request.has_email() ? request.email() : ""));
   } catch (const std::invalid_argument& ex) {
     return InvalidArgument(ex.what());
   }

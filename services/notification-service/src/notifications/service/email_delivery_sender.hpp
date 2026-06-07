@@ -33,6 +33,8 @@ class EmailDeliverySender final : public userver::components::ComponentBase {
   userver::clients::http::Client& http_client_;
   std::unique_ptr<EmailProvider> email_provider_;
   int batch_size_{0};
+  int max_attempts_{0};
+  std::chrono::milliseconds retry_delay_{0};
   std::chrono::milliseconds request_timeout_{0};
   userver::utils::PeriodicTask periodic_task_;
 };
