@@ -7,8 +7,7 @@ C++ и userver. Проект построен как микросервисна�
 
 Публичный стенд:
 
-- Swagger UI: `http://158.160.233.79/docs`
-- OpenAPI JSON: `http://158.160.233.79/openapi.json`
+- Swagger UI: `https://netwatch-arsen-demo.online/docs#/`
 
 ## Стек
 
@@ -16,11 +15,9 @@ C++ и userver. Проект построен как микросервисна�
 - gRPC / Protocol Buffers
 - Kafka
 - PostgreSQL
-- Mailpit
 - Docker / Docker Compose
 - CMake / Ninja
 - Swagger / OpenAPI
-- GitHub Actions
 
 ## Что умеет NetWatch
 
@@ -28,7 +25,6 @@ C++ и userver. Проект построен как микросервисна�
 - запускать ручные проверки target через API
 - выполнять периодические проверки active targets через scheduler
 - сохранять историю check results
-- возвращать текущий статус target
 - создавать active alert при падении target
 - закрывать alert при восстановлении target
 - отправлять email-уведомления по alert events через Kafka
@@ -37,10 +33,11 @@ C++ и userver. Проект построен как микросервисна�
 
 Gateway нормализует ошибки внутренних gRPC-сервисов в HTTP 502/504, а
 `monitor-service` сохраняет результат проверки даже при временной недоступности
-`alert-service`. Scheduler использует PostgreSQL lease на target, поэтому
+`alert-service`.
+
+Scheduler использует PostgreSQL lease на target, поэтому
 несколько реплик `monitor-service` не запускают одну и ту же scheduled-проверку
-одновременно. Основной мониторинг деградирует мягко и не падает целиком из-за
-вторичной подсистемы.
+одновременно.
 
 ## Архитектура
 
@@ -56,7 +53,8 @@ flowchart LR
     monitor -->|gRPC: check snapshots| alert
     alert -->|Kafka: alert.opened / alert.resolved| kafka["Kafka<br/>netwatch.alert.events.v1"]
     kafka -->|consume alert events| notification["notification-service"]
-    notification -->|HTTP email API| email["Mailpit / Email provider"]
+    gateway -->|gRPC| notification
+    notification -->|HTTP email API| email["Email provider"]
 
     target --> target_db[("target-postgres<br/>targets")]
     monitor --> monitor_db[("monitor-postgres<br/>check_results")]
@@ -65,9 +63,12 @@ flowchart LR
 ```
 
 Снаружи открыт только `api-gateway`. Остальные сервисы считаются внутренними и
-доступны друг другу по gRPC внутри runtime-сети. События alert lifecycle
-доставляются асинхронно: `alert-service` пишет их в outbox и публикует в Kafka,
-а `notification-service` будет читать topic и отправлять уведомления.
+доступны друг другу по gRPC внутри runtime-сети.\
+
+События alert доставляются асинхронно: `alert-service` пишет их в outbox и публикует в Kafka,
+а `notification-service` читает topic и отправляет уведомления.\
+Управление email-получателями и delivery records идет через `api-gateway`, который
+вызывает `notification-service` по gRPC.
 
 ## Сервисы
 
@@ -108,16 +109,12 @@ check results, открывает `target_down` alert при падении и �
 
 Сервис уведомлений. Он читает события `alert.opened` и `alert.resolved` из
 Kafka в отдельной consumer group, idempotently сохраняет `event_id` в своей БД
-и создает delivery records для email-канала. Отдельный sender периодически
-берет `pending` deliveries, отправляет письмо через HTTP email API и помечает
-доставку как `sent` или `failed`. Локально роль email provider выполняет
-Mailpit; в production сервис можно переключить на Yandex Cloud Postbox через
-`NOTIFICATION_EMAIL_PROVIDER=yandex-postbox`. В Yandex Cloud VM сервис получает
-IAM-токен через metadata service привязанного service account и отправляет
-письма в Postbox HTTP API. Если включенных получателей нет, событие фиксируется
-как `skipped`, чтобы было видно, что Kafka flow дошел до сервиса. Этот сервис
-не вызывается синхронно из `monitor-service` или `alert-service`: доставка
-уведомлений живет отдельно от основного мониторинга.
+и создает delivery records для email-канала.\
+Отдельный sender периодически берет `pending` deliveries, 
+отправляет письмо через HTTP email API и помечает доставку как `sent` или `failed`.\
+В Yandex Cloud VM сервис отправляет письма в Postbox HTTP API.
+Если включенных получателей нет, событие фиксируется как `skipped`,
+чтобы было видно, что Kafka flow дошел до сервиса.
 
 ## Границы владения в коде
 
@@ -135,6 +132,9 @@ libs/
   target-client/     typed gRPC client for target-service
   monitor-client/    typed gRPC client for monitor-service
   alert-client/      typed gRPC client for alert-service
+  notification-client/
+                     typed gRPC client for notification-service
+  client-common/     shared gRPC client call options
 
 proto/netwatch/      service contracts
 tests/integration/   end-to-end gateway flow
@@ -172,16 +172,15 @@ service-owned `postgresql/migrations` и фиксирует версии в `sch
 
 - `proto/netwatch/target_service.proto` - `TargetService`;
 - `proto/netwatch/monitor_service.proto` - `CheckService`;
-- `proto/netwatch/alert_service.proto` - `AlertService`.
+- `proto/netwatch/alert_service.proto` - `AlertService`;
+- `proto/netwatch/notification_service.proto` - `NotificationService`.
 
 Контракты версионируются через package names:
 
 - `netwatch.target.v1`;
 - `netwatch.monitor.v1`;
-- `netwatch.alert.v1`.
-
-`alert-service` принимает собственные snapshot messages, чтобы не зависеть от
-внутренних моделей target/check сервисов.
+- `netwatch.alert.v1`;
+- `netwatch.notification.v1`.
 
 ## Kafka events
 
@@ -250,7 +249,15 @@ sequenceDiagram
 - `GET /api/v1/targets/{id}/checks`;
 - `GET /api/v1/targets/{id}/status`;
 - `GET /api/v1/alerts`;
-- `GET /api/v1/alerts/active`.
+- `GET /api/v1/alerts/active`;
+- `GET /api/v1/notifications/recipients`;
+- `POST /api/v1/notifications/recipients`;
+- `GET /api/v1/notifications/recipients/{id}`;
+- `PATCH /api/v1/notifications/recipients/{id}`;
+- `DELETE /api/v1/notifications/recipients/{id}`;
+- `GET /api/v1/notifications/deliveries`;
+- `POST /api/v1/notifications/deliveries/{id}/retry`;
+- `POST /api/v1/notifications/test-email`.
 
 ## Локальные адреса
 
@@ -271,7 +278,8 @@ sequenceDiagram
 
 - `target-service:8090`;
 - `monitor-service:8091`;
-- `alert-service:8092`.
+- `alert-service:8092`;
+- `notification-service:8093`.
 
 ## Быстрый запуск
 
@@ -302,7 +310,7 @@ http://localhost:8081/docs
 ## CI/CD
 
 GitHub Actions workflow собирает сервисы отдельно, запускает unit/integration
-checks, собирает production-like Docker images и публикует их в GHCR.
+checks, собирает production-like Docker images, публикует их в GHCR и деплоит Compose stack на VPS.
 
 Публикуемые images:
 
