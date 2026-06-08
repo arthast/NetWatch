@@ -44,17 +44,18 @@ def request(
     *,
     base_url: str,
     payload: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
 ) -> HttpResponse:
     body = None
-    headers = {}
+    request_headers = dict(headers or {})
     if payload is not None:
         body = json.dumps(payload).encode("utf-8")
-        headers["Content-Type"] = "application/json"
+        request_headers["Content-Type"] = "application/json"
 
     request = urllib.request.Request(
         base_url + path,
         data=body,
-        headers=headers,
+        headers=request_headers,
         method=method,
     )
 
@@ -95,6 +96,76 @@ def assert_status(response: HttpResponse, expected: int) -> None:
         raise AssertionError(
             f"expected HTTP {expected}, got {response.status}: {response.body}"
         )
+
+
+def test_auth_flow(base_url: str) -> None:
+    suffix = int(time.time() * 1000)
+    credentials = {
+        "email": f"integration-{suffix}@example.test",
+        "password": "password123",
+    }
+
+    missing_email = request(
+        "POST",
+        "/api/v1/auth/register",
+        base_url=base_url,
+        payload={"password": "password123"},
+    )
+    assert_status(missing_email, 400)
+
+    register = request(
+        "POST",
+        "/api/v1/auth/register",
+        base_url=base_url,
+        payload=credentials,
+    )
+    assert_status(register, 201)
+    auth = register.json()
+    assert auth["user"]["id"] > 0
+    assert auth["user"]["email"] == credentials["email"]
+    assert len(auth["access_token"]) >= 32
+    assert auth["expires_at"]
+
+    duplicate = request(
+        "POST",
+        "/api/v1/auth/register",
+        base_url=base_url,
+        payload=credentials,
+    )
+    assert_status(duplicate, 400)
+
+    invalid_login = request(
+        "POST",
+        "/api/v1/auth/login",
+        base_url=base_url,
+        payload={**credentials, "password": "wrong-password"},
+    )
+    assert_status(invalid_login, 401)
+
+    login = request(
+        "POST",
+        "/api/v1/auth/login",
+        base_url=base_url,
+        payload=credentials,
+    )
+    assert_status(login, 200)
+    login_body = login.json()
+    assert login_body["user"] == auth["user"]
+    assert len(login_body["access_token"]) >= 32
+
+    missing_token = request("GET", "/api/v1/auth/me", base_url=base_url)
+    assert_status(missing_token, 401)
+
+    me = request(
+        "GET",
+        "/api/v1/auth/me",
+        base_url=base_url,
+        headers={"Authorization": f"Bearer {login_body['access_token']}"},
+    )
+    assert_status(me, 200)
+    session = me.json()
+    assert session["user"] == auth["user"]
+    assert session["expires_at"] == login_body["expires_at"]
 
 
 def test_target_crud(base_url: str) -> int:
@@ -333,9 +404,13 @@ def run_flow(base_url: str) -> None:
     spec = openapi.json()
     assert spec["openapi"] == "3.0.3"
     assert spec["info"]["title"] == "NetWatch API"
+    assert "/api/v1/auth/register" in spec["paths"]
+    assert "/api/v1/auth/login" in spec["paths"]
+    assert "/api/v1/auth/me" in spec["paths"]
     assert "/api/v1/targets" in spec["paths"]
     assert "/api/v1/alerts/active" in spec["paths"]
 
+    test_auth_flow(base_url)
     target_id = test_target_crud(base_url)
     test_target_crud_edges(base_url)
     test_checks(base_url, target_id)

@@ -131,6 +131,39 @@ services:
         /migrations
         postgresql://notification_service:notification_service@notification-postgres:5432/notification_service_db
 
+  auth-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: auth_service_db
+      POSTGRES_USER: auth_service
+      POSTGRES_PASSWORD: auth_service
+    ports:
+      - "15437:5432"
+    volumes:
+      - netwatch-auth-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auth_service -d auth_service_db"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  auth-migrations:
+    image: postgres:16
+    depends_on:
+      auth-postgres:
+        condition: service_healthy
+    volumes:
+      - ./scripts/apply_migrations.sh:/usr/local/bin/apply_migrations.sh:ro
+      - ./services/auth-service/postgresql/migrations:/migrations:ro
+    command:
+      - bash
+      - -lc
+      - >
+        /usr/local/bin/apply_migrations.sh
+        auth-service
+        /migrations
+        postgresql://auth_service:auth_service@auth-postgres:5432/auth_service_db
+
   kafka:
     image: apache/kafka:3.9.1
     platform: linux/amd64
@@ -207,6 +240,8 @@ services:
         condition: service_healthy
       notification-service:
         condition: service_healthy
+      auth-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
       start_period: 120s
@@ -221,11 +256,11 @@ services:
         -S .
         -B build-compose-debug
         -G Ninja
-        -DCMAKE_BUILD_TYPE=Debug
+        -DCMAKE_BUILD_TYPE=${NETWATCH_COMPOSE_BUILD_TYPE:-RelWithDebInfo}
         -DUSERVER_FEATURE_GRPC=ON
         -DUSERVER_SANITIZE='${NETWATCH_COMPOSE_SANITIZE:-}'
         -DCMAKE_EXPORT_COMPILE_COMMANDS=ON &&
-        cmake --build build-compose-debug -j ${NETWATCH_COMPOSE_BUILD_JOBS:-2} --target api_gateway &&
+        cmake --build build-compose-debug -j ${NETWATCH_COMPOSE_BUILD_JOBS:-1} --target api_gateway &&
         ./build-compose-debug/api_gateway
         --config configs/static_config.yaml
         --config_vars configs/config_vars.compose.yaml
@@ -263,12 +298,12 @@ services:
         -S .
         -B build-compose-debug
         -G Ninja
-        -DCMAKE_BUILD_TYPE=Debug
+        -DCMAKE_BUILD_TYPE=${NETWATCH_COMPOSE_BUILD_TYPE:-RelWithDebInfo}
         -DUSERVER_FEATURE_GRPC=ON
         -DUSERVER_FEATURE_POSTGRESQL=ON
         -DUSERVER_SANITIZE='${NETWATCH_COMPOSE_SANITIZE:-}'
         -DCMAKE_EXPORT_COMPILE_COMMANDS=ON &&
-        cmake --build build-compose-debug -j ${NETWATCH_COMPOSE_BUILD_JOBS:-2} --target monitor_service &&
+        cmake --build build-compose-debug -j ${NETWATCH_COMPOSE_BUILD_JOBS:-1} --target monitor_service &&
         ./build-compose-debug/monitor_service
         --config configs/static_config.yaml
         --config_vars configs/config_vars.compose.yaml
@@ -302,12 +337,12 @@ services:
         -S .
         -B build-compose-debug
         -G Ninja
-        -DCMAKE_BUILD_TYPE=Debug
+        -DCMAKE_BUILD_TYPE=${NETWATCH_COMPOSE_BUILD_TYPE:-RelWithDebInfo}
         -DUSERVER_FEATURE_GRPC=ON
         -DUSERVER_FEATURE_POSTGRESQL=ON
         -DUSERVER_SANITIZE='${NETWATCH_COMPOSE_SANITIZE:-}'
         -DCMAKE_EXPORT_COMPILE_COMMANDS=ON &&
-        cmake --build build-compose-debug -j ${NETWATCH_COMPOSE_BUILD_JOBS:-2} --target alert_service &&
+        cmake --build build-compose-debug -j ${NETWATCH_COMPOSE_BUILD_JOBS:-1} --target alert_service &&
         ./build-compose-debug/alert_service
         --config configs/static_config.yaml
         --config_vars configs/config_vars.compose.yaml
@@ -343,14 +378,51 @@ services:
         -S .
         -B build-compose-debug
         -G Ninja
-        -DCMAKE_BUILD_TYPE=Debug
+        -DCMAKE_BUILD_TYPE=${NETWATCH_COMPOSE_BUILD_TYPE:-RelWithDebInfo}
         -DUSERVER_FEATURE_GRPC=ON
         -DUSERVER_FEATURE_KAFKA=ON
         -DUSERVER_FEATURE_POSTGRESQL=ON
         -DUSERVER_SANITIZE='${NETWATCH_COMPOSE_SANITIZE:-}'
         -DCMAKE_EXPORT_COMPILE_COMMANDS=ON &&
-        cmake --build build-compose-debug -j ${NETWATCH_COMPOSE_BUILD_JOBS:-2} --target notification_service &&
+        cmake --build build-compose-debug -j ${NETWATCH_COMPOSE_BUILD_JOBS:-1} --target notification_service &&
         ./build-compose-debug/notification_service
+        --config configs/static_config.yaml
+        --config_vars configs/config_vars.compose.yaml
+
+  auth-service:
+    image: ghcr.io/userver-framework/ubuntu-24.04-userver:latest
+    platform: linux/amd64
+    working_dir: /workspace/services/auth-service
+    environment:
+      DB_CONNECTION: postgresql://auth_service:auth_service@auth-postgres:5432/auth_service_db
+      USERVER_ENABLE_STACK_USAGE_MONITOR: "0"
+    volumes:
+      - .:/workspace
+      - netwatch-auth-ccache:/workspace/services/auth-service/.ccache
+    depends_on:
+      auth-migrations:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
+      start_period: 120s
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    command:
+      - bash
+      - -lc
+      - >
+        cmake
+        -S .
+        -B build-compose-debug
+        -G Ninja
+        -DCMAKE_BUILD_TYPE=${NETWATCH_COMPOSE_BUILD_TYPE:-RelWithDebInfo}
+        -DUSERVER_FEATURE_GRPC=ON
+        -DUSERVER_FEATURE_POSTGRESQL=ON
+        -DUSERVER_SANITIZE='${NETWATCH_COMPOSE_SANITIZE:-}'
+        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON &&
+        cmake --build build-compose-debug -j ${NETWATCH_COMPOSE_BUILD_JOBS:-1} --target auth_service &&
+        ./build-compose-debug/auth_service
         --config configs/static_config.yaml
         --config_vars configs/config_vars.compose.yaml
 
@@ -383,12 +455,12 @@ services:
         -S .
         -B build-compose-debug
         -G Ninja
-        -DCMAKE_BUILD_TYPE=Debug
+        -DCMAKE_BUILD_TYPE=${NETWATCH_COMPOSE_BUILD_TYPE:-RelWithDebInfo}
         -DUSERVER_FEATURE_GRPC=ON
         -DUSERVER_FEATURE_POSTGRESQL=ON
         -DUSERVER_SANITIZE='${NETWATCH_COMPOSE_SANITIZE:-}'
         -DCMAKE_EXPORT_COMPILE_COMMANDS=ON &&
-        cmake --build build-compose-debug -j ${NETWATCH_COMPOSE_BUILD_JOBS:-2} --target target_service &&
+        cmake --build build-compose-debug -j ${NETWATCH_COMPOSE_BUILD_JOBS:-1} --target target_service &&
         ./build-compose-debug/target_service
         --config configs/static_config.yaml
         --config_vars configs/config_vars.compose.yaml
@@ -398,9 +470,11 @@ volumes:
   netwatch-monitor-postgres-data:
   netwatch-alert-postgres-data:
   netwatch-notification-postgres-data:
+  netwatch-auth-postgres-data:
   netwatch-kafka-data:
   netwatch-api-ccache:
   netwatch-ccache:
   netwatch-alert-ccache:
   netwatch-target-ccache:
   netwatch-notification-ccache:
+  netwatch-auth-ccache:

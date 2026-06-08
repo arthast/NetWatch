@@ -19,6 +19,7 @@ if(NOT TARGET userver::core)
 endif()
 
 set(NETWATCH_ALERT_CLIENT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/alert-client")
+set(NETWATCH_AUTH_CLIENT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/auth-client")
 set(NETWATCH_MONITOR_CLIENT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/monitor-client")
 set(NETWATCH_NOTIFICATION_CLIENT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/notification-client")
 set(NETWATCH_PROTO_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../libs/netwatch-proto")
@@ -30,6 +31,10 @@ endif()
 
 if(NOT TARGET netwatch_monitor_client)
     add_subdirectory("${NETWATCH_MONITOR_CLIENT_DIR}" netwatch_monitor_client)
+endif()
+
+if(NOT TARGET netwatch_auth_client)
+    add_subdirectory("${NETWATCH_AUTH_CLIENT_DIR}" netwatch_auth_client)
 endif()
 
 if(NOT TARGET netwatch_alert_client)
@@ -46,6 +51,12 @@ endif()
 
 add_library(
     ${PROJECT_NAME}_objs OBJECT
+    src/auth/handlers/auth_login_handler.cpp
+    src/auth/handlers/auth_me_handler.cpp
+    src/auth/handlers/auth_register_handler.cpp
+    src/auth/json/auth_json.cpp
+    src/auth/service/auth_service.cpp
+    src/auth/service/auth_service_component.cpp
     src/alerts/handlers/active_alerts_handler.cpp
     src/alerts/handlers/alerts_handler.cpp
     src/alerts/json/alert_json.cpp
@@ -88,6 +99,7 @@ target_link_libraries(
     PUBLIC userver::core
            userver::grpc
            netwatch_alert_client
+           netwatch_auth_client
            netwatch_monitor_client
            netwatch_notification_client
            netwatch_target_client

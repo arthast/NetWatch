@@ -1,0 +1,10 @@
+worker-threads: 4
+worker-fs-threads: 2
+logger-level: info
+
+is-testing: false
+
+server-port: 8080
+grpc-port: 8094
+
+pg-connection: postgresql://auth_service:auth_service@auth-postgres:5432/auth_service_db

@@ -6,6 +6,7 @@ is-testing: false
 
 server-port: 8080
 
+auth-service-grpc-endpoint: localhost:8094
 target-service-grpc-endpoint: localhost:8090
 monitor-service-grpc-endpoint: localhost:8091
 alert-service-grpc-endpoint: localhost:8092

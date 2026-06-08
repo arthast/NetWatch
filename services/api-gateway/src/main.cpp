@@ -11,6 +11,7 @@
 #include <userver/utils/daemon_run.hpp>
 
 #include <netwatch/alert_service_client.usrv.pb.hpp>
+#include <netwatch/auth_service_client.usrv.pb.hpp>
 #include <netwatch/monitor_service_client.usrv.pb.hpp>
 #include <netwatch/notification_service_client.usrv.pb.hpp>
 #include <netwatch/target_service_client.usrv.pb.hpp>
@@ -19,6 +20,11 @@
 #include <alerts/handlers/active_alerts_handler.hpp>
 #include <alerts/handlers/alerts_handler.hpp>
 #include <alerts/service/alerts_service_component.hpp>
+#include <auth/handlers/auth_login_handler.hpp>
+#include <auth/handlers/auth_me_handler.hpp>
+#include <auth/handlers/auth_register_handler.hpp>
+#include <auth/service/auth_service_component.hpp>
+#include <auth_client/client/auth_client.hpp>
 #include <checks/handlers/manual_check_handler.hpp>
 #include <checks/handlers/target_checks_handler.hpp>
 #include <checks/handlers/target_status_handler.hpp>
@@ -48,6 +54,8 @@ int main(int argc, char* argv[]) {
           .AppendComponentList(userver::ugrpc::client::MinimalComponentList())
           .Append<userver::ugrpc::client::ClientFactoryComponent>()
           .Append<userver::ugrpc::client::SimpleClientComponent<
+              netwatch::auth::v1::AuthServiceClient>>("auth-service-client")
+          .Append<userver::ugrpc::client::SimpleClientComponent<
               netwatch::target::v1::TargetServiceClient>>(
               "target-service-client")
           .Append<userver::ugrpc::client::SimpleClientComponent<
@@ -58,6 +66,7 @@ int main(int argc, char* argv[]) {
           .Append<userver::ugrpc::client::SimpleClientComponent<
               netwatch::notification::v1::NotificationServiceClient>>(
               "notification-service-client")
+          .Append<netwatch::auth_client::AuthClient>()
           .Append<netwatch::target_client::TargetClient>()
           .Append<netwatch::monitor_client::CheckClient>()
           .Append<netwatch::alert_client::AlertClient>()
@@ -65,10 +74,14 @@ int main(int argc, char* argv[]) {
           .Append<netwatch::api_gateway::targets::TargetsServiceComponent>()
           .Append<netwatch::api_gateway::checks::ChecksServiceComponent>()
           .Append<netwatch::api_gateway::alerts::AlertsServiceComponent>()
+          .Append<netwatch::api_gateway::auth::AuthServiceComponent>()
           .Append<netwatch::api_gateway::notifications::
                       NotificationsServiceComponent>()
           .Append<netwatch::api_gateway::web::SwaggerUiHandler>()
           .Append<netwatch::api_gateway::web::OpenApiHandler>()
+          .Append<netwatch::api_gateway::auth::AuthRegisterHandler>()
+          .Append<netwatch::api_gateway::auth::AuthLoginHandler>()
+          .Append<netwatch::api_gateway::auth::AuthMeHandler>()
           .Append<netwatch::api_gateway::alerts::AlertsHandler>()
           .Append<netwatch::api_gateway::alerts::ActiveAlertsHandler>()
           .Append<netwatch::api_gateway::checks::ManualCheckHandler>()

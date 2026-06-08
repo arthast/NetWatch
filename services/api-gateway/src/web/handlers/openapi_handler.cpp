@@ -21,6 +21,7 @@ constexpr std::string_view kOpenApiSpec = R"json({
   ],
   "tags": [
     { "name": "health" },
+    { "name": "auth" },
     { "name": "targets" },
     { "name": "checks" },
     { "name": "alerts" },
@@ -34,6 +35,105 @@ constexpr std::string_view kOpenApiSpec = R"json({
         "security": [],
         "responses": {
           "200": { "description": "Service is alive" }
+        }
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Register user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AuthCredentials" },
+              "example": {
+                "email": "user@example.com",
+                "password": "password123"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User registered and access token issued",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error or duplicate email",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Login user",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AuthCredentials" },
+              "example": {
+                "email": "user@example.com",
+                "password": "password123"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Access token issued",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "tags": ["auth"],
+        "summary": "Get current user by bearer token",
+        "security": [
+          { "BearerAuth": [] }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current user session",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ValidatedSession" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
         }
       }
     },
@@ -570,6 +670,12 @@ constexpr std::string_view kOpenApiSpec = R"json({
     }
   },
   "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
     "parameters": {
       "TargetId": {
         "name": "id",
@@ -603,6 +709,41 @@ constexpr std::string_view kOpenApiSpec = R"json({
       }
     },
     "schemas": {
+      "AuthCredentials": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string", "minLength": 8 }
+        }
+      },
+      "AuthUser": {
+        "type": "object",
+        "required": ["id", "email", "created_at", "updated_at"],
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "email": { "type": "string", "format": "email" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "AuthResponse": {
+        "type": "object",
+        "required": ["user", "access_token", "expires_at"],
+        "properties": {
+          "user": { "$ref": "#/components/schemas/AuthUser" },
+          "access_token": { "type": "string" },
+          "expires_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ValidatedSession": {
+        "type": "object",
+        "required": ["user", "expires_at"],
+        "properties": {
+          "user": { "$ref": "#/components/schemas/AuthUser" },
+          "expires_at": { "type": "string", "format": "date-time" }
+        }
+      },
       "CreateTargetRequest": {
         "oneOf": [
           { "$ref": "#/components/schemas/CreateHttpTargetRequest" },

@@ -131,6 +131,39 @@ services:
         /migrations
         postgresql://notification_service:notification_service@notification-postgres:5432/notification_service_db
 
+  auth-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: auth_service_db
+      POSTGRES_USER: auth_service
+      POSTGRES_PASSWORD: auth_service
+    ports:
+      - "15437:5432"
+    volumes:
+      - netwatch-auth-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auth_service -d auth_service_db"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  auth-migrations:
+    image: postgres:16
+    depends_on:
+      auth-postgres:
+        condition: service_healthy
+    volumes:
+      - ./scripts/apply_migrations.sh:/usr/local/bin/apply_migrations.sh:ro
+      - ./services/auth-service/postgresql/migrations:/migrations:ro
+    command:
+      - bash
+      - -lc
+      - >
+        /usr/local/bin/apply_migrations.sh
+        auth-service
+        /migrations
+        postgresql://auth_service:auth_service@auth-postgres:5432/auth_service_db
+
   kafka:
     image: apache/kafka:3.9.1
     platform: linux/amd64
@@ -208,6 +241,8 @@ services:
       alert-service:
         condition: service_healthy
       notification-service:
+        condition: service_healthy
+      auth-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
@@ -294,6 +329,28 @@ services:
       timeout: 2s
       retries: 30
 
+  auth-service:
+    image: ${NETWATCH_AUTH_SERVICE_IMAGE:-netwatch/auth-service:local}
+    build:
+      context: .
+      dockerfile: docker/service.Dockerfile
+      args:
+        SERVICE_TARGET: auth_service
+        BUILD_JOBS: ${NETWATCH_BUILD_JOBS:-1}
+    platform: linux/amd64
+    environment:
+      DB_CONNECTION: postgresql://auth_service:auth_service@auth-postgres:5432/auth_service_db
+      USERVER_ENABLE_STACK_USAGE_MONITOR: "0"
+    depends_on:
+      auth-migrations:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
+      start_period: 30s
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
   target-service:
     image: ${NETWATCH_TARGET_SERVICE_IMAGE:-netwatch/target-service:local}
     build:
@@ -323,4 +380,5 @@ volumes:
   netwatch-monitor-postgres-data:
   netwatch-alert-postgres-data:
   netwatch-notification-postgres-data:
+  netwatch-auth-postgres-data:
   netwatch-kafka-data:

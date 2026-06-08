@@ -203,6 +203,40 @@ jobs:
         if: always()
         run: sudo chown -R "$USER:$USER" .ccache || true
 
+  auth-service-build:
+    name: auth-service build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ${{ runner.os }}-ccache-auth-service-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-auth-service-
+            ${{ runner.os }}-ccache-
+
+      - name: Build auth-service
+        run: |
+          docker compose run --rm --no-deps --workdir /workspace \
+            --env CCACHE_BASEDIR \
+            --env CCACHE_COMPILERCHECK \
+            --env CCACHE_DIR \
+            --env CCACHE_MAXSIZE \
+            --env CCACHE_NOHASHDIR \
+            monitor-service \
+            bash -lc 'set -e; \
+              ccache --zero-stats || true; \
+              cmake -S . -B build-ci-auth-service-debug ${{ env.CMAKE_ARGS }}; \
+              cmake --build build-ci-auth-service-debug -j ${{ env.NETWATCH_CI_BUILD_JOBS }} --target auth_service; \
+              ccache --show-stats || true'
+
+      - name: Fix ccache permissions
+        if: always()
+        run: sudo chown -R "$USER:$USER" .ccache || true
+
   integration-dev-compose:
     name: Integration Flow (dev compose)
     runs-on: ubuntu-24.04
@@ -212,6 +246,7 @@ jobs:
       - monitor-service-build
       - alert-service-build
       - notification-service-build
+      - auth-service-build
     steps:
       - uses: actions/checkout@v4
 
@@ -227,6 +262,7 @@ jobs:
       - monitor-service-build
       - alert-service-build
       - notification-service-build
+      - auth-service-build
     steps:
       - uses: actions/checkout@v4
 
@@ -260,6 +296,8 @@ jobs:
             target: alert_service
           - service: notification-service
             target: notification_service
+          - service: auth-service
+            target: auth_service
           - service: target-service
             target: target_service
     steps:
