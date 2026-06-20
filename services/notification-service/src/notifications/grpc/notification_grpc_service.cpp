@@ -1,8 +1,8 @@
 #include <notifications/grpc/notification_grpc_service.hpp>
 
+#include <grpcpp/support/status.h>
 #include <algorithm>
 #include <cctype>
-#include <grpcpp/support/status.h>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -57,6 +57,18 @@ void ValidateDeliveryId(std::int64_t delivery_id) {
   }
 }
 
+void ValidateUserId(std::int64_t user_id) {
+  if (user_id <= 0) {
+    throw std::invalid_argument{"user id must be a positive integer"};
+  }
+}
+
+void ValidateTargetId(std::int64_t target_id) {
+  if (target_id <= 0) {
+    throw std::invalid_argument{"target id must be a positive integer"};
+  }
+}
+
 void ValidateEmail(std::string_view email) {
   if (!IsValidEmail(email)) {
     throw std::invalid_argument{"email must be a valid address"};
@@ -66,6 +78,9 @@ void ValidateEmail(std::string_view email) {
 void FillProtoRecipient(const EmailRecipient& source,
                         proto::EmailRecipient& target) {
   target.set_id(source.id);
+  if (source.user_id) {
+    target.set_user_id(*source.user_id);
+  }
   target.set_email(source.email);
   target.set_is_enabled(source.is_enabled);
   target.set_created_at(source.created_at);
@@ -75,6 +90,12 @@ void FillProtoRecipient(const EmailRecipient& source,
 void FillProtoDelivery(const NotificationDelivery& source,
                        proto::NotificationDelivery& target) {
   target.set_id(source.id);
+  if (source.user_id) {
+    target.set_user_id(*source.user_id);
+  }
+  if (source.target_id) {
+    target.set_target_id(*source.target_id);
+  }
   target.set_event_id(source.event_id);
   target.set_event_type(source.event_type);
   target.set_recipient_email(source.recipient_email);
@@ -120,6 +141,18 @@ proto::SendTestEmailResponse MakeTestEmailResponse(
   return response;
 }
 
+proto::TargetNotificationSettingsResponse MakeSettingsResponse(
+    const TargetNotificationSettings& settings) {
+  proto::TargetNotificationSettingsResponse response;
+  auto& target = *response.mutable_settings();
+  target.set_user_id(settings.user_id);
+  target.set_target_id(settings.target_id);
+  target.set_email_enabled(settings.email_enabled);
+  target.set_created_at(settings.created_at);
+  target.set_updated_at(settings.updated_at);
+  return response;
+}
+
 int NormalizeDeliveriesLimit(int limit) {
   constexpr int kDefaultLimit = 100;
   constexpr int kMaxLimit = 500;
@@ -143,6 +176,11 @@ ListDeliveriesFilter MakeDeliveriesFilter(
     const proto::ListNotificationDeliveriesRequest& request) {
   ListDeliveriesFilter filter{
       .limit = NormalizeDeliveriesLimit(request.limit()),
+      .user_id = request.has_user_id() ? std::make_optional(request.user_id())
+                                       : std::nullopt,
+      .target_id = request.has_target_id()
+                       ? std::make_optional(request.target_id())
+                       : std::nullopt,
       .status = std::nullopt,
       .event_type = std::nullopt,
       .recipient_email = std::nullopt,
@@ -170,6 +208,13 @@ ListDeliveriesFilter MakeDeliveriesFilter(
     filter.recipient_email = request.recipient_email();
   }
 
+  if (filter.user_id) {
+    ValidateUserId(*filter.user_id);
+  }
+  if (filter.target_id) {
+    ValidateTargetId(*filter.target_id);
+  }
+
   return filter;
 }
 
@@ -184,8 +229,9 @@ proto::ListEmailRecipientsResponse MakeRecipientsResponse(
 
 void EnsureEmailCanBeUsed(const NotificationRepository& repository,
                           std::string_view email,
+                          std::optional<std::int64_t> user_id,
                           std::optional<std::int64_t> current_id) {
-  const auto existing = repository.GetRecipientByEmail(email);
+  const auto existing = repository.GetRecipientByEmail(email, user_id);
   if (existing && (!current_id || existing->id != *current_id)) {
     throw std::invalid_argument{"email recipient already exists"};
   }
@@ -202,17 +248,33 @@ NotificationGrpcService::NotificationGrpcService(
               .GetCluster()) {}
 
 NotificationGrpcService::ListEmailRecipientsResult
-NotificationGrpcService::ListEmailRecipients(CallContext&,
-                                             proto::ListEmailRecipientsRequest&&) {
-  return MakeRecipientsResponse(repository_.ListRecipients());
+NotificationGrpcService::ListEmailRecipients(
+    CallContext&, proto::ListEmailRecipientsRequest&& request) {
+  try {
+    if (request.has_user_id()) {
+      ValidateUserId(request.user_id());
+      return MakeRecipientsResponse(
+          repository_.ListRecipients(request.user_id()));
+    }
+    return MakeRecipientsResponse(repository_.ListRecipients());
+  } catch (const std::invalid_argument& ex) {
+    return InvalidArgument(ex.what());
+  }
 }
 
 NotificationGrpcService::GetEmailRecipientResult
-NotificationGrpcService::GetEmailRecipient(CallContext&,
-                                           proto::RecipientIdRequest&& request) {
+NotificationGrpcService::GetEmailRecipient(
+    CallContext&, proto::RecipientIdRequest&& request) {
   try {
     ValidateRecipientId(request.id());
-    const auto recipient = repository_.GetRecipientById(request.id());
+    std::optional<EmailRecipient> recipient;
+    if (request.has_user_id()) {
+      ValidateUserId(request.user_id());
+      recipient =
+          repository_.GetRecipientByIdForUser(request.id(), request.user_id());
+    } else {
+      recipient = repository_.GetRecipientById(request.id());
+    }
     if (!recipient) {
       return NotFound("email recipient not found");
     }
@@ -227,7 +289,13 @@ NotificationGrpcService::CreateEmailRecipient(
     CallContext&, proto::CreateEmailRecipientRequest&& request) {
   try {
     ValidateEmail(request.email());
-    return MakeRecipientResponse(repository_.CreateRecipient(request.email()));
+    std::optional<std::int64_t> user_id;
+    if (request.has_user_id()) {
+      ValidateUserId(request.user_id());
+      user_id = request.user_id();
+    }
+    return MakeRecipientResponse(
+        repository_.CreateRecipient(request.email(), user_id));
   } catch (const std::invalid_argument& ex) {
     return InvalidArgument(ex.what());
   }
@@ -238,15 +306,19 @@ NotificationGrpcService::UpdateEmailRecipient(
     CallContext&, proto::UpdateEmailRecipientRequest&& request) {
   try {
     ValidateRecipientId(request.id());
+    std::optional<std::int64_t> user_id;
+    if (request.has_user_id()) {
+      ValidateUserId(request.user_id());
+      user_id = request.user_id();
+    }
     if (!request.has_email() && !request.has_is_enabled()) {
-      throw std::invalid_argument{
-          "patch body must contain at least one field"};
+      throw std::invalid_argument{"patch body must contain at least one field"};
     }
 
     std::optional<std::string> email;
     if (request.has_email()) {
       ValidateEmail(request.email());
-      EnsureEmailCanBeUsed(repository_, request.email(), request.id());
+      EnsureEmailCanBeUsed(repository_, request.email(), user_id, request.id());
       email = request.email();
     }
 
@@ -254,7 +326,7 @@ NotificationGrpcService::UpdateEmailRecipient(
         request.has_is_enabled() ? std::make_optional(request.is_enabled())
                                  : std::nullopt;
     const auto recipient =
-        repository_.UpdateRecipient(request.id(), email, is_enabled);
+        repository_.UpdateRecipient(request.id(), email, is_enabled, user_id);
     if (!recipient) {
       return NotFound("email recipient not found");
     }
@@ -269,7 +341,15 @@ NotificationGrpcService::DeleteEmailRecipient(
     CallContext&, proto::RecipientIdRequest&& request) {
   try {
     ValidateRecipientId(request.id());
-    if (!repository_.DisableRecipient(request.id())) {
+    bool deleted = false;
+    if (request.has_user_id()) {
+      ValidateUserId(request.user_id());
+      deleted =
+          repository_.DisableRecipientForUser(request.id(), request.user_id());
+    } else {
+      deleted = repository_.DisableRecipient(request.id());
+    }
+    if (!deleted) {
       return NotFound("email recipient not found");
     }
     return proto::DeleteEmailRecipientResponse{};
@@ -294,7 +374,12 @@ NotificationGrpcService::RetryNotificationDelivery(
     CallContext&, proto::DeliveryIdRequest&& request) {
   try {
     ValidateDeliveryId(request.id());
-    const auto delivery = repository_.RetryDelivery(request.id());
+    std::optional<std::int64_t> user_id;
+    if (request.has_user_id()) {
+      ValidateUserId(request.user_id());
+      user_id = request.user_id();
+    }
+    const auto delivery = repository_.RetryDelivery(request.id(), user_id);
     if (!delivery) {
       return NotFound("notification delivery not found or cannot be retried");
     }
@@ -311,8 +396,39 @@ NotificationGrpcService::SendTestEmail(CallContext&,
     if (request.has_email()) {
       ValidateEmail(request.email());
     }
-    return MakeTestEmailResponse(
-        repository_.QueueTestEmail(request.has_email() ? request.email() : ""));
+    std::optional<std::int64_t> user_id;
+    if (request.has_user_id()) {
+      ValidateUserId(request.user_id());
+      user_id = request.user_id();
+    }
+    return MakeTestEmailResponse(repository_.QueueTestEmail(
+        request.has_email() ? request.email() : "", user_id));
+  } catch (const std::invalid_argument& ex) {
+    return InvalidArgument(ex.what());
+  }
+}
+
+NotificationGrpcService::GetTargetNotificationSettingsResult
+NotificationGrpcService::GetTargetNotificationSettings(
+    CallContext&, proto::GetTargetNotificationSettingsRequest&& request) {
+  try {
+    ValidateUserId(request.user_id());
+    ValidateTargetId(request.target_id());
+    return MakeSettingsResponse(repository_.GetTargetNotificationSettings(
+        request.user_id(), request.target_id()));
+  } catch (const std::invalid_argument& ex) {
+    return InvalidArgument(ex.what());
+  }
+}
+
+NotificationGrpcService::UpdateTargetNotificationSettingsResult
+NotificationGrpcService::UpdateTargetNotificationSettings(
+    CallContext&, proto::UpdateTargetNotificationSettingsRequest&& request) {
+  try {
+    ValidateUserId(request.user_id());
+    ValidateTargetId(request.target_id());
+    return MakeSettingsResponse(repository_.UpdateTargetNotificationSettings(
+        request.user_id(), request.target_id(), request.email_enabled()));
   } catch (const std::invalid_argument& ex) {
     return InvalidArgument(ex.what());
   }

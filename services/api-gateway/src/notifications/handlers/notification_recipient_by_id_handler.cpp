@@ -8,6 +8,8 @@
 #include <userver/server/http/http_request.hpp>
 #include <userver/server/http/http_status.hpp>
 
+#include <auth/service/auth_service_component.hpp>
+#include <common/auth.hpp>
 #include <common/http_response.hpp>
 #include <common/path_params.hpp>
 #include <notifications/json/recipient_json.hpp>
@@ -23,6 +25,9 @@ NotificationRecipientByIdHandler::NotificationRecipientByIdHandler(
     : HttpHandlerBase(config, component_context),
       notifications_service_(
           component_context.FindComponent<NotificationsServiceComponent>()
+              .GetService()),
+      auth_service_(
+          component_context.FindComponent<auth::AuthServiceComponent>()
               .GetService()) {}
 
 std::string NotificationRecipientByIdHandler::HandleRequestThrow(
@@ -56,8 +61,15 @@ std::string NotificationRecipientByIdHandler::HandleGetRecipient(
     const userver::server::http::HttpRequest& request,
     std::int64_t recipient_id) const {
   try {
-    const auto recipient =
-        notifications_service_.GetEmailRecipient(recipient_id);
+    const auto session = common::AuthenticateRequest(request, auth_service_);
+    if (!session) {
+      return ErrorResponse(request,
+                           userver::server::http::HttpStatus::kUnauthorized,
+                           "Authorization bearer token is required");
+    }
+
+    const auto recipient = notifications_service_.GetEmailRecipient(
+        session->user.id, recipient_id);
     if (!recipient) {
       return ErrorResponse(request,
                            userver::server::http::HttpStatus::kNotFound,
@@ -74,14 +86,19 @@ std::string NotificationRecipientByIdHandler::HandlePatchRecipient(
     const userver::server::http::HttpRequest& request,
     std::int64_t recipient_id) const {
   try {
+    const auto session = common::AuthenticateRequest(request, auth_service_);
+    if (!session) {
+      return ErrorResponse(request,
+                           userver::server::http::HttpStatus::kUnauthorized,
+                           "Authorization bearer token is required");
+    }
+
     const auto request_json =
         userver::formats::json::FromString(request.RequestBody());
-    const auto update_request =
-        ParseUpdateEmailRecipientRequest(request_json);
+    const auto update_request = ParseUpdateEmailRecipientRequest(request_json);
 
-    const auto recipient =
-        notifications_service_.UpdateEmailRecipient(recipient_id,
-                                                    update_request);
+    const auto recipient = notifications_service_.UpdateEmailRecipient(
+        session->user.id, recipient_id, update_request);
     if (!recipient) {
       return ErrorResponse(request,
                            userver::server::http::HttpStatus::kNotFound,
@@ -104,7 +121,15 @@ std::string NotificationRecipientByIdHandler::HandleDeleteRecipient(
     const userver::server::http::HttpRequest& request,
     std::int64_t recipient_id) const {
   try {
-    if (!notifications_service_.DeleteEmailRecipient(recipient_id)) {
+    const auto session = common::AuthenticateRequest(request, auth_service_);
+    if (!session) {
+      return ErrorResponse(request,
+                           userver::server::http::HttpStatus::kUnauthorized,
+                           "Authorization bearer token is required");
+    }
+
+    if (!notifications_service_.DeleteEmailRecipient(session->user.id,
+                                                     recipient_id)) {
       return ErrorResponse(request,
                            userver::server::http::HttpStatus::kNotFound,
                            "email recipient not found");

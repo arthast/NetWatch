@@ -20,6 +20,7 @@ std::string TargetTypeToString(TargetType type) {
 AlertEventTargetSnapshot ToAlertEventTarget(const TargetSnapshot& target) {
   return AlertEventTargetSnapshot{
       .id = target.id,
+      .user_id = target.user_id,
       .name = target.name,
       .type = TargetTypeToString(target.type),
   };

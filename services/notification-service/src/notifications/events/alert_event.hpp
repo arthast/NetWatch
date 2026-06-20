@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -11,6 +13,8 @@ struct AlertEvent final {
   std::string event_type;
   std::string producer;
   std::string occurred_at;
+  std::optional<std::int64_t> user_id;
+  std::optional<std::int64_t> target_id;
   std::string payload;
 };
 

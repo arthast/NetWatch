@@ -10,6 +10,8 @@
 #include <userver/server/http/http_request.hpp>
 #include <userver/server/http/http_status.hpp>
 
+#include <auth/service/auth_service_component.hpp>
+#include <common/auth.hpp>
 #include <common/http_response.hpp>
 #include <notifications/json/delivery_json.hpp>
 #include <notifications/service/notifications_service_component.hpp>
@@ -60,6 +62,9 @@ NotificationDeliveriesHandler::NotificationDeliveriesHandler(
     : HttpHandlerBase(config, component_context),
       notifications_service_(
           component_context.FindComponent<NotificationsServiceComponent>()
+              .GetService()),
+      auth_service_(
+          component_context.FindComponent<auth::AuthServiceComponent>()
               .GetService()) {}
 
 std::string NotificationDeliveriesHandler::HandleRequestThrow(
@@ -69,6 +74,13 @@ std::string NotificationDeliveriesHandler::HandleRequestThrow(
     return ErrorResponse(request,
                          userver::server::http::HttpStatus::kMethodNotAllowed,
                          "method is not allowed");
+  }
+
+  const auto session = common::AuthenticateRequest(request, auth_service_);
+  if (!session) {
+    return ErrorResponse(request,
+                         userver::server::http::HttpStatus::kUnauthorized,
+                         "Authorization bearer token is required");
   }
 
   const auto limit = ParseLimit(request.GetArg("limit"));
@@ -81,6 +93,8 @@ std::string NotificationDeliveriesHandler::HandleRequestThrow(
   auto filter =
       netwatch::notification_client::ListNotificationDeliveriesRequest{
           .limit = *limit,
+          .user_id = std::nullopt,
+          .target_id = std::nullopt,
           .status = ReadOptionalQueryArg(request, "status"),
           .event_type = ReadOptionalQueryArg(request, "event_type"),
           .recipient_email = ReadOptionalQueryArg(request, "recipient_email"),
@@ -99,10 +113,10 @@ std::string NotificationDeliveriesHandler::HandleRequestThrow(
   }
 
   try {
-    return JsonResponse(
-        request,
-        SerializeNotificationDeliveries(
-            notifications_service_.ListNotificationDeliveries(filter)));
+    return JsonResponse(request,
+                        SerializeNotificationDeliveries(
+                            notifications_service_.ListNotificationDeliveries(
+                                session->user.id, filter)));
   } catch (const userver::ugrpc::client::BaseError& ex) {
     return common::UpstreamErrorResponse(request, "notification-service", ex);
   }

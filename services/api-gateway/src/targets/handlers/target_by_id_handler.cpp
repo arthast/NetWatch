@@ -9,6 +9,8 @@
 #include <userver/server/http/http_request.hpp>
 #include <userver/server/http/http_status.hpp>
 
+#include <auth/service/auth_service_component.hpp>
+#include <common/auth.hpp>
 #include <common/http_response.hpp>
 #include <common/path_params.hpp>
 #include <targets/json/target_json.hpp>
@@ -24,6 +26,9 @@ TargetByIdHandler::TargetByIdHandler(
     : HttpHandlerBase(config, component_context),
       targets_service_(
           component_context.FindComponent<TargetsServiceComponent>()
+              .GetService()),
+      auth_service_(
+          component_context.FindComponent<auth::AuthServiceComponent>()
               .GetService()) {}
 
 std::string TargetByIdHandler::HandleRequestThrow(
@@ -56,7 +61,15 @@ std::string TargetByIdHandler::HandleGetTarget(
     const userver::server::http::HttpRequest& request,
     std::int64_t target_id) const {
   try {
-    const auto target = targets_service_.GetTargetById(target_id);
+    const auto session = common::AuthenticateRequest(request, auth_service_);
+    if (!session) {
+      return ErrorResponse(request,
+                           userver::server::http::HttpStatus::kUnauthorized,
+                           "Authorization bearer token is required");
+    }
+
+    const auto target =
+        targets_service_.GetTargetById(session->user.id, target_id);
     if (!target) {
       return ErrorResponse(request,
                            userver::server::http::HttpStatus::kNotFound,
@@ -73,12 +86,19 @@ std::string TargetByIdHandler::HandlePatchTarget(
     const userver::server::http::HttpRequest& request,
     std::int64_t target_id) const {
   try {
+    const auto session = common::AuthenticateRequest(request, auth_service_);
+    if (!session) {
+      return ErrorResponse(request,
+                           userver::server::http::HttpStatus::kUnauthorized,
+                           "Authorization bearer token is required");
+    }
+
     const auto request_json =
         userver::formats::json::FromString(request.RequestBody());
     const auto update_request = ParseUpdateTargetRequest(request_json);
 
-    const auto saved_target =
-        targets_service_.UpdateTarget(target_id, update_request);
+    const auto saved_target = targets_service_.UpdateTarget(
+        session->user.id, target_id, update_request);
     if (!saved_target) {
       return ErrorResponse(request,
                            userver::server::http::HttpStatus::kNotFound,
@@ -101,7 +121,14 @@ std::string TargetByIdHandler::HandleDeleteTarget(
     const userver::server::http::HttpRequest& request,
     std::int64_t target_id) const {
   try {
-    if (!targets_service_.DeactivateTarget(target_id)) {
+    const auto session = common::AuthenticateRequest(request, auth_service_);
+    if (!session) {
+      return ErrorResponse(request,
+                           userver::server::http::HttpStatus::kUnauthorized,
+                           "Authorization bearer token is required");
+    }
+
+    if (!targets_service_.DeactivateTarget(session->user.id, target_id)) {
       return ErrorResponse(request,
                            userver::server::http::HttpStatus::kNotFound,
                            "target not found");

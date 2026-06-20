@@ -27,11 +27,17 @@ class TargetService {
 
   void DeleteTarget(std::int64_t target_id) const;
 
+  void DeleteTargetForUser(std::int64_t target_id, std::int64_t user_id) const;
+
   Target GetTarget(std::int64_t target_id) const;
+
+  Target GetTargetForUser(std::int64_t target_id, std::int64_t user_id) const;
 
   std::vector<Target> ListTargets() const;
 
   std::vector<Target> ListActiveTargets() const;
+
+  std::vector<Target> ListActiveTargetsForUser(std::int64_t user_id) const;
 
  private:
   TargetRepository repository_;

@@ -5,6 +5,7 @@
 #include <userver/components/component.hpp>
 #include <userver/server/handlers/http_handler_base.hpp>
 
+#include <auth/service/auth_service.hpp>
 #include <targets/service/targets_service.hpp>
 
 namespace netwatch::api_gateway::targets {
@@ -28,5 +29,6 @@ class TargetsHandler final : public userver::server::handlers::HttpHandlerBase {
       const userver::server::http::HttpRequest& request) const;
 
   const TargetsService& targets_service_;
+  const auth::AuthService& auth_service_;
 };
 }  // namespace netwatch::api_gateway::targets

@@ -49,6 +49,9 @@ domain::TargetType ToDomainTargetType(proto::TargetType type) {
 
 void FillProtoTarget(const domain::Target& source, proto::Target& target) {
   target.set_id(source.id);
+  if (source.user_id) {
+    target.set_user_id(*source.user_id);
+  }
   target.set_name(source.name);
   target.set_type(ToProtoTargetType(source.type));
 
@@ -91,6 +94,8 @@ proto::ListTargetsResponse MakeListTargetsResponse(
 domain::CreateTargetRequest ToDomainCreateRequest(
     const proto::CreateTargetRequest& request) {
   return domain::CreateTargetRequest{
+      .user_id = request.has_user_id() ? std::make_optional(request.user_id())
+                                       : std::nullopt,
       .name = request.name(),
       .type = ToDomainTargetType(request.type()),
       .url =
@@ -113,6 +118,8 @@ domain::CreateTargetRequest ToDomainCreateRequest(
 domain::UpdateTargetRequest ToDomainUpdateRequest(
     const proto::UpdateTargetRequest& request) {
   return domain::UpdateTargetRequest{
+      .user_id = request.has_user_id() ? std::make_optional(request.user_id())
+                                       : std::nullopt,
       .name = request.has_name() ? std::make_optional(request.name())
                                  : std::nullopt,
       .type = request.has_type()
@@ -174,7 +181,11 @@ TargetGrpcService::UpdateTargetResult TargetGrpcService::UpdateTarget(
 TargetGrpcService::DeleteTargetResult TargetGrpcService::DeleteTarget(
     CallContext&, proto::TargetIdRequest&& request) {
   try {
-    target_service_.DeleteTarget(request.id());
+    if (request.has_user_id()) {
+      target_service_.DeleteTargetForUser(request.id(), request.user_id());
+    } else {
+      target_service_.DeleteTarget(request.id());
+    }
     return proto::DeleteTargetResponse{};
   } catch (const TargetNotFound& ex) {
     return NotFound(ex.what());
@@ -184,6 +195,10 @@ TargetGrpcService::DeleteTargetResult TargetGrpcService::DeleteTarget(
 TargetGrpcService::GetTargetResult TargetGrpcService::GetTarget(
     CallContext&, proto::TargetIdRequest&& request) {
   try {
+    if (request.has_user_id()) {
+      return MakeTargetResponse(
+          target_service_.GetTargetForUser(request.id(), request.user_id()));
+    }
     return MakeTargetResponse(target_service_.GetTarget(request.id()));
   } catch (const TargetNotFound& ex) {
     return NotFound(ex.what());
@@ -191,12 +206,20 @@ TargetGrpcService::GetTargetResult TargetGrpcService::GetTarget(
 }
 
 TargetGrpcService::ListTargetsResult TargetGrpcService::ListTargets(
-    CallContext&, proto::ListTargetsRequest&&) {
+    CallContext&, proto::ListTargetsRequest&& request) {
+  if (request.has_user_id()) {
+    return MakeListTargetsResponse(
+        target_service_.ListActiveTargetsForUser(request.user_id()));
+  }
   return MakeListTargetsResponse(target_service_.ListTargets());
 }
 
 TargetGrpcService::ListActiveTargetsResult TargetGrpcService::ListActiveTargets(
-    CallContext&, proto::ListTargetsRequest&&) {
+    CallContext&, proto::ListTargetsRequest&& request) {
+  if (request.has_user_id()) {
+    return MakeListTargetsResponse(
+        target_service_.ListActiveTargetsForUser(request.user_id()));
+  }
   return MakeListTargetsResponse(target_service_.ListActiveTargets());
 }
 

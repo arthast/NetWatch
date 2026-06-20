@@ -10,6 +10,8 @@
 #include <userver/server/http/http_request.hpp>
 #include <userver/server/http/http_status.hpp>
 
+#include <auth/service/auth_service_component.hpp>
+#include <common/auth.hpp>
 #include <common/http_response.hpp>
 #include <notifications/json/test_email_json.hpp>
 #include <notifications/service/notifications_service_component.hpp>
@@ -36,6 +38,9 @@ NotificationTestEmailHandler::NotificationTestEmailHandler(
     : HttpHandlerBase(config, component_context),
       notifications_service_(
           component_context.FindComponent<NotificationsServiceComponent>()
+              .GetService()),
+      auth_service_(
+          component_context.FindComponent<auth::AuthServiceComponent>()
               .GetService()) {}
 
 std::string NotificationTestEmailHandler::HandleRequestThrow(
@@ -48,10 +53,17 @@ std::string NotificationTestEmailHandler::HandleRequestThrow(
   }
 
   try {
+    const auto session = common::AuthenticateRequest(request, auth_service_);
+    if (!session) {
+      return ErrorResponse(request,
+                           userver::server::http::HttpStatus::kUnauthorized,
+                           "Authorization bearer token is required");
+    }
+
     const auto request_json = ParseOptionalBody(request.RequestBody());
     const auto test_email_request = ParseSendTestEmailRequest(request_json);
-    const auto result =
-        notifications_service_.SendTestEmail(test_email_request);
+    const auto result = notifications_service_.SendTestEmail(
+        session->user.id, test_email_request);
 
     request.SetResponseStatus(userver::server::http::HttpStatus::kAccepted);
     return JsonResponse(request, SerializeSendTestEmailResult(result));

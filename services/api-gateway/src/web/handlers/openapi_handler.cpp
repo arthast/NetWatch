@@ -141,6 +141,9 @@ constexpr std::string_view kOpenApiSpec = R"json({
       "get": {
         "tags": ["targets"],
         "summary": "List active targets",
+        "security": [
+          { "BearerAuth": [] }
+        ],
         "responses": {
           "200": {
             "description": "Active targets",
@@ -158,6 +161,9 @@ constexpr std::string_view kOpenApiSpec = R"json({
       "post": {
         "tags": ["targets"],
         "summary": "Create target",
+        "security": [
+          { "BearerAuth": [] }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -216,6 +222,9 @@ constexpr std::string_view kOpenApiSpec = R"json({
       "get": {
         "tags": ["targets"],
         "summary": "Get target by id",
+        "security": [
+          { "BearerAuth": [] }
+        ],
         "responses": {
           "200": {
             "description": "Target",
@@ -238,6 +247,9 @@ constexpr std::string_view kOpenApiSpec = R"json({
       "patch": {
         "tags": ["targets"],
         "summary": "Update target",
+        "security": [
+          { "BearerAuth": [] }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -276,6 +288,9 @@ constexpr std::string_view kOpenApiSpec = R"json({
       "delete": {
         "tags": ["targets"],
         "summary": "Soft-delete target",
+        "security": [
+          { "BearerAuth": [] }
+        ],
         "responses": {
           "204": { "description": "Target deactivated" },
           "404": {
@@ -296,6 +311,9 @@ constexpr std::string_view kOpenApiSpec = R"json({
       "post": {
         "tags": ["checks"],
         "summary": "Run manual check",
+        "security": [
+          { "BearerAuth": [] }
+        ],
         "responses": {
           "201": {
             "description": "Saved check result",
@@ -323,6 +341,9 @@ constexpr std::string_view kOpenApiSpec = R"json({
       "get": {
         "tags": ["checks"],
         "summary": "List target check results",
+        "security": [
+          { "BearerAuth": [] }
+        ],
         "responses": {
           "200": {
             "description": "Check history",
@@ -345,6 +366,9 @@ constexpr std::string_view kOpenApiSpec = R"json({
       "get": {
         "tags": ["checks"],
         "summary": "Get latest target status",
+        "security": [
+          { "BearerAuth": [] }
+        ],
         "responses": {
           "200": {
             "description": "Latest check result",
@@ -369,6 +393,9 @@ constexpr std::string_view kOpenApiSpec = R"json({
       "get": {
         "tags": ["alerts"],
         "summary": "List all alerts",
+        "security": [
+          { "BearerAuth": [] }
+        ],
         "responses": {
           "200": {
             "description": "Alerts",
@@ -388,6 +415,9 @@ constexpr std::string_view kOpenApiSpec = R"json({
       "get": {
         "tags": ["alerts"],
         "summary": "List active alerts",
+        "security": [
+          { "BearerAuth": [] }
+        ],
         "responses": {
           "200": {
             "description": "Active alerts",
@@ -407,6 +437,9 @@ constexpr std::string_view kOpenApiSpec = R"json({
       "get": {
         "tags": ["notifications"],
         "summary": "List email notification recipients",
+        "security": [
+          { "BearerAuth": [] }
+        ],
         "responses": {
           "200": {
             "description": "Email notification recipients",
@@ -424,6 +457,9 @@ constexpr std::string_view kOpenApiSpec = R"json({
       "post": {
         "tags": ["notifications"],
         "summary": "Create or re-enable email notification recipient",
+        "security": [
+          { "BearerAuth": [] }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -462,6 +498,9 @@ constexpr std::string_view kOpenApiSpec = R"json({
       "get": {
         "tags": ["notifications"],
         "summary": "Get email notification recipient by id",
+        "security": [
+          { "BearerAuth": [] }
+        ],
         "responses": {
           "200": {
             "description": "Email notification recipient",
@@ -484,6 +523,9 @@ constexpr std::string_view kOpenApiSpec = R"json({
       "patch": {
         "tags": ["notifications"],
         "summary": "Update email notification recipient",
+        "security": [
+          { "BearerAuth": [] }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -525,6 +567,9 @@ constexpr std::string_view kOpenApiSpec = R"json({
       "delete": {
         "tags": ["notifications"],
         "summary": "Disable email notification recipient",
+        "security": [
+          { "BearerAuth": [] }
+        ],
         "responses": {
           "204": { "description": "Email recipient disabled" },
           "404": {
@@ -542,6 +587,9 @@ constexpr std::string_view kOpenApiSpec = R"json({
       "get": {
         "tags": ["notifications"],
         "summary": "List notification delivery attempts",
+        "security": [
+          { "BearerAuth": [] }
+        ],
         "parameters": [
           {
             "name": "limit",
@@ -613,6 +661,9 @@ constexpr std::string_view kOpenApiSpec = R"json({
       "post": {
         "tags": ["notifications"],
         "summary": "Retry failed or scheduled notification delivery",
+        "security": [
+          { "BearerAuth": [] }
+        ],
         "responses": {
           "200": {
             "description": "Delivery moved back to pending",
@@ -637,6 +688,9 @@ constexpr std::string_view kOpenApiSpec = R"json({
       "post": {
         "tags": ["notifications"],
         "summary": "Queue a test email notification",
+        "security": [
+          { "BearerAuth": [] }
+        ],
         "requestBody": {
           "required": false,
           "content": {
@@ -659,6 +713,96 @@ constexpr std::string_view kOpenApiSpec = R"json({
           },
           "400": {
             "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/targets/{id}/notifications": {
+      "parameters": [
+        { "$ref": "#/components/parameters/TargetId" }
+      ],
+      "get": {
+        "tags": ["notifications"],
+        "summary": "Get target notification settings",
+        "security": [
+          { "BearerAuth": [] }
+        ],
+        "responses": {
+          "200": {
+            "description": "Target notification settings",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TargetNotificationSettings" }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token is missing or invalid",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Target not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["notifications"],
+        "summary": "Update target notification settings",
+        "security": [
+          { "BearerAuth": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateTargetNotificationSettingsRequest" },
+              "example": {
+                "email_enabled": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated target notification settings",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TargetNotificationSettings" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Bearer token is missing or invalid",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "404": {
+            "description": "Target not found",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/Error" }
@@ -852,6 +996,7 @@ constexpr std::string_view kOpenApiSpec = R"json({
         "required": ["id", "email", "is_enabled", "created_at", "updated_at"],
         "properties": {
           "id": { "type": "integer", "format": "int64" },
+          "user_id": { "type": "integer", "format": "int64" },
           "email": { "type": "string", "format": "email" },
           "is_enabled": { "type": "boolean" },
           "created_at": { "type": "string", "format": "date-time" },
@@ -876,6 +1021,8 @@ constexpr std::string_view kOpenApiSpec = R"json({
         ],
         "properties": {
           "id": { "type": "integer", "format": "int64" },
+          "user_id": { "type": "integer", "format": "int64" },
+          "target_id": { "type": "integer", "format": "int64" },
           "event_id": { "type": "string" },
           "event_type": { "type": "string", "enum": ["alert.opened", "alert.resolved"] },
           "recipient_email": { "type": "string" },
@@ -906,6 +1053,24 @@ constexpr std::string_view kOpenApiSpec = R"json({
           "event_id": { "type": "string" },
           "recipients_count": { "type": "integer", "format": "int64" },
           "deliveries_count": { "type": "integer", "format": "int64" }
+        }
+      },
+      "UpdateTargetNotificationSettingsRequest": {
+        "type": "object",
+        "required": ["email_enabled"],
+        "properties": {
+          "email_enabled": { "type": "boolean" }
+        }
+      },
+      "TargetNotificationSettings": {
+        "type": "object",
+        "required": ["user_id", "target_id", "email_enabled", "created_at", "updated_at"],
+        "properties": {
+          "user_id": { "type": "integer", "format": "int64" },
+          "target_id": { "type": "integer", "format": "int64" },
+          "email_enabled": { "type": "boolean" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
         }
       },
       "Error": {

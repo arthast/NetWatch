@@ -29,27 +29,26 @@ ChecksService::ChecksService(
     : check_client_(check_client), target_client_(target_client) {}
 
 std::optional<netwatch::monitor_client::CheckResult> ChecksService::RunCheck(
-    std::int64_t target_id) const {
+    std::int64_t user_id, std::int64_t target_id) const {
+  if (!target_client_.GetTargetByIdForUser(target_id, user_id)) {
+    return std::nullopt;
+  }
   return check_client_.RunCheck(target_id);
 }
 
 std::optional<std::vector<netwatch::monitor_client::CheckResult>>
-ChecksService::ListTargetChecks(std::int64_t target_id) const {
+ChecksService::ListTargetChecks(std::int64_t user_id,
+                                std::int64_t target_id) const {
+  if (!target_client_.GetTargetByIdForUser(target_id, user_id)) {
+    return std::nullopt;
+  }
   return check_client_.ListTargetChecks(target_id);
 }
 
 TargetStatusResult ChecksService::GetTargetStatus(
-    std::int64_t target_id) const {
-  const auto status = check_client_.GetTargetStatus(target_id);
-  if (status) {
-    return TargetStatusResult{
-        .kind = TargetStatusResultKind::kFound,
-        .check = status,
-    };
-  }
-
+    std::int64_t user_id, std::int64_t target_id) const {
   try {
-    if (!target_client_.GetTargetById(target_id)) {
+    if (!target_client_.GetTargetByIdForUser(target_id, user_id)) {
       return TargetStatusResult{
           .kind = TargetStatusResultKind::kTargetNotFound,
           .check = std::nullopt,
@@ -58,6 +57,14 @@ TargetStatusResult ChecksService::GetTargetStatus(
   } catch (const userver::ugrpc::client::BaseError& ex) {
     throw UpstreamError{UpstreamService::kTarget, IsDeadlineExceeded(ex),
                         ex.what()};
+  }
+
+  const auto status = check_client_.GetTargetStatus(target_id);
+  if (status) {
+    return TargetStatusResult{
+        .kind = TargetStatusResultKind::kFound,
+        .check = status,
+    };
   }
 
   return TargetStatusResult{

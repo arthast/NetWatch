@@ -23,6 +23,7 @@ message Target {
   int32 interval_seconds = 9;
   int32 timeout_ms = 10;
   bool is_active = 11;
+  optional int64 user_id = 12;
 }
 
 message CreateTargetRequest {
@@ -38,6 +39,7 @@ message CreateTargetRequest {
 
   int32 interval_seconds = 8;
   int32 timeout_ms = 9;
+  optional int64 user_id = 10;
 }
 
 message UpdateTargetRequest {
@@ -55,10 +57,12 @@ message UpdateTargetRequest {
 
   optional int32 interval_seconds = 9;
   optional int32 timeout_ms = 10;
+  optional int64 user_id = 11;
 }
 
 message TargetIdRequest {
   int64 id = 1;
+  optional int64 user_id = 2;
 }
 
 message TargetResponse {
@@ -67,7 +71,9 @@ message TargetResponse {
 
 message DeleteTargetResponse {}
 
-message ListTargetsRequest {}
+message ListTargetsRequest {
+  optional int64 user_id = 1;
+}
 
 message ListTargetsResponse {
   repeated Target targets = 1;

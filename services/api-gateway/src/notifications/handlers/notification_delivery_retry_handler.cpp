@@ -5,6 +5,8 @@
 #include <userver/server/http/http_request.hpp>
 #include <userver/server/http/http_status.hpp>
 
+#include <auth/service/auth_service_component.hpp>
+#include <common/auth.hpp>
 #include <common/http_response.hpp>
 #include <common/path_params.hpp>
 #include <notifications/json/delivery_json.hpp>
@@ -18,6 +20,9 @@ NotificationDeliveryRetryHandler::NotificationDeliveryRetryHandler(
     : HttpHandlerBase(config, component_context),
       notifications_service_(
           component_context.FindComponent<NotificationsServiceComponent>()
+              .GetService()),
+      auth_service_(
+          component_context.FindComponent<auth::AuthServiceComponent>()
               .GetService()) {}
 
 std::string NotificationDeliveryRetryHandler::HandleRequestThrow(
@@ -31,14 +36,21 @@ std::string NotificationDeliveryRetryHandler::HandleRequestThrow(
 
   const auto delivery_id = common::ParsePositiveInt64(request.GetPathArg("id"));
   if (!delivery_id) {
-    return common::ErrorResponse(
-        request, userver::server::http::HttpStatus::kBadRequest,
-        "delivery id must be a positive integer");
+    return common::ErrorResponse(request,
+                                 userver::server::http::HttpStatus::kBadRequest,
+                                 "delivery id must be a positive integer");
   }
 
   try {
-    const auto delivery =
-        notifications_service_.RetryNotificationDelivery(*delivery_id);
+    const auto session = common::AuthenticateRequest(request, auth_service_);
+    if (!session) {
+      return common::ErrorResponse(
+          request, userver::server::http::HttpStatus::kUnauthorized,
+          "Authorization bearer token is required");
+    }
+
+    const auto delivery = notifications_service_.RetryNotificationDelivery(
+        session->user.id, *delivery_id);
     if (!delivery) {
       return common::ErrorResponse(
           request, userver::server::http::HttpStatus::kNotFound,

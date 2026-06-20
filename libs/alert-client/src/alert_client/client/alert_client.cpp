@@ -81,6 +81,9 @@ Alert ToDomainAlert(const proto::Alert& alert) {
 void FillProtoTarget(const TargetSnapshot& source,
                      proto::TargetSnapshot& result) {
   result.set_id(source.id);
+  if (source.user_id) {
+    result.set_user_id(*source.user_id);
+  }
   result.set_name(source.name);
   result.set_type(ToProtoTargetType(source.type));
 

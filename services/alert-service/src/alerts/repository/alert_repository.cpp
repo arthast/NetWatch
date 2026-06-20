@@ -118,6 +118,7 @@ Alert AlertRepository::CreateAlertWithEvent(
                         ),
                         'target', jsonb_build_object(
                             'id', $9::bigint,
+                            'user_id', $10::bigint,
                             'name', $6,
                             'type', $7
                         )
@@ -135,7 +136,8 @@ Alert AlertRepository::CreateAlertWithEvent(
           alert.target_id, AlertTypeToString(alert.type),
           AlertSeverityToString(alert.severity), alert.message,
           AlertEventTypeToString(AlertEventType::kAlertOpened), target.name,
-          target.type, std::string{kFormatTimestampSql}, target.id);
+          target.type, std::string{kFormatTimestampSql}, target.id,
+          target.user_id);
 
   return AlertFromRow(result.Front());
 }
@@ -246,6 +248,7 @@ std::optional<Alert> AlertRepository::ResolveActiveAlertWithEvent(
                         ),
                         'target', jsonb_build_object(
                             'id', $7::bigint,
+                            'user_id', $8::bigint,
                             'name', $4,
                             'type', $5
                         )
@@ -262,7 +265,8 @@ std::optional<Alert> AlertRepository::ResolveActiveAlertWithEvent(
         )",
           target_id, AlertTypeToString(type),
           AlertEventTypeToString(AlertEventType::kAlertResolved), target.name,
-          target.type, std::string{kFormatTimestampSql}, target.id);
+          target.type, std::string{kFormatTimestampSql}, target.id,
+          target.user_id);
 
   if (result.Size() == 0) {
     return std::nullopt;

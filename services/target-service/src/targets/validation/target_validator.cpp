@@ -81,6 +81,7 @@ std::optional<std::string> ValidateTarget(
     const netwatch::target_service::Target& target) {
   return ValidateCreateTargetRequest(
       netwatch::target_service::CreateTargetRequest{
+          .user_id = target.user_id,
           .name = target.name,
           .type = target.type,
           .url = target.url,

@@ -68,6 +68,7 @@ add_library(
     src/checks/json/check_json.cpp
     src/checks/service/checks_service.cpp
     src/checks/service/checks_service_component.cpp
+    src/common/auth.cpp
     src/common/http_response.cpp
     src/common/path_params.cpp
     src/notifications/handlers/notification_delivery_retry_handler.cpp
@@ -75,6 +76,7 @@ add_library(
     src/notifications/handlers/notification_deliveries_handler.cpp
     src/notifications/handlers/notification_recipients_handler.cpp
     src/notifications/handlers/notification_test_email_handler.cpp
+    src/notifications/handlers/target_notification_settings_handler.cpp
     src/notifications/json/delivery_json.cpp
     src/notifications/json/recipient_json.cpp
     src/notifications/json/test_email_json.cpp

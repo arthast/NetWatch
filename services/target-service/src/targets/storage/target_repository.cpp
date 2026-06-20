@@ -13,6 +13,7 @@ namespace {
 Target TargetFromRow(const userver::storages::postgres::Row& row) {
   return Target{
       .id = row["id"].As<std::int64_t>(),
+      .user_id = row["user_id"].As<std::optional<std::int64_t> >(),
       .name = row["name"].As<std::string>(),
       .type = TargetTypeFromString(row["type"].As<std::string>()),
       .url = row["url"].As<std::optional<std::string> >(),
@@ -38,6 +39,7 @@ Target TargetRepository::CreateTarget(
       userver::storages::postgres::ClusterHostType::kMaster,
       R"(
             INSERT INTO targets (
+                user_id,
                 name,
                 type,
                 url,
@@ -48,9 +50,10 @@ Target TargetRepository::CreateTarget(
                 interval_seconds,
                 timeout_ms
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             RETURNING
                 id,
+                user_id,
                 name,
                 type,
                 url,
@@ -62,9 +65,9 @@ Target TargetRepository::CreateTarget(
                 timeout_ms,
                 is_active
         )",
-      request.name, TargetTypeToString(request.type), request.url,
-      request.method, request.expected_status_code, request.host, request.port,
-      request.interval_seconds, request.timeout_ms);
+      request.user_id, request.name, TargetTypeToString(request.type),
+      request.url, request.method, request.expected_status_code, request.host,
+      request.port, request.interval_seconds, request.timeout_ms);
 
   return TargetFromRow(result.Front());
 }
@@ -76,6 +79,7 @@ std::optional<Target> TargetRepository::FindActiveEquivalentTarget(
       R"(
             SELECT
                 id,
+                user_id,
                 name,
                 type,
                 url,
@@ -88,21 +92,22 @@ std::optional<Target> TargetRepository::FindActiveEquivalentTarget(
                 is_active
             FROM targets
             WHERE is_active = TRUE
-              AND name = $1
-              AND type = $2
-              AND url IS NOT DISTINCT FROM $3
-              AND method IS NOT DISTINCT FROM $4
-              AND expected_status_code IS NOT DISTINCT FROM $5
-              AND host IS NOT DISTINCT FROM $6
-              AND port IS NOT DISTINCT FROM $7
-              AND interval_seconds = $8
-              AND timeout_ms = $9
+              AND user_id IS NOT DISTINCT FROM $1
+              AND name = $2
+              AND type = $3
+              AND url IS NOT DISTINCT FROM $4
+              AND method IS NOT DISTINCT FROM $5
+              AND expected_status_code IS NOT DISTINCT FROM $6
+              AND host IS NOT DISTINCT FROM $7
+              AND port IS NOT DISTINCT FROM $8
+              AND interval_seconds = $9
+              AND timeout_ms = $10
             ORDER BY id
             LIMIT 1
         )",
-      request.name, TargetTypeToString(request.type), request.url,
-      request.method, request.expected_status_code, request.host, request.port,
-      request.interval_seconds, request.timeout_ms);
+      request.user_id, request.name, TargetTypeToString(request.type),
+      request.url, request.method, request.expected_status_code, request.host,
+      request.port, request.interval_seconds, request.timeout_ms);
 
   if (result.Size() == 0) {
     return std::nullopt;
@@ -117,6 +122,7 @@ std::vector<Target> TargetRepository::ListTargets() const {
       R"(
             SELECT
                 id,
+                user_id,
                 name,
                 type,
                 url,
@@ -146,6 +152,7 @@ std::vector<Target> TargetRepository::ListActiveTargets() const {
       R"(
             SELECT
                 id,
+                user_id,
                 name,
                 type,
                 url,
@@ -170,6 +177,40 @@ std::vector<Target> TargetRepository::ListActiveTargets() const {
   return targets;
 }
 
+std::vector<Target> TargetRepository::ListActiveTargetsForUser(
+    std::int64_t user_id) const {
+  const auto result = pg_cluster_->Execute(
+      userver::storages::postgres::ClusterHostType::kMaster,
+      R"(
+            SELECT
+                id,
+                user_id,
+                name,
+                type,
+                url,
+                method,
+                expected_status_code,
+                host,
+                port,
+                interval_seconds,
+                timeout_ms,
+                is_active
+            FROM targets
+            WHERE is_active = TRUE
+              AND user_id = $1
+            ORDER BY id
+        )",
+      user_id);
+
+  std::vector<Target> targets;
+  targets.reserve(result.Size());
+  for (const auto& row : result) {
+    targets.push_back(TargetFromRow(row));
+  }
+
+  return targets;
+}
+
 std::optional<Target> TargetRepository::GetTargetById(
     std::int64_t target_id) const {
   const auto result = pg_cluster_->Execute(
@@ -177,6 +218,7 @@ std::optional<Target> TargetRepository::GetTargetById(
       R"(
             SELECT
                 id,
+                user_id,
                 name,
                 type,
                 url,
@@ -191,6 +233,36 @@ std::optional<Target> TargetRepository::GetTargetById(
             WHERE id = $1 AND is_active = TRUE
         )",
       target_id);
+
+  if (result.Size() == 0) {
+    return std::nullopt;
+  }
+
+  return TargetFromRow(result.Front());
+}
+
+std::optional<Target> TargetRepository::GetTargetByIdForUser(
+    std::int64_t target_id, std::int64_t user_id) const {
+  const auto result = pg_cluster_->Execute(
+      userver::storages::postgres::ClusterHostType::kMaster,
+      R"(
+            SELECT
+                id,
+                user_id,
+                name,
+                type,
+                url,
+                method,
+                expected_status_code,
+                host,
+                port,
+                interval_seconds,
+                timeout_ms,
+                is_active
+            FROM targets
+            WHERE id = $1 AND user_id = $2 AND is_active = TRUE
+        )",
+      target_id, user_id);
 
   if (result.Size() == 0) {
     return std::nullopt;
@@ -216,9 +288,12 @@ std::optional<Target> TargetRepository::UpdateTarget(
                 interval_seconds = $9,
                 timeout_ms = $10,
                 updated_at = NOW()
-            WHERE id = $1 AND is_active = TRUE
+            WHERE id = $1
+              AND user_id IS NOT DISTINCT FROM $11
+              AND is_active = TRUE
             RETURNING
                 id,
+                user_id,
                 name,
                 type,
                 url,
@@ -232,13 +307,29 @@ std::optional<Target> TargetRepository::UpdateTarget(
         )",
       target.id, target.name, TargetTypeToString(target.type), target.url,
       target.method, target.expected_status_code, target.host, target.port,
-      target.interval_seconds, target.timeout_ms);
+      target.interval_seconds, target.timeout_ms, target.user_id);
 
   if (result.Size() == 0) {
     return std::nullopt;
   }
 
   return TargetFromRow(result.Front());
+}
+
+bool TargetRepository::DeactivateTargetForUser(std::int64_t target_id,
+                                               std::int64_t user_id) const {
+  const auto result = pg_cluster_->Execute(
+      userver::storages::postgres::ClusterHostType::kMaster,
+      R"(
+            UPDATE targets
+            SET is_active = FALSE,
+                updated_at = NOW()
+            WHERE id = $1 AND user_id = $2 AND is_active = TRUE
+            RETURNING id
+        )",
+      target_id, user_id);
+
+  return result.Size() != 0;
 }
 
 bool TargetRepository::DeactivateTarget(std::int64_t target_id) const {

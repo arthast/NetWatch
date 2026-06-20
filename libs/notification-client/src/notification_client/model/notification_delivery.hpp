@@ -8,6 +8,8 @@ namespace netwatch::notification_client {
 
 struct NotificationDelivery {
   std::int64_t id{0};
+  std::optional<std::int64_t> user_id;
+  std::optional<std::int64_t> target_id;
   std::string event_id;
   std::string event_type;
   std::string recipient_email;
@@ -23,12 +25,15 @@ struct NotificationDelivery {
 
 struct ListNotificationDeliveriesRequest {
   std::int32_t limit{100};
+  std::optional<std::int64_t> user_id;
+  std::optional<std::int64_t> target_id;
   std::optional<std::string> status;
   std::optional<std::string> event_type;
   std::optional<std::string> recipient_email;
 };
 
 struct SendTestEmailRequest {
+  std::optional<std::int64_t> user_id;
   std::string email;
 };
 

@@ -9,6 +9,7 @@ enum class TargetType { kHttp, kTcp };
 
 struct Target {
   std::int64_t id;
+  std::optional<std::int64_t> user_id;
   std::string name;
   TargetType type;
 
@@ -25,6 +26,7 @@ struct Target {
 };
 
 struct CreateTargetRequest {
+  std::optional<std::int64_t> user_id;
   std::string name;
   TargetType type;
 
@@ -40,6 +42,7 @@ struct CreateTargetRequest {
 };
 
 struct UpdateTargetRequest {
+  std::optional<std::int64_t> user_id;
   std::optional<std::string> name;
   std::optional<TargetType> type;
 

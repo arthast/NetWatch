@@ -10,7 +10,9 @@ AlertsServiceComponent::AlertsServiceComponent(
     : ComponentBase(config, component_context),
       alerts_service_(
           component_context
-              .FindComponent<netwatch::alert_client::AlertClient>()) {}
+              .FindComponent<netwatch::alert_client::AlertClient>(),
+          component_context
+              .FindComponent<netwatch::target_client::TargetClient>()) {}
 
 const AlertsService& AlertsServiceComponent::GetService() const {
   return alerts_service_;

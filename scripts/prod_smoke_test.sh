@@ -19,6 +19,7 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 
 HTTP_STATUS_FILE="$TMP_DIR/status"
 HTTP_BODY_FILE="$TMP_DIR/body"
+AUTH_HEADER=""
 
 request() {
   local method="$1"
@@ -38,6 +39,9 @@ request() {
 
   if [[ -n "$payload" ]]; then
     curl_args+=(--header "Content-Type: application/json" --data "$payload")
+  fi
+  if [[ -n "$AUTH_HEADER" ]]; then
+    curl_args+=(--header "$AUTH_HEADER")
   fi
 
   local status
@@ -75,12 +79,29 @@ with open(sys.argv[1], encoding="utf-8") as body:
 
 assert spec["openapi"] == "3.0.3"
 assert "/api/v1/targets" in spec["paths"]
+assert "/api/v1/auth/register" in spec["paths"]
+assert "/api/v1/auth/login" in spec["paths"]
+assert "/api/v1/auth/me" in spec["paths"]
 assert "/api/v1/alerts/active" in spec["paths"]
 assert "/api/v1/notifications/recipients" in spec["paths"]
 assert "/api/v1/notifications/deliveries" in spec["paths"]
 assert "/api/v1/notifications/deliveries/{id}/retry" in spec["paths"]
 assert "/api/v1/notifications/test-email" in spec["paths"]
 PY
+
+AUTH_EMAIL="smoke-auth-$(date +%s)-$$@example.test"
+AUTH_PASSWORD="password123"
+
+step "Registering smoke user"
+request POST /api/v1/auth/register 201 "{\"email\":\"${AUTH_EMAIL}\",\"password\":\"${AUTH_PASSWORD}\"}"
+
+step "Logging in smoke user"
+request POST /api/v1/auth/login 200 "{\"email\":\"${AUTH_EMAIL}\",\"password\":\"${AUTH_PASSWORD}\"}"
+ACCESS_TOKEN="$(json_value 'data["access_token"]')"
+AUTH_HEADER="Authorization: Bearer ${ACCESS_TOKEN}"
+
+step "Checking authenticated user"
+request GET /api/v1/auth/me 200
 
 RECIPIENT_EMAIL="smoke-$(date +%s)-$$@example.test"
 
