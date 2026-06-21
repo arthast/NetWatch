@@ -38,6 +38,46 @@ def run_capture(command: list[str], *, cwd: str | None = None) -> str:
     return result.stdout
 
 
+def dump_compose_diagnostics(compose: list[str]) -> None:
+    interesting_services = [
+        "api-gateway",
+        "frontend",
+        "monitor-service",
+        "target-service",
+        "alert-service",
+        "notification-service",
+        "auth-service",
+    ]
+    try:
+        available_services = set(
+            run_capture([*compose, "config", "--services"]).splitlines()
+        )
+    except subprocess.CalledProcessError:
+        available_services = set(interesting_services)
+
+    log_services = [
+        service for service in interesting_services if service in available_services
+    ]
+    commands = [
+        [*compose, "ps", "-a"],
+    ]
+    if log_services:
+        commands.append(
+            [
+                *compose,
+                "logs",
+                "--no-color",
+                "--tail",
+                "200",
+                *log_services,
+            ]
+        )
+
+    for command in commands:
+        print(f"+ {' '.join(command)}", file=sys.stderr)
+        subprocess.run(command, check=False)
+
+
 def request(
     method: str,
     path: str,
@@ -677,6 +717,10 @@ def main() -> int:
             wait_for_mailpit_messages(compose)
         print("api-gateway integration flow passed")
         return 0
+    except Exception:
+        if not args.skip_compose:
+            dump_compose_diagnostics(compose)
+        raise
     finally:
         if not args.skip_compose and not args.keep_up:
             subprocess.run([*compose, "down", "-v", "--remove-orphans"], check=False)

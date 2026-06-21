@@ -21,9 +21,9 @@ notification-consumer-restart-after-failure-delay: 5s
 notification-consumer-auto-offset-reset: largest
 
 notification-email-sender-enabled: true
-notification-email-provider: mailpit
-notification-email-provider-url: http://mailpit:8025
-notification-email-from-email: netwatch@example.test
+notification-email-provider: yandex-postbox
+notification-email-provider-url: https://postbox.cloud.yandex.net
+notification-email-from-email: alerts@netwatch-arsen-demo.online
 notification-email-from-name: NetWatch
 notification-email-seed-recipient-email: alerts@example.test
 notification-email-sender-batch-size: 20

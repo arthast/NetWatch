@@ -29,6 +29,8 @@ env:
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
   NETWATCH_BUILD_JOBS: 2
   NETWATCH_CI_BUILD_JOBS: 2
+  NETWATCH_COMPOSE_BUILD_JOBS: 2
+  NETWATCH_COMPOSE_HEALTH_START_PERIOD: 300s
 
 jobs:
   api-gateway-build:
@@ -251,6 +253,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run gateway integration flow
+        env:
+          NOTIFICATION_EMAIL_PROVIDER: mailpit
+          NOTIFICATION_EMAIL_PROVIDER_URL: http://mailpit:8025
+          NOTIFICATION_EMAIL_FROM_EMAIL: netwatch@example.test
         run: ./tests/integration/run_api_gateway_flow.py --project-name netwatch-ci-dev-${{ github.run_id }}
 
   integration-runtime-images:
@@ -271,6 +277,10 @@ jobs:
           docker compose -f docker-compose.images.yml build
 
       - name: Run gateway integration flow against runtime images
+        env:
+          NOTIFICATION_EMAIL_PROVIDER: mailpit
+          NOTIFICATION_EMAIL_PROVIDER_URL: http://mailpit:8025
+          NOTIFICATION_EMAIL_FROM_EMAIL: netwatch@example.test
         run: |
           ./tests/integration/run_api_gateway_flow.py \
             --project-name netwatch-ci-images-${{ github.run_id }} \
