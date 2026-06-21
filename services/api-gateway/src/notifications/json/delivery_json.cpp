@@ -10,6 +10,12 @@ userver::formats::json::Value SerializeNotificationDelivery(
     const notification_client::NotificationDelivery& delivery) {
   userver::formats::json::ValueBuilder builder;
   builder["id"] = delivery.id;
+  if (delivery.user_id) {
+    builder["user_id"] = *delivery.user_id;
+  }
+  if (delivery.target_id) {
+    builder["target_id"] = *delivery.target_id;
+  }
   builder["event_id"] = delivery.event_id;
   builder["event_type"] = delivery.event_type;
   builder["recipient_email"] = delivery.recipient_email;

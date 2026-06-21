@@ -5,6 +5,7 @@
 #include <userver/server/handlers/http_handler_base.hpp>
 
 #include <alerts/service/alerts_service.hpp>
+#include <auth/service/auth_service.hpp>
 
 namespace netwatch::api_gateway::alerts {
 
@@ -23,6 +24,7 @@ class ActiveAlertsHandler final
 
  private:
   const AlertsService& alerts_service_;
+  const auth::AuthService& auth_service_;
 };
 
 }  // namespace netwatch::api_gateway::alerts

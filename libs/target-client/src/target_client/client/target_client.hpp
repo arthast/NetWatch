@@ -29,12 +29,24 @@ class TargetClient final : public userver::components::ComponentBase {
 
   std::vector<Target> ListActiveTargets() const;
 
+  std::vector<Target> ListActiveTargetsForUser(std::int64_t user_id) const;
+
   std::optional<Target> GetTargetById(std::int64_t target_id) const;
+
+  std::optional<Target> GetTargetByIdForUser(std::int64_t target_id,
+                                             std::int64_t user_id) const;
 
   std::optional<Target> UpdateTarget(std::int64_t target_id,
                                      const UpdateTargetRequest& request) const;
 
+  std::optional<Target> UpdateTargetForUser(
+      std::int64_t target_id, std::int64_t user_id,
+      const UpdateTargetRequest& request) const;
+
   bool DeactivateTarget(std::int64_t target_id) const;
+
+  bool DeactivateTargetForUser(std::int64_t target_id,
+                               std::int64_t user_id) const;
 
  private:
   netwatch::target::v1::TargetServiceClient* grpc_client_;

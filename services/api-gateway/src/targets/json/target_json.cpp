@@ -61,6 +61,7 @@ target_client::CreateTargetRequest ParseCreateTargetRequest(
   }
 
   auto request = target_client::CreateTargetRequest{
+      .user_id = std::nullopt,
       .name = ReadRequired<std::string>(json, "name"),
       .type = target_client::TargetTypeFromString(
           ReadRequired<std::string>(json, "type")),
@@ -103,6 +104,7 @@ target_client::UpdateTargetRequest ParseUpdateTargetRequest(
   }
 
   return target_client::UpdateTargetRequest{
+      .user_id = std::nullopt,
       .name = ReadPatchOptional<std::string>(json, "name"),
       .type = type,
       .url = ReadPatchOptional<std::string>(json, "url"),

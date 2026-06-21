@@ -14,9 +14,8 @@ class NotificationGrpcService final
  public:
   static constexpr std::string_view kName = "notification-grpc-service";
 
-  NotificationGrpcService(
-      const userver::components::ComponentConfig& config,
-      const userver::components::ComponentContext& context);
+  NotificationGrpcService(const userver::components::ComponentConfig& config,
+                          const userver::components::ComponentContext& context);
 
   ListEmailRecipientsResult ListEmailRecipients(
       CallContext& context,
@@ -53,6 +52,16 @@ class NotificationGrpcService final
   SendTestEmailResult SendTestEmail(
       CallContext& context,
       netwatch::notification::v1::SendTestEmailRequest&& request) override;
+
+  GetTargetNotificationSettingsResult GetTargetNotificationSettings(
+      CallContext& context,
+      netwatch::notification::v1::GetTargetNotificationSettingsRequest&&
+          request) override;
+
+  UpdateTargetNotificationSettingsResult UpdateTargetNotificationSettings(
+      CallContext& context,
+      netwatch::notification::v1::UpdateTargetNotificationSettingsRequest&&
+          request) override;
 
  private:
   NotificationRepository repository_;

@@ -6,6 +6,7 @@ namespace netwatch::target_service {
 namespace {
 CreateTargetRequest MakeHttpTarget() {
   return CreateTargetRequest{
+      .user_id = 1,
       .name = "Main website",
       .type = TargetType::kHttp,
       .url = "https://example.com/health",
@@ -20,6 +21,7 @@ CreateTargetRequest MakeHttpTarget() {
 
 CreateTargetRequest MakeTcpTarget() {
   return CreateTargetRequest{
+      .user_id = 1,
       .name = "Postgres",
       .type = TargetType::kTcp,
       .url = std::nullopt,

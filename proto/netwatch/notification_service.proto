@@ -8,6 +8,7 @@ message EmailRecipient {
   bool is_enabled = 3;
   string created_at = 4;
   string updated_at = 5;
+  optional int64 user_id = 6;
 }
 
 message NotificationDelivery {
@@ -23,17 +24,23 @@ message NotificationDelivery {
   string created_at = 10;
   string updated_at = 11;
   string delivered_at = 12;
+  optional int64 user_id = 13;
+  optional int64 target_id = 14;
 }
 
 message RecipientIdRequest {
   int64 id = 1;
+  optional int64 user_id = 2;
 }
 
 message DeliveryIdRequest {
   int64 id = 1;
+  optional int64 user_id = 2;
 }
 
-message ListEmailRecipientsRequest {}
+message ListEmailRecipientsRequest {
+  optional int64 user_id = 1;
+}
 
 message ListEmailRecipientsResponse {
   repeated EmailRecipient recipients = 1;
@@ -41,12 +48,14 @@ message ListEmailRecipientsResponse {
 
 message CreateEmailRecipientRequest {
   string email = 1;
+  optional int64 user_id = 2;
 }
 
 message UpdateEmailRecipientRequest {
   int64 id = 1;
   optional string email = 2;
   optional bool is_enabled = 3;
+  optional int64 user_id = 4;
 }
 
 message EmailRecipientResponse {
@@ -60,6 +69,8 @@ message ListNotificationDeliveriesRequest {
   optional string status = 2;
   optional string event_type = 3;
   optional string recipient_email = 4;
+  optional int64 user_id = 5;
+  optional int64 target_id = 6;
 }
 
 message ListNotificationDeliveriesResponse {
@@ -72,6 +83,7 @@ message NotificationDeliveryResponse {
 
 message SendTestEmailRequest {
   optional string email = 1;
+  optional int64 user_id = 2;
 }
 
 message SendTestEmailResponse {
@@ -80,13 +92,46 @@ message SendTestEmailResponse {
   int64 deliveries_count = 3;
 }
 
+message TargetNotificationSettings {
+  int64 user_id = 1;
+  int64 target_id = 2;
+  bool email_enabled = 3;
+  string created_at = 4;
+  string updated_at = 5;
+}
+
+message GetTargetNotificationSettingsRequest {
+  int64 user_id = 1;
+  int64 target_id = 2;
+}
+
+message UpdateTargetNotificationSettingsRequest {
+  int64 user_id = 1;
+  int64 target_id = 2;
+  bool email_enabled = 3;
+}
+
+message TargetNotificationSettingsResponse {
+  TargetNotificationSettings settings = 1;
+}
+
 service NotificationService {
-  rpc ListEmailRecipients(ListEmailRecipientsRequest) returns (ListEmailRecipientsResponse) {}
+  rpc ListEmailRecipients(ListEmailRecipientsRequest)
+      returns (ListEmailRecipientsResponse) {}
   rpc GetEmailRecipient(RecipientIdRequest) returns (EmailRecipientResponse) {}
-  rpc CreateEmailRecipient(CreateEmailRecipientRequest) returns (EmailRecipientResponse) {}
-  rpc UpdateEmailRecipient(UpdateEmailRecipientRequest) returns (EmailRecipientResponse) {}
-  rpc DeleteEmailRecipient(RecipientIdRequest) returns (DeleteEmailRecipientResponse) {}
-  rpc ListNotificationDeliveries(ListNotificationDeliveriesRequest) returns (ListNotificationDeliveriesResponse) {}
-  rpc RetryNotificationDelivery(DeliveryIdRequest) returns (NotificationDeliveryResponse) {}
+  rpc CreateEmailRecipient(CreateEmailRecipientRequest)
+      returns (EmailRecipientResponse) {}
+  rpc UpdateEmailRecipient(UpdateEmailRecipientRequest)
+      returns (EmailRecipientResponse) {}
+  rpc DeleteEmailRecipient(RecipientIdRequest)
+      returns (DeleteEmailRecipientResponse) {}
+  rpc ListNotificationDeliveries(ListNotificationDeliveriesRequest)
+      returns (ListNotificationDeliveriesResponse) {}
+  rpc RetryNotificationDelivery(DeliveryIdRequest)
+      returns (NotificationDeliveryResponse) {}
   rpc SendTestEmail(SendTestEmailRequest) returns (SendTestEmailResponse) {}
+  rpc GetTargetNotificationSettings(GetTargetNotificationSettingsRequest)
+      returns (TargetNotificationSettingsResponse) {}
+  rpc UpdateTargetNotificationSettings(UpdateTargetNotificationSettingsRequest)
+      returns (TargetNotificationSettingsResponse) {}
 }

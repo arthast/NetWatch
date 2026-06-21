@@ -22,8 +22,8 @@ class NotificationClient final : public userver::components::ComponentBase {
 
   std::vector<EmailRecipient> ListEmailRecipients() const;
 
-  std::optional<EmailRecipient> GetEmailRecipient(std::int64_t recipient_id)
-      const;
+  std::optional<EmailRecipient> GetEmailRecipient(
+      std::int64_t recipient_id) const;
 
   EmailRecipient CreateEmailRecipient(
       const CreateEmailRecipientRequest& request) const;
@@ -34,14 +34,31 @@ class NotificationClient final : public userver::components::ComponentBase {
 
   bool DeleteEmailRecipient(std::int64_t recipient_id) const;
 
+  std::vector<EmailRecipient> ListEmailRecipientsForUser(
+      std::int64_t user_id) const;
+
+  std::optional<EmailRecipient> GetEmailRecipientForUser(
+      std::int64_t recipient_id, std::int64_t user_id) const;
+
+  bool DeleteEmailRecipientForUser(std::int64_t recipient_id,
+                                   std::int64_t user_id) const;
+
   std::vector<NotificationDelivery> ListNotificationDeliveries(
       const ListNotificationDeliveriesRequest& request) const;
 
   std::optional<NotificationDelivery> RetryNotificationDelivery(
       std::int64_t delivery_id) const;
 
-  SendTestEmailResult SendTestEmail(
-      const SendTestEmailRequest& request) const;
+  std::optional<NotificationDelivery> RetryNotificationDelivery(
+      std::int64_t delivery_id, std::int64_t user_id) const;
+
+  SendTestEmailResult SendTestEmail(const SendTestEmailRequest& request) const;
+
+  TargetNotificationSettings GetTargetNotificationSettings(
+      std::int64_t user_id, std::int64_t target_id) const;
+
+  TargetNotificationSettings UpdateTargetNotificationSettings(
+      std::int64_t user_id, std::int64_t target_id, bool email_enabled) const;
 
  private:
   netwatch::notification::v1::NotificationServiceClient* grpc_client_;

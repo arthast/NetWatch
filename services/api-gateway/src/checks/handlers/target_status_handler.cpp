@@ -4,8 +4,10 @@
 #include <userver/server/http/http_request.hpp>
 #include <userver/server/http/http_status.hpp>
 
+#include <auth/service/auth_service_component.hpp>
 #include <checks/json/check_json.hpp>
 #include <checks/service/checks_service_component.hpp>
+#include <common/auth.hpp>
 #include <common/http_response.hpp>
 #include <common/path_params.hpp>
 
@@ -34,7 +36,10 @@ TargetStatusHandler::TargetStatusHandler(
     const userver::components::ComponentContext& component_context)
     : HttpHandlerBase(config, component_context),
       checks_service_(component_context.FindComponent<ChecksServiceComponent>()
-                          .GetService()) {}
+                          .GetService()),
+      auth_service_(
+          component_context.FindComponent<auth::AuthServiceComponent>()
+              .GetService()) {}
 
 std::string TargetStatusHandler::HandleRequestThrow(
     const userver::server::http::HttpRequest& request,
@@ -47,7 +52,15 @@ std::string TargetStatusHandler::HandleRequestThrow(
   }
 
   try {
-    const auto status = checks_service_.GetTargetStatus(*target_id);
+    const auto session = common::AuthenticateRequest(request, auth_service_);
+    if (!session) {
+      return common::ErrorResponse(
+          request, userver::server::http::HttpStatus::kUnauthorized,
+          "Authorization bearer token is required");
+    }
+
+    const auto status =
+        checks_service_.GetTargetStatus(session->user.id, *target_id);
     switch (status.kind) {
       case TargetStatusResultKind::kFound:
         return common::JsonResponse(request,

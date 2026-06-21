@@ -36,7 +36,7 @@ services:
       - netwatch-caddy-data:/data
       - netwatch-caddy-config:/config
     depends_on:
-      api-gateway:
+      frontend:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "caddy version >/dev/null"]
@@ -45,6 +45,24 @@ services:
       retries: 3
     networks:
       - edge
+
+  frontend:
+    image: ${NETWATCH_IMAGE_REGISTRY:-ghcr.io/arthast/netwatch}/frontend:${NETWATCH_IMAGE_TAG:-main}
+    pull_policy: always
+    restart: unless-stopped
+    init: true
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/"]
+      start_period: 10s
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    networks:
+      - edge
+      - internal
 
   target-postgres:
     image: postgres:16
@@ -187,6 +205,42 @@ services:
       - >
         /usr/local/bin/apply_migrations.sh notification-service /migrations
         "postgresql://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@notification-postgres:5432/$${POSTGRES_DB}"
+    networks:
+      - internal
+
+  auth-postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${AUTH_POSTGRES_DB:-auth_service_db}
+      POSTGRES_USER: ${AUTH_POSTGRES_USER:-auth_service}
+      POSTGRES_PASSWORD: ${AUTH_POSTGRES_PASSWORD:?set AUTH_POSTGRES_PASSWORD}
+    volumes:
+      - netwatch-auth-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      <<: *postgres-healthcheck
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+    networks:
+      - internal
+
+  auth-migrations:
+    image: postgres:16
+    depends_on:
+      auth-postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_DB: ${AUTH_POSTGRES_DB:-auth_service_db}
+      POSTGRES_USER: ${AUTH_POSTGRES_USER:-auth_service}
+      POSTGRES_PASSWORD: ${AUTH_POSTGRES_PASSWORD:?set AUTH_POSTGRES_PASSWORD}
+    volumes:
+      - ../scripts/apply_migrations.sh:/usr/local/bin/apply_migrations.sh:ro
+      - ../services/auth-service/postgresql/migrations:/migrations:ro
+    command:
+      - bash
+      - -lc
+      - >
+        /usr/local/bin/apply_migrations.sh auth-service /migrations
+        "postgresql://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@auth-postgres:5432/$${POSTGRES_DB}"
     networks:
       - internal
 
@@ -344,9 +398,9 @@ services:
     environment:
       USERVER_ENABLE_STACK_USAGE_MONITOR: "0"
       DB_CONNECTION: postgresql://${NOTIFICATION_POSTGRES_USER:-notification_service}:${NOTIFICATION_POSTGRES_PASSWORD:?set NOTIFICATION_POSTGRES_PASSWORD}@notification-postgres:5432/${NOTIFICATION_POSTGRES_DB:-notification_service_db}
-      NOTIFICATION_EMAIL_PROVIDER: ${NOTIFICATION_EMAIL_PROVIDER:-mailpit}
-      NOTIFICATION_EMAIL_PROVIDER_URL: ${NOTIFICATION_EMAIL_PROVIDER_URL:-http://mailpit:8025}
-      NOTIFICATION_EMAIL_FROM_EMAIL: ${NOTIFICATION_EMAIL_FROM_EMAIL:-netwatch@example.test}
+      NOTIFICATION_EMAIL_PROVIDER: ${NOTIFICATION_EMAIL_PROVIDER:-yandex-postbox}
+      NOTIFICATION_EMAIL_PROVIDER_URL: ${NOTIFICATION_EMAIL_PROVIDER_URL:-https://postbox.cloud.yandex.net}
+      NOTIFICATION_EMAIL_FROM_EMAIL: ${NOTIFICATION_EMAIL_FROM_EMAIL:-alerts@netwatch-arsen-demo.online}
       NOTIFICATION_EMAIL_FROM_NAME: ${NOTIFICATION_EMAIL_FROM_NAME:-NetWatch}
       NOTIFICATION_EMAIL_SEED_RECIPIENT_EMAIL: ${NOTIFICATION_EMAIL_SEED_RECIPIENT_EMAIL:-alerts@example.test}
       YANDEX_POSTBOX_IAM_TOKEN: ${YANDEX_POSTBOX_IAM_TOKEN:-}
@@ -395,6 +449,40 @@ services:
         PY
         exec /opt/netwatch/bin/notification_service \
           --config /opt/netwatch/etc/notification_service/static_config.yaml \
+          --config_vars /tmp/config_vars.yaml
+
+  auth-service:
+    <<: *app-common
+    image: ${NETWATCH_IMAGE_REGISTRY:-ghcr.io/arthast/netwatch}/auth-service:${NETWATCH_IMAGE_TAG:-main}
+    pull_policy: always
+    environment:
+      USERVER_ENABLE_STACK_USAGE_MONITOR: "0"
+      DB_CONNECTION: postgresql://${AUTH_POSTGRES_USER:-auth_service}:${AUTH_POSTGRES_PASSWORD:?set AUTH_POSTGRES_PASSWORD}@auth-postgres:5432/${AUTH_POSTGRES_DB:-auth_service_db}
+    depends_on:
+      auth-migrations:
+        condition: service_completed_successfully
+    healthcheck: *service-healthcheck
+    command:
+      - bash
+      - -lc
+      - |
+        set -euo pipefail
+        python3 - "$$DB_CONNECTION" /opt/netwatch/etc/auth_service/config_vars.compose.yaml /tmp/config_vars.yaml <<'PY'
+        import sys
+        from pathlib import Path
+
+        connection, source, destination = sys.argv[1:]
+        quoted = "'" + connection.replace("'", "''") + "'"
+        lines = []
+        for line in Path(source).read_text(encoding="utf-8").splitlines():
+            if line.startswith("pg-connection:"):
+                lines.append(f"pg-connection: {quoted}")
+            else:
+                lines.append(line)
+        Path(destination).write_text("\n".join(lines) + "\n", encoding="utf-8")
+        PY
+        exec /opt/netwatch/bin/auth_service \
+          --config /opt/netwatch/etc/auth_service/static_config.yaml \
           --config_vars /tmp/config_vars.yaml
 
   monitor-service:
@@ -448,6 +536,8 @@ services:
         condition: service_healthy
       notification-service:
         condition: service_healthy
+      auth-service:
+        condition: service_healthy
     healthcheck: *service-healthcheck
     networks:
       - edge
@@ -464,4 +554,5 @@ volumes:
   netwatch-monitor-postgres-data:
   netwatch-alert-postgres-data:
   netwatch-notification-postgres-data:
+  netwatch-auth-postgres-data:
   netwatch-kafka-data:

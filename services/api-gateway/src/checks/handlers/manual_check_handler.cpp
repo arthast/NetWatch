@@ -4,8 +4,10 @@
 #include <userver/server/http/http_request.hpp>
 #include <userver/server/http/http_status.hpp>
 
+#include <auth/service/auth_service_component.hpp>
 #include <checks/json/check_json.hpp>
 #include <checks/service/checks_service_component.hpp>
+#include <common/auth.hpp>
 #include <common/http_response.hpp>
 #include <common/path_params.hpp>
 
@@ -16,7 +18,10 @@ ManualCheckHandler::ManualCheckHandler(
     const userver::components::ComponentContext& component_context)
     : HttpHandlerBase(config, component_context),
       checks_service_(component_context.FindComponent<ChecksServiceComponent>()
-                          .GetService()) {}
+                          .GetService()),
+      auth_service_(
+          component_context.FindComponent<auth::AuthServiceComponent>()
+              .GetService()) {}
 
 std::string ManualCheckHandler::HandleRequestThrow(
     const userver::server::http::HttpRequest& request,
@@ -29,7 +34,14 @@ std::string ManualCheckHandler::HandleRequestThrow(
   }
 
   try {
-    const auto check = checks_service_.RunCheck(*target_id);
+    const auto session = common::AuthenticateRequest(request, auth_service_);
+    if (!session) {
+      return common::ErrorResponse(
+          request, userver::server::http::HttpStatus::kUnauthorized,
+          "Authorization bearer token is required");
+    }
+
+    const auto check = checks_service_.RunCheck(session->user.id, *target_id);
     if (!check) {
       return common::ErrorResponse(request,
                                    userver::server::http::HttpStatus::kNotFound,

@@ -29,6 +29,8 @@ env:
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
   NETWATCH_BUILD_JOBS: 2
   NETWATCH_CI_BUILD_JOBS: 2
+  NETWATCH_COMPOSE_BUILD_JOBS: 2
+  NETWATCH_COMPOSE_HEALTH_START_PERIOD: 300s
 
 jobs:
   api-gateway-build:
@@ -203,6 +205,40 @@ jobs:
         if: always()
         run: sudo chown -R "$USER:$USER" .ccache || true
 
+  auth-service-build:
+    name: auth-service build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ${{ runner.os }}-ccache-auth-service-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-auth-service-
+            ${{ runner.os }}-ccache-
+
+      - name: Build auth-service
+        run: |
+          docker compose run --rm --no-deps --workdir /workspace \
+            --env CCACHE_BASEDIR \
+            --env CCACHE_COMPILERCHECK \
+            --env CCACHE_DIR \
+            --env CCACHE_MAXSIZE \
+            --env CCACHE_NOHASHDIR \
+            monitor-service \
+            bash -lc 'set -e; \
+              ccache --zero-stats || true; \
+              cmake -S . -B build-ci-auth-service-debug ${{ env.CMAKE_ARGS }}; \
+              cmake --build build-ci-auth-service-debug -j ${{ env.NETWATCH_CI_BUILD_JOBS }} --target auth_service; \
+              ccache --show-stats || true'
+
+      - name: Fix ccache permissions
+        if: always()
+        run: sudo chown -R "$USER:$USER" .ccache || true
+
   integration-dev-compose:
     name: Integration Flow (dev compose)
     runs-on: ubuntu-24.04
@@ -212,10 +248,15 @@ jobs:
       - monitor-service-build
       - alert-service-build
       - notification-service-build
+      - auth-service-build
     steps:
       - uses: actions/checkout@v4
 
       - name: Run gateway integration flow
+        env:
+          NOTIFICATION_EMAIL_PROVIDER: mailpit
+          NOTIFICATION_EMAIL_PROVIDER_URL: http://mailpit:8025
+          NOTIFICATION_EMAIL_FROM_EMAIL: netwatch@example.test
         run: ./tests/integration/run_api_gateway_flow.py --project-name netwatch-ci-dev-${{ github.run_id }}
 
   integration-runtime-images:
@@ -227,6 +268,7 @@ jobs:
       - monitor-service-build
       - alert-service-build
       - notification-service-build
+      - auth-service-build
     steps:
       - uses: actions/checkout@v4
 
@@ -235,6 +277,10 @@ jobs:
           docker compose -f docker-compose.images.yml build
 
       - name: Run gateway integration flow against runtime images
+        env:
+          NOTIFICATION_EMAIL_PROVIDER: mailpit
+          NOTIFICATION_EMAIL_PROVIDER_URL: http://mailpit:8025
+          NOTIFICATION_EMAIL_FROM_EMAIL: netwatch@example.test
         run: |
           ./tests/integration/run_api_gateway_flow.py \
             --project-name netwatch-ci-images-${{ github.run_id }} \
@@ -254,14 +300,25 @@ jobs:
         include:
           - service: api-gateway
             target: api_gateway
+            dockerfile: docker/service.Dockerfile
           - service: monitor-service
             target: monitor_service
+            dockerfile: docker/service.Dockerfile
           - service: alert-service
             target: alert_service
+            dockerfile: docker/service.Dockerfile
           - service: notification-service
             target: notification_service
+            dockerfile: docker/service.Dockerfile
+          - service: auth-service
+            target: auth_service
+            dockerfile: docker/service.Dockerfile
           - service: target-service
             target: target_service
+            dockerfile: docker/service.Dockerfile
+          - service: frontend
+            target: frontend
+            dockerfile: frontend/Dockerfile
     steps:
       - uses: actions/checkout@v4
 
@@ -290,7 +347,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: docker/service.Dockerfile
+          file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
           push: true
           build-args: |

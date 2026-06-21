@@ -17,37 +17,49 @@ class NotificationsService final {
           notification_client);
 
   std::vector<netwatch::notification_client::EmailRecipient>
-  ListEmailRecipients() const;
+  ListEmailRecipients(std::int64_t user_id) const;
 
   std::optional<netwatch::notification_client::EmailRecipient>
-  GetEmailRecipient(std::int64_t recipient_id) const;
+  GetEmailRecipient(std::int64_t user_id, std::int64_t recipient_id) const;
 
   netwatch::notification_client::EmailRecipient CreateEmailRecipient(
+      std::int64_t user_id,
       const netwatch::notification_client::CreateEmailRecipientRequest& request)
       const;
 
   std::optional<netwatch::notification_client::EmailRecipient>
   UpdateEmailRecipient(
-      std::int64_t recipient_id,
+      std::int64_t user_id, std::int64_t recipient_id,
       const netwatch::notification_client::UpdateEmailRecipientRequest& request)
       const;
 
-  bool DeleteEmailRecipient(std::int64_t recipient_id) const;
+  bool DeleteEmailRecipient(std::int64_t user_id,
+                            std::int64_t recipient_id) const;
 
   std::vector<netwatch::notification_client::NotificationDelivery>
   ListNotificationDeliveries(
+      std::int64_t user_id,
       const netwatch::notification_client::ListNotificationDeliveriesRequest&
           request) const;
 
   std::optional<netwatch::notification_client::NotificationDelivery>
-  RetryNotificationDelivery(std::int64_t delivery_id) const;
+  RetryNotificationDelivery(std::int64_t user_id,
+                            std::int64_t delivery_id) const;
 
   netwatch::notification_client::SendTestEmailResult SendTestEmail(
+      std::int64_t user_id,
       const netwatch::notification_client::SendTestEmailRequest& request) const;
 
+  netwatch::notification_client::TargetNotificationSettings
+  GetTargetNotificationSettings(std::int64_t user_id,
+                                std::int64_t target_id) const;
+
+  netwatch::notification_client::TargetNotificationSettings
+  UpdateTargetNotificationSettings(std::int64_t user_id, std::int64_t target_id,
+                                   bool email_enabled) const;
+
  private:
-  const netwatch::notification_client::NotificationClient&
-      notification_client_;
+  const netwatch::notification_client::NotificationClient& notification_client_;
 };
 
 }  // namespace netwatch::api_gateway::notifications

@@ -8,6 +8,13 @@ userver_add_grpc_library(
 )
 
 userver_add_grpc_library(
+    netwatch_auth_proto
+    SOURCE_PATH "${NETWATCH_PROTO_DIR}"
+    PROTOS
+        netwatch/auth_service.proto
+)
+
+userver_add_grpc_library(
     netwatch_monitor_proto
     SOURCE_PATH "${NETWATCH_PROTO_DIR}"
     PROTOS

@@ -15,18 +15,20 @@ class TargetsService final {
       const netwatch::target_client::TargetClient& target_client);
 
   netwatch::target_client::Target CreateTarget(
+      std::int64_t user_id,
       const netwatch::target_client::CreateTargetRequest& request) const;
 
-  std::vector<netwatch::target_client::Target> ListActiveTargets() const;
+  std::vector<netwatch::target_client::Target> ListActiveTargets(
+      std::int64_t user_id) const;
 
   std::optional<netwatch::target_client::Target> GetTargetById(
-      std::int64_t target_id) const;
+      std::int64_t user_id, std::int64_t target_id) const;
 
   std::optional<netwatch::target_client::Target> UpdateTarget(
-      std::int64_t target_id,
+      std::int64_t user_id, std::int64_t target_id,
       const netwatch::target_client::UpdateTargetRequest& request) const;
 
-  bool DeactivateTarget(std::int64_t target_id) const;
+  bool DeactivateTarget(std::int64_t user_id, std::int64_t target_id) const;
 
  private:
   const netwatch::target_client::TargetClient& target_client_;

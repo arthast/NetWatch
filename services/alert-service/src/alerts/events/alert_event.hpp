@@ -12,6 +12,7 @@ enum class AlertOutboxStatus { kPending, kPublishing, kPublished, kFailed };
 
 struct AlertEventTargetSnapshot {
   std::int64_t id{0};
+  std::optional<std::int64_t> user_id;
   std::string name;
   std::string type;
 };

@@ -8,10 +8,10 @@
 namespace netwatch::notification_service::notifications {
 namespace {
 
-EmailRecipient RecipientFromRow(
-    const userver::storages::postgres::Row& row) {
+EmailRecipient RecipientFromRow(const userver::storages::postgres::Row& row) {
   return EmailRecipient{
       .id = row["id"].As<std::int64_t>(),
+      .user_id = row["user_id"].As<std::optional<std::int64_t>>(),
       .email = row["email"].As<std::string>(),
       .is_enabled = row["is_enabled"].As<bool>(),
       .created_at = row["created_at"].As<std::string>(),
@@ -23,6 +23,8 @@ NotificationDelivery DeliveryFromRow(
     const userver::storages::postgres::Row& row) {
   return NotificationDelivery{
       .id = row["id"].As<std::int64_t>(),
+      .user_id = row["user_id"].As<std::optional<std::int64_t>>(),
+      .target_id = row["target_id"].As<std::optional<std::int64_t>>(),
       .event_id = row["event_id"].As<std::string>(),
       .event_type = row["event_type"].As<std::string>(),
       .recipient_email = row["recipient_email"].As<std::string>(),
@@ -39,6 +41,7 @@ NotificationDelivery DeliveryFromRow(
 
 constexpr std::string_view kRecipientFields = R"(
     id,
+    user_id,
     email,
     is_enabled,
     to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,
@@ -47,6 +50,8 @@ constexpr std::string_view kRecipientFields = R"(
 
 constexpr std::string_view kDeliveryFields = R"(
     delivery.id,
+    delivery.user_id,
+    delivery.target_id,
     delivery.event_id,
     event.event_type,
     COALESCE(delivery.recipient_email, '') AS recipient_email,
@@ -85,6 +90,8 @@ NotificationProcessResult NotificationRepository::ProcessAlertEvent(
             event_context AS (
                 SELECT
                     incoming.event_id,
+                    $4::BIGINT AS user_id,
+                    $5::BIGINT AS target_id,
                     NULLIF($3::jsonb #>> '{target,name}', '') AS target_name,
                     NULLIF($3::jsonb #>> '{target,type}', '') AS target_type
                 FROM incoming
@@ -98,6 +105,10 @@ NotificationProcessResult NotificationRepository::ProcessAlertEvent(
                       AND event_context.target_type IS NOT NULL
                       AND previous_event.event_id <> event_context.event_id
                       AND previous_event.event_type = 'alert.opened'
+                      AND ($4::BIGINT IS NULL OR
+                           (previous_event.payload #>> '{target,user_id}')::BIGINT = $4::BIGINT)
+                      AND ($5::BIGINT IS NULL OR
+                           (previous_event.payload #>> '{target,id}')::BIGINT = $5::BIGINT)
                       AND NULLIF(previous_event.payload #>> '{target,name}', '') =
                           event_context.target_name
                       AND NULLIF(previous_event.payload #>> '{target,type}', '') =
@@ -106,16 +117,35 @@ NotificationProcessResult NotificationRepository::ProcessAlertEvent(
                 ) AS suppressed
                 FROM event_context
             ),
+            target_settings AS (
+                SELECT
+                    CASE
+                        WHEN (SELECT user_id FROM event_context) IS NULL THEN TRUE
+                        ELSE COALESCE(
+                            (
+                                SELECT settings.email_enabled
+                                FROM notification_target_settings AS settings
+                                WHERE settings.user_id = (SELECT user_id FROM event_context)
+                                  AND settings.target_id = (SELECT target_id FROM event_context)
+                            ),
+                            TRUE
+                        )
+                    END AS email_enabled
+            ),
             enabled_recipients AS (
-                SELECT id, email
+                SELECT id, email, user_id
                 FROM notification_recipients
                 WHERE is_enabled = TRUE
                   AND NOT COALESCE((SELECT suppressed FROM suppression), FALSE)
+                  AND COALESCE((SELECT email_enabled FROM target_settings), TRUE)
+                  AND user_id IS NOT DISTINCT FROM (SELECT user_id FROM event_context)
                 ORDER BY id
             ),
             recipient_deliveries AS (
                 INSERT INTO notification_deliveries (
                     event_id,
+                    user_id,
+                    target_id,
                     recipient_id,
                     recipient_email,
                     channel,
@@ -124,6 +154,8 @@ NotificationProcessResult NotificationRepository::ProcessAlertEvent(
                 )
                 SELECT
                     incoming.event_id,
+                    (SELECT user_id FROM event_context),
+                    (SELECT target_id FROM event_context),
                     enabled_recipients.id,
                     enabled_recipients.email,
                     'email',
@@ -136,6 +168,8 @@ NotificationProcessResult NotificationRepository::ProcessAlertEvent(
             suppressed_delivery AS (
                 INSERT INTO notification_deliveries (
                     event_id,
+                    user_id,
+                    target_id,
                     channel,
                     status,
                     payload,
@@ -143,6 +177,8 @@ NotificationProcessResult NotificationRepository::ProcessAlertEvent(
                 )
                 SELECT
                     incoming.event_id,
+                    (SELECT user_id FROM event_context),
+                    (SELECT target_id FROM event_context),
                     'email',
                     'skipped',
                     $3::jsonb,
@@ -151,9 +187,11 @@ NotificationProcessResult NotificationRepository::ProcessAlertEvent(
                 WHERE COALESCE((SELECT suppressed FROM suppression), FALSE)
                 RETURNING id
             ),
-            skipped_delivery AS (
+            disabled_delivery AS (
                 INSERT INTO notification_deliveries (
                     event_id,
+                    user_id,
+                    target_id,
                     channel,
                     status,
                     payload,
@@ -161,12 +199,38 @@ NotificationProcessResult NotificationRepository::ProcessAlertEvent(
                 )
                 SELECT
                     incoming.event_id,
+                    (SELECT user_id FROM event_context),
+                    (SELECT target_id FROM event_context),
+                    'email',
+                    'skipped',
+                    $3::jsonb,
+                    'email notifications disabled for target'
+                FROM incoming
+                WHERE NOT COALESCE((SELECT suppressed FROM suppression), FALSE)
+                  AND NOT COALESCE((SELECT email_enabled FROM target_settings), TRUE)
+                RETURNING id
+            ),
+            skipped_delivery AS (
+                INSERT INTO notification_deliveries (
+                    event_id,
+                    user_id,
+                    target_id,
+                    channel,
+                    status,
+                    payload,
+                    error_message
+                )
+                SELECT
+                    incoming.event_id,
+                    (SELECT user_id FROM event_context),
+                    (SELECT target_id FROM event_context),
                     'email',
                     'skipped',
                     $3::jsonb,
                     'no enabled email recipients'
                 FROM incoming
                 WHERE NOT COALESCE((SELECT suppressed FROM suppression), FALSE)
+                  AND COALESCE((SELECT email_enabled FROM target_settings), TRUE)
                   AND NOT EXISTS (SELECT 1 FROM enabled_recipients)
                 RETURNING id
             )
@@ -177,10 +241,12 @@ NotificationProcessResult NotificationRepository::ProcessAlertEvent(
                 (
                     (SELECT COUNT(*) FROM recipient_deliveries) +
                     (SELECT COUNT(*) FROM suppressed_delivery) +
+                    (SELECT COUNT(*) FROM disabled_delivery) +
                     (SELECT COUNT(*) FROM skipped_delivery)
                 ) AS deliveries_count
         )",
-      event.event_id, event.event_type, event.payload);
+      event.event_id, event.event_type, event.payload, event.user_id,
+      event.target_id);
 
   const auto& row = result.Front();
   return NotificationProcessResult{
@@ -226,6 +292,8 @@ NotificationRepository::AcquirePendingDeliveries(int batch_size) const {
             WHERE delivery.id = acquired.id
             RETURNING
                 delivery.id,
+                delivery.user_id,
+                delivery.target_id,
                 delivery.event_id,
                 event.event_type,
                 delivery.recipient_email,
@@ -238,6 +306,8 @@ NotificationRepository::AcquirePendingDeliveries(int batch_size) const {
   for (const auto& row : result) {
     deliveries.push_back(PendingNotificationDelivery{
         .id = row["id"].As<std::int64_t>(),
+        .user_id = row["user_id"].As<std::optional<std::int64_t>>(),
+        .target_id = row["target_id"].As<std::optional<std::int64_t>>(),
         .event_id = row["event_id"].As<std::string>(),
         .event_type = row["event_type"].As<std::string>(),
         .recipient_email = row["recipient_email"].As<std::string>(),
@@ -287,16 +357,15 @@ void NotificationRepository::MarkDeliveryFailed(
             WHERE id = $1
               AND status = 'sending'
         )",
-                       delivery_id, error, max_attempts,
-                       retry_delay.count());
+                       delivery_id, error, max_attempts, retry_delay.count());
 }
 
 void NotificationRepository::EnsureRecipient(std::string_view email) const {
   pg_cluster_->Execute(userver::storages::postgres::ClusterHostType::kMaster,
                        R"(
-            INSERT INTO notification_recipients (email, is_enabled)
-            VALUES ($1, TRUE)
-            ON CONFLICT (email) DO UPDATE
+            INSERT INTO notification_recipients (email, user_id, is_enabled)
+            VALUES ($1, NULL, TRUE)
+            ON CONFLICT (user_id, email) DO UPDATE
             SET
                 is_enabled = TRUE,
                 updated_at = NOW()
@@ -304,14 +373,17 @@ void NotificationRepository::EnsureRecipient(std::string_view email) const {
                        email);
 }
 
-std::vector<EmailRecipient> NotificationRepository::ListRecipients() const {
-  const auto result = pg_cluster_->Execute(
-      userver::storages::postgres::ClusterHostType::kSlave,
-      "SELECT " + std::string{kRecipientFields} +
-          R"(
+std::vector<EmailRecipient> NotificationRepository::ListRecipients(
+    std::optional<std::int64_t> user_id) const {
+  const auto result =
+      pg_cluster_->Execute(userver::storages::postgres::ClusterHostType::kSlave,
+                           "SELECT " + std::string{kRecipientFields} +
+                               R"(
             FROM notification_recipients
+            WHERE user_id IS NOT DISTINCT FROM $1
             ORDER BY id
-          )");
+          )",
+                           user_id);
 
   std::vector<EmailRecipient> recipients;
   recipients.reserve(result.Size());
@@ -323,14 +395,32 @@ std::vector<EmailRecipient> NotificationRepository::ListRecipients() const {
 
 std::optional<EmailRecipient> NotificationRepository::GetRecipientById(
     std::int64_t recipient_id) const {
-  const auto result = pg_cluster_->Execute(
-      userver::storages::postgres::ClusterHostType::kSlave,
-      "SELECT " + std::string{kRecipientFields} +
-          R"(
+  const auto result =
+      pg_cluster_->Execute(userver::storages::postgres::ClusterHostType::kSlave,
+                           "SELECT " + std::string{kRecipientFields} +
+                               R"(
             FROM notification_recipients
             WHERE id = $1
           )",
-      recipient_id);
+                           recipient_id);
+
+  if (result.Size() == 0) {
+    return std::nullopt;
+  }
+  return RecipientFromRow(result.Front());
+}
+
+std::optional<EmailRecipient> NotificationRepository::GetRecipientByIdForUser(
+    std::int64_t recipient_id, std::int64_t user_id) const {
+  const auto result =
+      pg_cluster_->Execute(userver::storages::postgres::ClusterHostType::kSlave,
+                           "SELECT " + std::string{kRecipientFields} +
+                               R"(
+            FROM notification_recipients
+            WHERE id = $1
+              AND user_id = $2
+          )",
+                           recipient_id, user_id);
 
   if (result.Size() == 0) {
     return std::nullopt;
@@ -339,15 +429,16 @@ std::optional<EmailRecipient> NotificationRepository::GetRecipientById(
 }
 
 std::optional<EmailRecipient> NotificationRepository::GetRecipientByEmail(
-    std::string_view email) const {
-  const auto result = pg_cluster_->Execute(
-      userver::storages::postgres::ClusterHostType::kSlave,
-      "SELECT " + std::string{kRecipientFields} +
-          R"(
+    std::string_view email, std::optional<std::int64_t> user_id) const {
+  const auto result =
+      pg_cluster_->Execute(userver::storages::postgres::ClusterHostType::kSlave,
+                           "SELECT " + std::string{kRecipientFields} +
+                               R"(
             FROM notification_recipients
             WHERE email = $1
+              AND user_id IS NOT DISTINCT FROM $2
           )",
-      email);
+                           email, user_id);
 
   if (result.Size() == 0) {
     return std::nullopt;
@@ -356,23 +447,24 @@ std::optional<EmailRecipient> NotificationRepository::GetRecipientByEmail(
 }
 
 EmailRecipient NotificationRepository::CreateRecipient(
-    std::string_view email) const {
+    std::string_view email, std::optional<std::int64_t> user_id) const {
   const auto result = pg_cluster_->Execute(
       userver::storages::postgres::ClusterHostType::kMaster,
-      "INSERT INTO notification_recipients (email, is_enabled) "
-      "VALUES ($1, TRUE) "
-      "ON CONFLICT (email) DO UPDATE "
+      "INSERT INTO notification_recipients (email, user_id, is_enabled) "
+      "VALUES ($1, $2, TRUE) "
+      "ON CONFLICT (user_id, email) DO UPDATE "
       "SET is_enabled = TRUE, updated_at = NOW() "
       "RETURNING " +
           std::string{kRecipientFields},
-      email);
+      email, user_id);
 
   return RecipientFromRow(result.Front());
 }
 
 std::optional<EmailRecipient> NotificationRepository::UpdateRecipient(
     std::int64_t recipient_id, const std::optional<std::string>& email,
-    const std::optional<bool>& is_enabled) const {
+    const std::optional<bool>& is_enabled,
+    std::optional<std::int64_t> user_id) const {
   const auto result = pg_cluster_->Execute(
       userver::storages::postgres::ClusterHostType::kMaster,
       "UPDATE notification_recipients "
@@ -380,9 +472,10 @@ std::optional<EmailRecipient> NotificationRepository::UpdateRecipient(
       "    is_enabled = COALESCE($3, is_enabled), "
       "    updated_at = NOW() "
       "WHERE id = $1 "
+      "  AND user_id IS NOT DISTINCT FROM $4 "
       "RETURNING " +
           std::string{kRecipientFields},
-      recipient_id, email, is_enabled);
+      recipient_id, email, is_enabled, user_id);
 
   if (result.Size() == 0) {
     return std::nullopt;
@@ -406,6 +499,24 @@ bool NotificationRepository::DisableRecipient(std::int64_t recipient_id) const {
   return result.Size() != 0;
 }
 
+bool NotificationRepository::DisableRecipientForUser(
+    std::int64_t recipient_id, std::int64_t user_id) const {
+  const auto result = pg_cluster_->Execute(
+      userver::storages::postgres::ClusterHostType::kMaster,
+      R"(
+            UPDATE notification_recipients
+            SET
+                is_enabled = FALSE,
+                updated_at = NOW()
+            WHERE id = $1
+              AND user_id = $2
+            RETURNING id
+        )",
+      recipient_id, user_id);
+
+  return result.Size() != 0;
+}
+
 std::vector<NotificationDelivery> NotificationRepository::ListDeliveries(
     const ListDeliveriesFilter& filter) const {
   const auto result = pg_cluster_->Execute(
@@ -418,10 +529,13 @@ std::vector<NotificationDelivery> NotificationRepository::ListDeliveries(
             WHERE ($1::TEXT IS NULL OR delivery.status = $1)
               AND ($2::TEXT IS NULL OR event.event_type = $2)
               AND ($3::TEXT IS NULL OR delivery.recipient_email = $3)
+              AND ($5::BIGINT IS NULL OR delivery.user_id = $5)
+              AND ($6::BIGINT IS NULL OR delivery.target_id = $6)
             ORDER BY delivery.created_at DESC, delivery.id DESC
             LIMIT $4
           )",
-      filter.status, filter.event_type, filter.recipient_email, filter.limit);
+      filter.status, filter.event_type, filter.recipient_email, filter.limit,
+      filter.user_id, filter.target_id);
 
   std::vector<NotificationDelivery> deliveries;
   deliveries.reserve(result.Size());
@@ -432,7 +546,7 @@ std::vector<NotificationDelivery> NotificationRepository::ListDeliveries(
 }
 
 std::optional<NotificationDelivery> NotificationRepository::RetryDelivery(
-    std::int64_t delivery_id) const {
+    std::int64_t delivery_id, std::optional<std::int64_t> user_id) const {
   const auto result = pg_cluster_->Execute(
       userver::storages::postgres::ClusterHostType::kMaster,
       "WITH updated AS ("
@@ -442,6 +556,7 @@ std::optional<NotificationDelivery> NotificationRepository::RetryDelivery(
       "        next_retry_at = NULL, "
       "        updated_at = NOW() "
       "    WHERE id = $1 "
+      "      AND user_id IS NOT DISTINCT FROM $2 "
       "      AND status IN ('failed', 'retry_scheduled') "
       "    RETURNING * "
       ") "
@@ -450,7 +565,7 @@ std::optional<NotificationDelivery> NotificationRepository::RetryDelivery(
           " FROM updated AS delivery "
           " JOIN notification_events AS event "
           "   ON event.event_id = delivery.event_id",
-      delivery_id);
+      delivery_id, user_id);
 
   if (result.Size() == 0) {
     return std::nullopt;
@@ -459,7 +574,7 @@ std::optional<NotificationDelivery> NotificationRepository::RetryDelivery(
 }
 
 TestEmailResult NotificationRepository::QueueTestEmail(
-    std::string_view email) const {
+    std::string_view email, std::optional<std::int64_t> user_id) const {
   const auto result = pg_cluster_->Execute(
       userver::storages::postgres::ClusterHostType::kMaster,
       R"(
@@ -479,6 +594,7 @@ TestEmailResult NotificationRepository::QueueTestEmail(
                         'occurred_at', event_metadata.occurred_at,
                         'notification_kind', 'test_email',
                         'target', jsonb_build_object(
+                            'user_id', $2::bigint,
                             'name', 'Test notification',
                             'type', 'email'
                         ),
@@ -508,24 +624,27 @@ TestEmailResult NotificationRepository::QueueTestEmail(
             direct_recipient AS (
                 SELECT
                     NULL::BIGINT AS id,
+                    $2::BIGINT AS user_id,
                     NULLIF($1, '') AS email
                 WHERE NULLIF($1, '') IS NOT NULL
             ),
             saved_recipients AS (
-                SELECT id, email
+                SELECT id, user_id, email
                 FROM notification_recipients
                 WHERE is_enabled = TRUE
+                  AND user_id IS NOT DISTINCT FROM $2::BIGINT
                   AND NULLIF($1, '') IS NULL
                 ORDER BY id
             ),
             recipients AS (
-                SELECT id, email FROM direct_recipient
+                SELECT id, user_id, email FROM direct_recipient
                 UNION ALL
-                SELECT id, email FROM saved_recipients
+                SELECT id, user_id, email FROM saved_recipients
             ),
             recipient_deliveries AS (
                 INSERT INTO notification_deliveries (
                     event_id,
+                    user_id,
                     recipient_id,
                     recipient_email,
                     channel,
@@ -534,6 +653,7 @@ TestEmailResult NotificationRepository::QueueTestEmail(
                 )
                 SELECT
                     incoming.event_id,
+                    recipients.user_id,
                     recipients.id,
                     recipients.email,
                     'email',
@@ -546,6 +666,7 @@ TestEmailResult NotificationRepository::QueueTestEmail(
             skipped_delivery AS (
                 INSERT INTO notification_deliveries (
                     event_id,
+                    user_id,
                     channel,
                     status,
                     payload,
@@ -553,6 +674,7 @@ TestEmailResult NotificationRepository::QueueTestEmail(
                 )
                 SELECT
                     incoming.event_id,
+                    $2::BIGINT,
                     'email',
                     'skipped',
                     incoming.payload,
@@ -569,13 +691,77 @@ TestEmailResult NotificationRepository::QueueTestEmail(
                     (SELECT COUNT(*) FROM skipped_delivery)
                 ) AS deliveries_count
         )",
-      email);
+      email, user_id);
 
   const auto& row = result.Front();
   return TestEmailResult{
       .event_id = row["event_id"].As<std::string>(),
       .recipients_count = row["recipients_count"].As<std::int64_t>(),
       .deliveries_count = row["deliveries_count"].As<std::int64_t>(),
+  };
+}
+
+TargetNotificationSettings
+NotificationRepository::GetTargetNotificationSettings(
+    std::int64_t user_id, std::int64_t target_id) const {
+  const auto result =
+      pg_cluster_->Execute(userver::storages::postgres::ClusterHostType::kSlave,
+                           R"(
+            SELECT
+                $1::BIGINT AS user_id,
+                $2::BIGINT AS target_id,
+                COALESCE(settings.email_enabled, TRUE) AS email_enabled,
+                COALESCE(to_char(settings.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'), '') AS created_at,
+                COALESCE(to_char(settings.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'), '') AS updated_at
+            FROM (SELECT 1) AS base
+            LEFT JOIN notification_target_settings AS settings
+              ON settings.user_id = $1
+             AND settings.target_id = $2
+        )",
+                           user_id, target_id);
+
+  const auto& row = result.Front();
+  return TargetNotificationSettings{
+      .user_id = row["user_id"].As<std::int64_t>(),
+      .target_id = row["target_id"].As<std::int64_t>(),
+      .email_enabled = row["email_enabled"].As<bool>(),
+      .created_at = row["created_at"].As<std::string>(),
+      .updated_at = row["updated_at"].As<std::string>(),
+  };
+}
+
+TargetNotificationSettings
+NotificationRepository::UpdateTargetNotificationSettings(
+    std::int64_t user_id, std::int64_t target_id, bool email_enabled) const {
+  const auto result = pg_cluster_->Execute(
+      userver::storages::postgres::ClusterHostType::kMaster,
+      R"(
+            INSERT INTO notification_target_settings (
+                user_id,
+                target_id,
+                email_enabled
+            )
+            VALUES ($1, $2, $3)
+            ON CONFLICT (user_id, target_id) DO UPDATE
+            SET
+                email_enabled = EXCLUDED.email_enabled,
+                updated_at = NOW()
+            RETURNING
+                user_id,
+                target_id,
+                email_enabled,
+                to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,
+                to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS updated_at
+        )",
+      user_id, target_id, email_enabled);
+
+  const auto& row = result.Front();
+  return TargetNotificationSettings{
+      .user_id = row["user_id"].As<std::int64_t>(),
+      .target_id = row["target_id"].As<std::int64_t>(),
+      .email_enabled = row["email_enabled"].As<bool>(),
+      .created_at = row["created_at"].As<std::string>(),
+      .updated_at = row["updated_at"].As<std::string>(),
   };
 }
 

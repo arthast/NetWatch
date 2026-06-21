@@ -81,10 +81,15 @@ components_manager:
         email-delivery-sender:
             enabled: $notification-email-sender-enabled
             provider: $notification-email-provider
+            provider#env: NOTIFICATION_EMAIL_PROVIDER
             provider-url: $notification-email-provider-url
+            provider-url#env: NOTIFICATION_EMAIL_PROVIDER_URL
             from-email: $notification-email-from-email
+            from-email#env: NOTIFICATION_EMAIL_FROM_EMAIL
             from-name: $notification-email-from-name
+            from-name#env: NOTIFICATION_EMAIL_FROM_NAME
             seed-recipient-email: $notification-email-seed-recipient-email
+            seed-recipient-email#env: NOTIFICATION_EMAIL_SEED_RECIPIENT_EMAIL
             batch-size: $notification-email-sender-batch-size
             send-period-ms: $notification-email-sender-period-ms
             request-timeout-ms: $notification-email-request-timeout-ms
@@ -93,6 +98,7 @@ components_manager:
             yandex-postbox-iam-token: $notification-yandex-postbox-iam-token
             yandex-postbox-iam-token#env: YANDEX_POSTBOX_IAM_TOKEN
             yandex-postbox-metadata-token-url: $notification-yandex-postbox-metadata-token-url
+            yandex-postbox-metadata-token-url#env: NOTIFICATION_YANDEX_POSTBOX_METADATA_TOKEN_URL
             yandex-postbox-token-refresh-skew-sec: $notification-yandex-postbox-token-refresh-skew-sec
 
         tests-control:

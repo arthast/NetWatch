@@ -73,6 +73,8 @@ CheckStatus ToDomainCheckStatus(proto::CheckStatus status) {
 TargetSnapshot ToDomainTarget(const proto::TargetSnapshot& source) {
   return TargetSnapshot{
       .id = source.id(),
+      .user_id = source.has_user_id() ? std::make_optional(source.user_id())
+                                      : std::nullopt,
       .name = source.name(),
       .type = ToDomainTargetType(source.type()),
       .url = source.has_url() ? std::make_optional(source.url()) : std::nullopt,

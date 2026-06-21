@@ -5,6 +5,7 @@
 #include <userver/components/component.hpp>
 #include <userver/server/handlers/http_handler_base.hpp>
 
+#include <auth/service/auth_service.hpp>
 #include <checks/service/checks_service.hpp>
 
 namespace netwatch::api_gateway::checks {
@@ -23,5 +24,6 @@ class TargetStatusHandler final
 
  private:
   const ChecksService& checks_service_;
+  const auth::AuthService& auth_service_;
 };
 }  // namespace netwatch::api_gateway::checks

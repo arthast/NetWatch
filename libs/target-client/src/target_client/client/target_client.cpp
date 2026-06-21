@@ -72,6 +72,9 @@ void FillProtoUpdateRequest(std::int64_t target_id,
   if (source.timeout_ms) {
     request.set_timeout_ms(*source.timeout_ms);
   }
+  if (source.user_id) {
+    request.set_user_id(*source.user_id);
+  }
 }
 
 proto::CreateTargetRequest ToProtoCreateRequest(
@@ -95,6 +98,9 @@ proto::CreateTargetRequest ToProtoCreateRequest(
   if (request.port) {
     result.set_port(*request.port);
   }
+  if (request.user_id) {
+    result.set_user_id(*request.user_id);
+  }
 
   result.set_interval_seconds(request.interval_seconds);
   result.set_timeout_ms(request.timeout_ms);
@@ -107,9 +113,24 @@ proto::TargetIdRequest MakeTargetIdRequest(std::int64_t target_id) {
   return request;
 }
 
+proto::TargetIdRequest MakeTargetIdRequest(std::int64_t target_id,
+                                           std::int64_t user_id) {
+  auto request = MakeTargetIdRequest(target_id);
+  request.set_user_id(user_id);
+  return request;
+}
+
+proto::ListTargetsRequest MakeListTargetsForUserRequest(std::int64_t user_id) {
+  proto::ListTargetsRequest request;
+  request.set_user_id(user_id);
+  return request;
+}
+
 Target ToDomainTarget(const proto::Target& target) {
   return Target{
       .id = target.id(),
+      .user_id = target.has_user_id() ? std::make_optional(target.user_id())
+                                      : std::nullopt,
       .name = target.name(),
       .type = ToDomainTargetType(target.type()),
       .url = target.has_url() ? std::make_optional(target.url()) : std::nullopt,
@@ -191,6 +212,13 @@ std::vector<Target> TargetClient::ListActiveTargets() const {
       proto::ListTargetsRequest{}, client_common::MakeGrpcCallOptions()));
 }
 
+std::vector<Target> TargetClient::ListActiveTargetsForUser(
+    std::int64_t user_id) const {
+  return ToDomainTargets(
+      grpc_client_->ListActiveTargets(MakeListTargetsForUserRequest(user_id),
+                                      client_common::MakeGrpcCallOptions()));
+}
+
 std::optional<Target> TargetClient::GetTargetById(
     std::int64_t target_id) const {
   try {
@@ -198,6 +226,19 @@ std::optional<Target> TargetClient::GetTargetById(
                               ->GetTarget(MakeTargetIdRequest(target_id),
                                           client_common::MakeGrpcCallOptions())
                               .target());
+  } catch (const userver::ugrpc::client::NotFoundError&) {
+    return std::nullopt;
+  }
+}
+
+std::optional<Target> TargetClient::GetTargetByIdForUser(
+    std::int64_t target_id, std::int64_t user_id) const {
+  try {
+    return ToDomainTarget(
+        grpc_client_
+            ->GetTarget(MakeTargetIdRequest(target_id, user_id),
+                        client_common::MakeGrpcCallOptions())
+            .target());
   } catch (const userver::ugrpc::client::NotFoundError&) {
     return std::nullopt;
   }
@@ -220,9 +261,28 @@ std::optional<Target> TargetClient::UpdateTarget(
   }
 }
 
+std::optional<Target> TargetClient::UpdateTargetForUser(
+    std::int64_t target_id, std::int64_t user_id,
+    const UpdateTargetRequest& update) const {
+  auto scoped_update = update;
+  scoped_update.user_id = user_id;
+  return UpdateTarget(target_id, scoped_update);
+}
+
 bool TargetClient::DeactivateTarget(std::int64_t target_id) const {
   try {
     grpc_client_->DeleteTarget(MakeTargetIdRequest(target_id),
+                               client_common::MakeGrpcCallOptions());
+    return true;
+  } catch (const userver::ugrpc::client::NotFoundError&) {
+    return false;
+  }
+}
+
+bool TargetClient::DeactivateTargetForUser(std::int64_t target_id,
+                                           std::int64_t user_id) const {
+  try {
+    grpc_client_->DeleteTarget(MakeTargetIdRequest(target_id, user_id),
                                client_common::MakeGrpcCallOptions());
     return true;
   } catch (const userver::ugrpc::client::NotFoundError&) {

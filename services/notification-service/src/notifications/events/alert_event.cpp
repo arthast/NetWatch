@@ -20,6 +20,15 @@ std::string ReadRequiredString(const userver::formats::json::Value& json,
   return value;
 }
 
+std::optional<std::int64_t> ReadOptionalInt64(
+    const userver::formats::json::Value& json, std::string_view field) {
+  const auto value = json[std::string{field}];
+  if (value.IsMissing() || value.IsNull()) {
+    return std::nullopt;
+  }
+  return value.As<std::int64_t>();
+}
+
 }  // namespace
 
 bool IsSupportedAlertEventType(std::string_view event_type) {
@@ -35,6 +44,8 @@ AlertEvent ParseAlertEvent(std::string_view payload) {
       .event_type = ReadRequiredString(json, "event_type"),
       .producer = ReadRequiredString(json, "producer"),
       .occurred_at = ReadRequiredString(json, "occurred_at"),
+      .user_id = ReadOptionalInt64(json["target"], "user_id"),
+      .target_id = ReadOptionalInt64(json["target"], "id"),
       .payload = std::string{payload},
   };
 

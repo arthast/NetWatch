@@ -45,6 +45,7 @@ ParseCreateEmailRecipientRequest(const userver::formats::json::Value& json) {
   }
 
   return notification_client::CreateEmailRecipientRequest{
+      .user_id = std::nullopt,
       .email = ReadRequired<std::string>(json, "email"),
   };
 }
@@ -56,6 +57,7 @@ ParseUpdateEmailRecipientRequest(const userver::formats::json::Value& json) {
   }
 
   return notification_client::UpdateEmailRecipientRequest{
+      .user_id = std::nullopt,
       .email = ReadPatchOptional<std::string>(json, "email"),
       .is_enabled = ReadPatchOptional<bool>(json, "is_enabled"),
   };
@@ -65,6 +67,9 @@ userver::formats::json::Value SerializeEmailRecipient(
     const notification_client::EmailRecipient& recipient) {
   userver::formats::json::ValueBuilder builder;
   builder["id"] = recipient.id;
+  if (recipient.user_id) {
+    builder["user_id"] = *recipient.user_id;
+  }
   builder["email"] = recipient.email;
   builder["is_enabled"] = recipient.is_enabled;
   builder["created_at"] = recipient.created_at;

@@ -44,6 +44,7 @@ netwatch::alert_client::TargetSnapshot ToAlertTarget(
     const netwatch::target_client::Target& source) {
   return netwatch::alert_client::TargetSnapshot{
       .id = source.id,
+      .user_id = source.user_id,
       .name = source.name,
       .type = ToAlertTargetType(source.type),
       .url = source.url,

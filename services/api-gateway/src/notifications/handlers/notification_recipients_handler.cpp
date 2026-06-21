@@ -7,6 +7,8 @@
 #include <userver/server/http/http_request.hpp>
 #include <userver/server/http/http_status.hpp>
 
+#include <auth/service/auth_service_component.hpp>
+#include <common/auth.hpp>
 #include <common/http_response.hpp>
 #include <notifications/json/recipient_json.hpp>
 #include <notifications/service/notifications_service_component.hpp>
@@ -21,6 +23,9 @@ NotificationRecipientsHandler::NotificationRecipientsHandler(
     : HttpHandlerBase(config, component_context),
       notifications_service_(
           component_context.FindComponent<NotificationsServiceComponent>()
+              .GetService()),
+      auth_service_(
+          component_context.FindComponent<auth::AuthServiceComponent>()
               .GetService()) {}
 
 std::string NotificationRecipientsHandler::HandleRequestThrow(
@@ -43,10 +48,17 @@ std::string NotificationRecipientsHandler::HandleRequestThrow(
 std::string NotificationRecipientsHandler::HandleListRecipients(
     const userver::server::http::HttpRequest& request) const {
   try {
+    const auto session = common::AuthenticateRequest(request, auth_service_);
+    if (!session) {
+      return ErrorResponse(request,
+                           userver::server::http::HttpStatus::kUnauthorized,
+                           "Authorization bearer token is required");
+    }
+
     return JsonResponse(
         request,
         SerializeEmailRecipients(
-            notifications_service_.ListEmailRecipients()));
+            notifications_service_.ListEmailRecipients(session->user.id)));
   } catch (const userver::ugrpc::client::BaseError& ex) {
     return common::UpstreamErrorResponse(request, "notification-service", ex);
   }
@@ -55,13 +67,19 @@ std::string NotificationRecipientsHandler::HandleListRecipients(
 std::string NotificationRecipientsHandler::HandleCreateRecipient(
     const userver::server::http::HttpRequest& request) const {
   try {
+    const auto session = common::AuthenticateRequest(request, auth_service_);
+    if (!session) {
+      return ErrorResponse(request,
+                           userver::server::http::HttpStatus::kUnauthorized,
+                           "Authorization bearer token is required");
+    }
+
     const auto request_json =
         userver::formats::json::FromString(request.RequestBody());
-    const auto create_request =
-        ParseCreateEmailRecipientRequest(request_json);
+    const auto create_request = ParseCreateEmailRecipientRequest(request_json);
 
-    const auto recipient =
-        notifications_service_.CreateEmailRecipient(create_request);
+    const auto recipient = notifications_service_.CreateEmailRecipient(
+        session->user.id, create_request);
     request.SetResponseStatus(userver::server::http::HttpStatus::kCreated);
     return JsonResponse(request, SerializeEmailRecipient(recipient));
   } catch (const userver::formats::json::Exception& ex) {

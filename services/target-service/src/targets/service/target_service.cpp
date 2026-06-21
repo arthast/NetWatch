@@ -39,6 +39,18 @@ void ValidateTargetForUpdate(const Target& target) {
   }
 }
 
+void ValidateUserId(std::optional<std::int64_t> user_id) {
+  if (!user_id || *user_id <= 0) {
+    throw std::invalid_argument{"user id must be a positive integer"};
+  }
+}
+
+void ValidateUserId(std::int64_t user_id) {
+  if (user_id <= 0) {
+    throw std::invalid_argument{"user id must be a positive integer"};
+  }
+}
+
 }  // namespace
 
 TargetNotFound::TargetNotFound() : std::runtime_error("target not found") {}
@@ -47,6 +59,7 @@ TargetService::TargetService(TargetRepository repository)
     : repository_(std::move(repository)) {}
 
 Target TargetService::CreateTarget(CreateTargetRequest request) const {
+  ValidateUserId(request.user_id);
   ApplyCreateDefaults(request);
   ValidateCreateRequest(request);
 
@@ -66,7 +79,14 @@ Target TargetService::UpdateTarget(std::int64_t target_id,
     throw std::invalid_argument("patch body must contain at least one field");
   }
 
-  const auto current_target = repository_.GetTargetById(target_id);
+  std::optional<Target> current_target;
+  if (request.user_id) {
+    ValidateUserId(request.user_id);
+    current_target =
+        repository_.GetTargetByIdForUser(target_id, *request.user_id);
+  } else {
+    current_target = repository_.GetTargetById(target_id);
+  }
   if (!current_target) {
     throw TargetNotFound{};
   }
@@ -88,8 +108,27 @@ void TargetService::DeleteTarget(std::int64_t target_id) const {
   }
 }
 
+void TargetService::DeleteTargetForUser(std::int64_t target_id,
+                                        std::int64_t user_id) const {
+  ValidateUserId(user_id);
+  if (!repository_.DeactivateTargetForUser(target_id, user_id)) {
+    throw TargetNotFound{};
+  }
+}
+
 Target TargetService::GetTarget(std::int64_t target_id) const {
   const auto target = repository_.GetTargetById(target_id);
+  if (!target) {
+    throw TargetNotFound{};
+  }
+
+  return *target;
+}
+
+Target TargetService::GetTargetForUser(std::int64_t target_id,
+                                       std::int64_t user_id) const {
+  ValidateUserId(user_id);
+  const auto target = repository_.GetTargetByIdForUser(target_id, user_id);
   if (!target) {
     throw TargetNotFound{};
   }
@@ -103,6 +142,12 @@ std::vector<Target> TargetService::ListTargets() const {
 
 std::vector<Target> TargetService::ListActiveTargets() const {
   return repository_.ListActiveTargets();
+}
+
+std::vector<Target> TargetService::ListActiveTargetsForUser(
+    std::int64_t user_id) const {
+  ValidateUserId(user_id);
+  return repository_.ListActiveTargetsForUser(user_id);
 }
 
 }  // namespace netwatch::target_service

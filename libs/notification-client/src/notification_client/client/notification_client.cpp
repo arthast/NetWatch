@@ -15,6 +15,9 @@ namespace proto = netwatch::notification::v1;
 EmailRecipient ToDomainRecipient(const proto::EmailRecipient& recipient) {
   return EmailRecipient{
       .id = recipient.id(),
+      .user_id = recipient.has_user_id()
+                     ? std::make_optional(recipient.user_id())
+                     : std::nullopt,
       .email = recipient.email(),
       .is_enabled = recipient.is_enabled(),
       .created_at = recipient.created_at(),
@@ -26,6 +29,11 @@ NotificationDelivery ToDomainDelivery(
     const proto::NotificationDelivery& delivery) {
   return NotificationDelivery{
       .id = delivery.id(),
+      .user_id = delivery.has_user_id() ? std::make_optional(delivery.user_id())
+                                        : std::nullopt,
+      .target_id = delivery.has_target_id()
+                       ? std::make_optional(delivery.target_id())
+                       : std::nullopt,
       .event_id = delivery.event_id(),
       .event_type = delivery.event_type(),
       .recipient_email = delivery.recipient_email(),
@@ -37,6 +45,17 @@ NotificationDelivery ToDomainDelivery(
       .created_at = delivery.created_at(),
       .updated_at = delivery.updated_at(),
       .delivered_at = delivery.delivered_at(),
+  };
+}
+
+TargetNotificationSettings ToDomainSettings(
+    const proto::TargetNotificationSettings& settings) {
+  return TargetNotificationSettings{
+      .user_id = settings.user_id(),
+      .target_id = settings.target_id(),
+      .email_enabled = settings.email_enabled(),
+      .created_at = settings.created_at(),
+      .updated_at = settings.updated_at(),
   };
 }
 
@@ -66,9 +85,23 @@ proto::RecipientIdRequest MakeRecipientIdRequest(std::int64_t recipient_id) {
   return request;
 }
 
+proto::RecipientIdRequest MakeRecipientIdRequest(std::int64_t recipient_id,
+                                                 std::int64_t user_id) {
+  auto request = MakeRecipientIdRequest(recipient_id);
+  request.set_user_id(user_id);
+  return request;
+}
+
 proto::DeliveryIdRequest MakeDeliveryIdRequest(std::int64_t delivery_id) {
   proto::DeliveryIdRequest request;
   request.set_id(delivery_id);
+  return request;
+}
+
+proto::DeliveryIdRequest MakeDeliveryIdRequest(std::int64_t delivery_id,
+                                               std::int64_t user_id) {
+  auto request = MakeDeliveryIdRequest(delivery_id);
+  request.set_user_id(user_id);
   return request;
 }
 
@@ -100,8 +133,17 @@ NotificationClient::NotificationClient(
                .GetClient()) {}
 
 std::vector<EmailRecipient> NotificationClient::ListEmailRecipients() const {
+  return ToDomainRecipients(
+      grpc_client_->ListEmailRecipients(proto::ListEmailRecipientsRequest{},
+                                        client_common::MakeGrpcCallOptions()));
+}
+
+std::vector<EmailRecipient> NotificationClient::ListEmailRecipientsForUser(
+    std::int64_t user_id) const {
+  proto::ListEmailRecipientsRequest request;
+  request.set_user_id(user_id);
   return ToDomainRecipients(grpc_client_->ListEmailRecipients(
-      proto::ListEmailRecipientsRequest{}, client_common::MakeGrpcCallOptions()));
+      request, client_common::MakeGrpcCallOptions()));
 }
 
 std::optional<EmailRecipient> NotificationClient::GetEmailRecipient(
@@ -117,10 +159,26 @@ std::optional<EmailRecipient> NotificationClient::GetEmailRecipient(
   }
 }
 
+std::optional<EmailRecipient> NotificationClient::GetEmailRecipientForUser(
+    std::int64_t recipient_id, std::int64_t user_id) const {
+  try {
+    return ToDomainRecipient(
+        grpc_client_
+            ->GetEmailRecipient(MakeRecipientIdRequest(recipient_id, user_id),
+                                client_common::MakeGrpcCallOptions())
+            .recipient());
+  } catch (const userver::ugrpc::client::NotFoundError&) {
+    return std::nullopt;
+  }
+}
+
 EmailRecipient NotificationClient::CreateEmailRecipient(
     const CreateEmailRecipientRequest& request) const {
   proto::CreateEmailRecipientRequest proto_request;
   proto_request.set_email(request.email);
+  if (request.user_id) {
+    proto_request.set_user_id(*request.user_id);
+  }
 
   try {
     return ToDomainRecipient(
@@ -138,6 +196,9 @@ std::optional<EmailRecipient> NotificationClient::UpdateEmailRecipient(
     const UpdateEmailRecipientRequest& request) const {
   proto::UpdateEmailRecipientRequest proto_request;
   proto_request.set_id(recipient_id);
+  if (request.user_id) {
+    proto_request.set_user_id(*request.user_id);
+  }
   if (request.email) {
     proto_request.set_email(*request.email);
   }
@@ -168,11 +229,29 @@ bool NotificationClient::DeleteEmailRecipient(std::int64_t recipient_id) const {
   }
 }
 
+bool NotificationClient::DeleteEmailRecipientForUser(
+    std::int64_t recipient_id, std::int64_t user_id) const {
+  try {
+    grpc_client_->DeleteEmailRecipient(
+        MakeRecipientIdRequest(recipient_id, user_id),
+        client_common::MakeGrpcCallOptions());
+    return true;
+  } catch (const userver::ugrpc::client::NotFoundError&) {
+    return false;
+  }
+}
+
 std::vector<NotificationDelivery>
 NotificationClient::ListNotificationDeliveries(
     const ListNotificationDeliveriesRequest& request) const {
   proto::ListNotificationDeliveriesRequest proto_request;
   proto_request.set_limit(request.limit);
+  if (request.user_id) {
+    proto_request.set_user_id(*request.user_id);
+  }
+  if (request.target_id) {
+    proto_request.set_target_id(*request.target_id);
+  }
   if (request.status) {
     proto_request.set_status(*request.status);
   }
@@ -202,9 +281,28 @@ NotificationClient::RetryNotificationDelivery(std::int64_t delivery_id) const {
   }
 }
 
+std::optional<NotificationDelivery>
+NotificationClient::RetryNotificationDelivery(std::int64_t delivery_id,
+                                              std::int64_t user_id) const {
+  try {
+    return ToDomainDelivery(grpc_client_
+                                ->RetryNotificationDelivery(
+                                    MakeDeliveryIdRequest(delivery_id, user_id),
+                                    client_common::MakeGrpcCallOptions())
+                                .delivery());
+  } catch (const userver::ugrpc::client::NotFoundError&) {
+    return std::nullopt;
+  } catch (const userver::ugrpc::client::InvalidArgumentError& ex) {
+    throw ToInvalidArgument(ex);
+  }
+}
+
 SendTestEmailResult NotificationClient::SendTestEmail(
     const SendTestEmailRequest& request) const {
   proto::SendTestEmailRequest proto_request;
+  if (request.user_id) {
+    proto_request.set_user_id(*request.user_id);
+  }
   if (!request.email.empty()) {
     proto_request.set_email(request.email);
   }
@@ -215,6 +313,29 @@ SendTestEmailResult NotificationClient::SendTestEmail(
   } catch (const userver::ugrpc::client::InvalidArgumentError& ex) {
     throw ToInvalidArgument(ex);
   }
+}
+
+TargetNotificationSettings NotificationClient::GetTargetNotificationSettings(
+    std::int64_t user_id, std::int64_t target_id) const {
+  proto::GetTargetNotificationSettingsRequest request;
+  request.set_user_id(user_id);
+  request.set_target_id(target_id);
+  return ToDomainSettings(grpc_client_
+                              ->GetTargetNotificationSettings(
+                                  request, client_common::MakeGrpcCallOptions())
+                              .settings());
+}
+
+TargetNotificationSettings NotificationClient::UpdateTargetNotificationSettings(
+    std::int64_t user_id, std::int64_t target_id, bool email_enabled) const {
+  proto::UpdateTargetNotificationSettingsRequest request;
+  request.set_user_id(user_id);
+  request.set_target_id(target_id);
+  request.set_email_enabled(email_enabled);
+  return ToDomainSettings(grpc_client_
+                              ->UpdateTargetNotificationSettings(
+                                  request, client_common::MakeGrpcCallOptions())
+                              .settings());
 }
 
 }  // namespace netwatch::notification_client

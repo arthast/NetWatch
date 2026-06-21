@@ -41,12 +41,13 @@ class ChecksService final {
                 const netwatch::target_client::TargetClient& target_client);
 
   std::optional<netwatch::monitor_client::CheckResult> RunCheck(
-      std::int64_t target_id) const;
+      std::int64_t user_id, std::int64_t target_id) const;
 
   std::optional<std::vector<netwatch::monitor_client::CheckResult>>
-  ListTargetChecks(std::int64_t target_id) const;
+  ListTargetChecks(std::int64_t user_id, std::int64_t target_id) const;
 
-  TargetStatusResult GetTargetStatus(std::int64_t target_id) const;
+  TargetStatusResult GetTargetStatus(std::int64_t user_id,
+                                     std::int64_t target_id) const;
 
  private:
   const netwatch::monitor_client::CheckClient& check_client_;

@@ -52,6 +52,7 @@ message TargetSnapshot {
   int32 interval_seconds = 9;
   int32 timeout_ms = 10;
   bool is_active = 11;
+  optional int64 user_id = 12;
 }
 
 enum CheckStatus {
@@ -83,5 +84,6 @@ message ProcessCheckResultResponse {}
 service AlertService {
   rpc ListAlerts(ListAlertsRequest) returns (ListAlertsResponse) {}
   rpc ListActiveAlerts(ListAlertsRequest) returns (ListAlertsResponse) {}
-  rpc ProcessCheckResult(ProcessCheckResultRequest) returns (ProcessCheckResultResponse) {}
+  rpc ProcessCheckResult(ProcessCheckResultRequest)
+      returns (ProcessCheckResultResponse) {}
 }
