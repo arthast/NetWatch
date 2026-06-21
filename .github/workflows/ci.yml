@@ -290,16 +290,25 @@ jobs:
         include:
           - service: api-gateway
             target: api_gateway
+            dockerfile: docker/service.Dockerfile
           - service: monitor-service
             target: monitor_service
+            dockerfile: docker/service.Dockerfile
           - service: alert-service
             target: alert_service
+            dockerfile: docker/service.Dockerfile
           - service: notification-service
             target: notification_service
+            dockerfile: docker/service.Dockerfile
           - service: auth-service
             target: auth_service
+            dockerfile: docker/service.Dockerfile
           - service: target-service
             target: target_service
+            dockerfile: docker/service.Dockerfile
+          - service: frontend
+            target: frontend
+            dockerfile: frontend/Dockerfile
     steps:
       - uses: actions/checkout@v4
 
@@ -328,7 +337,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: docker/service.Dockerfile
+          file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
           push: true
           build-args: |

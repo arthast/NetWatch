@@ -7,8 +7,9 @@ C++ и userver. Проект построен как микросервисна�
 
 Публичный стенд:
 
-- Swagger UI: `http://158.160.233.79/docs`
-- OpenAPI JSON: `http://158.160.233.79/openapi.json`
+- Frontend console: `https://netwatch-arsen-demo.online`
+- Swagger UI: `https://netwatch-arsen-demo.online/docs`
+- OpenAPI JSON: `https://netwatch-arsen-demo.online/openapi.json`
 
 ## Стек
 
@@ -17,7 +18,10 @@ C++ и userver. Проект построен как микросервисна�
 - Kafka
 - PostgreSQL
 - Mailpit
+- Yandex Cloud Postbox
 - Docker / Docker Compose
+- Caddy / Nginx
+- Vanilla JS frontend
 - CMake / Ninja
 - Swagger / OpenAPI
 - GitHub Actions
@@ -32,6 +36,10 @@ C++ и userver. Проект построен как микросервисна�
 - создавать active alert при падении target
 - закрывать alert при восстановлении target
 - отправлять email-уведомления по alert events через Kafka
+- регистрировать пользователей и выпускать access token
+- хранить user-scoped targets, recipients и notification deliveries
+- включать/выключать email-уведомления для отдельного target
+- работать через простой browser frontend
 - отдавать Swagger UI и OpenAPI contract
 - собираться и проверяться через CI/CD
 
@@ -46,44 +54,67 @@ Gateway нормализует ошибки внутренних gRPC-серви
 
 ```mermaid
 flowchart LR
-    client["Client / Swagger / curl"] -->|HTTP JSON| gateway["api-gateway"]
+    client["Browser / curl"] -->|HTTPS| caddy["Caddy"]
+    caddy -->|reverse proxy| frontend["frontend<br/>Nginx + static console"]
+    frontend -->|/api /docs /openapi.json| gateway["api-gateway"]
 
+    gateway -->|gRPC| auth["auth-service"]
     gateway -->|gRPC| target["target-service"]
     gateway -->|gRPC| monitor["monitor-service"]
     gateway -->|gRPC| alert["alert-service"]
+    gateway -->|gRPC| notification_api["notification-service"]
 
     monitor -->|gRPC: read targets| target
     monitor -->|gRPC: check snapshots| alert
     alert -->|Kafka: alert.opened / alert.resolved| kafka["Kafka<br/>netwatch.alert.events.v1"]
-    kafka -->|consume alert events| notification["notification-service"]
-    notification -->|HTTP email API| email["Mailpit / Email provider"]
+    kafka -->|consume alert events| notification_api
+    notification_api -->|HTTP email API| email["Mailpit / Yandex Postbox"]
 
+    auth --> auth_db[("auth-postgres<br/>auth_users<br/>auth_sessions")]
     target --> target_db[("target-postgres<br/>targets")]
     monitor --> monitor_db[("monitor-postgres<br/>check_results")]
     alert --> alert_db[("alert-postgres<br/>alerts<br/>alert_outbox_events")]
-    notification --> notification_db[("notification-postgres<br/>notification_events<br/>notification_deliveries")]
+    notification_api --> notification_db[("notification-postgres<br/>recipients<br/>events<br/>deliveries")]
 ```
 
-Снаружи открыт только `api-gateway`. Остальные сервисы считаются внутренними и
-доступны друг другу по gRPC внутри runtime-сети. События alert lifecycle
-доставляются асинхронно: `alert-service` пишет их в outbox и публикует в Kafka,
-а `notification-service` будет читать topic и отправлять уведомления.
+Публичный вход в production-like схеме - Caddy. Он принимает HTTP/HTTPS,
+получает TLS certificate через Let's Encrypt и проксирует домен во `frontend`.
+Frontend отдает static console и проксирует `/api`, `/docs`, `/openapi.json` и
+`/ping` в `api-gateway`. Остальные сервисы считаются внутренними и доступны
+друг другу по gRPC внутри runtime-сети. События alert lifecycle доставляются
+асинхронно: `alert-service` пишет их в outbox и публикует в Kafka, а
+`notification-service` читает topic и отправляет уведомления.
 
 ## Сервисы
 
 | Service | Ответственность | Storage |
 | --- | --- | --- |
+| `frontend` | Static browser console, Nginx proxy для API paths | нет |
 | `api-gateway` | HTTP API, Swagger UI, OpenAPI, JSON/gRPC mapping | нет |
+| `auth-service` | регистрация, login, sessions/access tokens | `auth_service_db` |
 | `target-service` | target domain, CRUD, PATCH, validation | `target_service_db` |
 | `monitor-service` | check runner, scheduler, check history, target status | `monitor_service_db` |
 | `alert-service` | alert lifecycle, active/resolved alerts, Kafka outbox events | `alert_service_db` |
 | `notification-service` | Kafka consumer для alert events, email delivery sender | `notification_service_db` |
+
+### `frontend`
+
+Статический browser frontend. В Docker Compose работает как Nginx container:
+отдает `index.html`, `styles.css`, `app.js`, vendored `lucide` icons и
+проксирует API paths в `api-gateway`. За счет relative API paths frontend
+работает одинаково на `localhost:3000` и на домене через Caddy.
 
 ### `api-gateway`
 
 Единая публичная точка входа. Gateway принимает HTTP/JSON, вызывает внутренние
 gRPC-сервисы и возвращает клиенту нормальные HTTP-ответы. Он не подключается к
 PostgreSQL и не содержит доменных правил.
+
+### `auth-service`
+
+Владелец пользовательской идентичности. Сервис регистрирует пользователей,
+проверяет email/password и выпускает access token. `api-gateway` использует
+auth gRPC client и scope'ит target/notification операции по `user_id`.
 
 ### `target-service`
 
@@ -123,7 +154,9 @@ IAM-токен через metadata service привязанного service acco
 
 ```text
 services/
+  frontend/          static browser console, Nginx API proxy
   api-gateway/       public HTTP API, Swagger, OpenAPI, JSON mapping
+  auth-service/      auth domain, users, sessions, gRPC service
   target-service/    target domain, validation, storage, gRPC service
   monitor-service/   check domain, runner, scheduler, storage, gRPC service
   alert-service/     alert domain, lifecycle, storage, gRPC service
@@ -132,9 +165,12 @@ services/
 
 libs/
   netwatch-proto/    service-specific generated gRPC targets
+  auth-client/       typed gRPC client for auth-service
   target-client/     typed gRPC client for target-service
   monitor-client/    typed gRPC client for monitor-service
   alert-client/      typed gRPC client for alert-service
+  notification-client/
+                     typed gRPC client for notification-service
 
 proto/netwatch/      service contracts
 tests/integration/   end-to-end gateway flow
@@ -146,6 +182,7 @@ scripts/             local verification helpers
 
 У каждого сервиса отдельная PostgreSQL база:
 
+- `auth-service` владеет таблицами `auth_users` и `auth_sessions`;
 - `target-service` владеет таблицей `targets`;
 - `monitor-service` владеет таблицами `check_results` и `target_check_leases`;
 - `alert-service` владеет таблицами `alerts` и `alert_outbox_events`;
@@ -158,6 +195,7 @@ scripts/             local verification helpers
 
 Миграции применяются отдельными Compose jobs:
 
+- `auth-migrations`;
 - `target-migrations`;
 - `monitor-migrations`;
 - `alert-migrations`;
@@ -170,15 +208,19 @@ service-owned `postgresql/migrations` и фиксирует версии в `sch
 
 ## Внутренние gRPC contracts
 
+- `proto/netwatch/auth_service.proto` - `AuthService`;
 - `proto/netwatch/target_service.proto` - `TargetService`;
 - `proto/netwatch/monitor_service.proto` - `CheckService`;
 - `proto/netwatch/alert_service.proto` - `AlertService`.
+- `proto/netwatch/notification_service.proto` - `NotificationService`.
 
 Контракты версионируются через package names:
 
+- `netwatch.auth.v1`;
 - `netwatch.target.v1`;
 - `netwatch.monitor.v1`;
 - `netwatch.alert.v1`.
+- `netwatch.notification.v1`.
 
 `alert-service` принимает собственные snapshot messages, чтобы не зависеть от
 внутренних моделей target/check сервисов.
@@ -231,7 +273,9 @@ sequenceDiagram
 
 ## Public HTTP API
 
-Локально `api-gateway` доступен на `http://localhost:8081`.
+Локально `api-gateway` доступен на `http://localhost:8081`, а frontend на
+`http://localhost:3000`. На публичном стенде API доступен через тот же домен,
+что и frontend: `https://netwatch-arsen-demo.online`.
 
 Документация:
 
@@ -241,6 +285,9 @@ sequenceDiagram
 
 Основные endpoint'ы:
 
+- `POST /api/v1/auth/register`;
+- `POST /api/v1/auth/login`;
+- `GET /api/v1/auth/me`;
 - `POST /api/v1/targets`;
 - `GET /api/v1/targets`;
 - `GET /api/v1/targets/{id}`;
@@ -249,13 +296,21 @@ sequenceDiagram
 - `POST /api/v1/targets/{id}/check`;
 - `GET /api/v1/targets/{id}/checks`;
 - `GET /api/v1/targets/{id}/status`;
+- `GET /api/v1/targets/{id}/notifications`;
+- `PATCH /api/v1/targets/{id}/notifications`;
 - `GET /api/v1/alerts`;
-- `GET /api/v1/alerts/active`.
+- `GET /api/v1/alerts/active`;
+- `GET /api/v1/notifications/recipients`;
+- `POST /api/v1/notifications/recipients`;
+- `GET /api/v1/notifications/deliveries`;
+- `POST /api/v1/notifications/test-email`.
 
 ## Локальные адреса
 
 | Component | Address |
 | --- | --- |
+| Frontend console | `http://localhost:3000` |
+| Frontend via Caddy | `https://netwatch-arsen-demo.online` |
 | API Gateway | `http://localhost:8081` |
 | Swagger UI | `http://localhost:8081/docs` |
 | OpenAPI JSON | `http://localhost:8081/openapi.json` |
@@ -269,9 +324,11 @@ sequenceDiagram
 
 Внутренние gRPC endpoints внутри Docker Compose:
 
+- `auth-service:8094`;
 - `target-service:8090`;
 - `monitor-service:8091`;
-- `alert-service:8092`.
+- `alert-service:8092`;
+- `notification-service:8093`.
 
 ## Быстрый запуск
 
@@ -284,6 +341,71 @@ docker compose up --build
 ```text
 http://localhost:8081/docs
 ```
+
+Frontend console доступен отдельно:
+
+```text
+http://localhost:3000
+```
+
+Для production-like доменного запуска добавьте Caddy override:
+
+```bash
+docker compose -f docker-compose.images.yml -f docker-compose.domain.yml up -d --build
+```
+
+Тогда Caddy слушает `80/443`, выпускает Let's Encrypt certificate для
+`NETWATCH_SITE_ADDRESS` и проксирует домен во `frontend`.
+
+## Реальная email-отправка
+
+По умолчанию `notification-service` отправляет письма в Mailpit, чтобы локальные
+и тестовые запуски не слали письма наружу. Для реальной отправки через Yandex
+Cloud Postbox положите в `.env` рядом с compose-файлом:
+
+```dotenv
+NOTIFICATION_EMAIL_PROVIDER=yandex-postbox
+NOTIFICATION_EMAIL_PROVIDER_URL=https://postbox.cloud.yandex.net
+NOTIFICATION_EMAIL_FROM_EMAIL=alerts@netwatch-arsen-demo.online
+NOTIFICATION_EMAIL_FROM_NAME=NetWatch
+YANDEX_POSTBOX_IAM_TOKEN=
+NOTIFICATION_YANDEX_POSTBOX_METADATA_TOKEN_URL=http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token
+```
+
+`NOTIFICATION_EMAIL_FROM_EMAIL` должен быть подтвержденным отправителем в
+Postbox, а VM должна иметь service account с правом отправки писем. После
+изменения `.env` достаточно пересоздать notification-service:
+
+```bash
+docker compose -f docker-compose.images.yml up -d --build notification-service
+```
+
+## Готово Сейчас
+
+- Регистрация и login пользователей через `auth-service`.
+- User-scoped targets: пользователь видит и меняет только свои targets.
+- User-scoped email recipients и notification deliveries.
+- Per-target email notification settings.
+- Alert lifecycle: `alert.opened` / `alert.resolved` через Kafka.
+- Email delivery sender с retry/status tracking.
+- Dev email provider через Mailpit.
+- Real email provider через Yandex Cloud Postbox.
+- Static frontend service с Nginx API proxy.
+- Caddy domain entrypoint: `https://netwatch-arsen-demo.online`.
+- Production-like runtime images и compose stack.
+
+## Чеклист Улучшений
+
+- Добавить password reset / email verification для `auth-service`.
+- Добавить refresh token или session revoke endpoint.
+- Добавить frontend route/state для управления профилем пользователя.
+- Добавить loading/polling состояния для долгих notification deliveries.
+- Добавить pagination/search для targets, alerts и deliveries.
+- Закрыть прямые host ports сервисов на production и оставить публичными только `80/443`.
+- Добавить rate limiting на auth endpoints.
+- Добавить structured access logs для Caddy/frontend/api-gateway.
+- Добавить frontend smoke test в CI.
+- Добавить health/readiness endpoint, который проверяет зависимости глубже, чем `/ping`.
 
 ## Быстрая проверка
 
@@ -306,8 +428,14 @@ checks, собирает production-like Docker images и публикует и�
 
 Публикуемые images:
 
+- `ghcr.io/<owner>/<repo>/frontend:<sha|branch>`;
 - `ghcr.io/<owner>/<repo>/api-gateway:<sha|branch>`;
+- `ghcr.io/<owner>/<repo>/auth-service:<sha|branch>`;
 - `ghcr.io/<owner>/<repo>/target-service:<sha|branch>`;
 - `ghcr.io/<owner>/<repo>/monitor-service:<sha|branch>`;
 - `ghcr.io/<owner>/<repo>/alert-service:<sha|branch>`;
 - `ghcr.io/<owner>/<repo>/notification-service:<sha|branch>`.
+
+Production deploy ожидает на сервере `deploy/.env`, подтягивает images из GHCR
+и запускает `deploy/docker-compose.prod.yml`. Caddy в prod compose проксирует
+домен во `frontend`, а frontend уже проксирует API paths в `api-gateway`.

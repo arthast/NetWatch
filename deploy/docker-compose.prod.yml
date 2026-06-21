@@ -36,7 +36,7 @@ services:
       - netwatch-caddy-data:/data
       - netwatch-caddy-config:/config
     depends_on:
-      api-gateway:
+      frontend:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "caddy version >/dev/null"]
@@ -45,6 +45,24 @@ services:
       retries: 3
     networks:
       - edge
+
+  frontend:
+    image: ${NETWATCH_IMAGE_REGISTRY:-ghcr.io/arthast/netwatch}/frontend:${NETWATCH_IMAGE_TAG:-main}
+    pull_policy: always
+    restart: unless-stopped
+    init: true
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/"]
+      start_period: 10s
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    networks:
+      - edge
+      - internal
 
   target-postgres:
     image: postgres:16

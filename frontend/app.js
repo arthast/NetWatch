@@ -3,7 +3,7 @@ const DEFAULT_API_BASE = "";
 const state = {
   token: localStorage.getItem("netwatch.token") || "",
   session: JSON.parse(localStorage.getItem("netwatch.session") || "null"),
-  apiBase: localStorage.getItem("netwatch.apiBase") || DEFAULT_API_BASE,
+  apiBase: window.NETWATCH_API_BASE || DEFAULT_API_BASE,
   authMode: "login",
   view: "overview",
   targets: [],
@@ -48,6 +48,10 @@ function notify(title, message, type = "info") {
   state.noticeTimer = window.setTimeout(() => {
     node.className = "notice";
   }, 3600);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function escapeHtml(value) {
@@ -211,10 +215,6 @@ function authMarkup() {
           <div class="field">
             <label for="auth-password">Password</label>
             <input id="auth-password" name="password" type="password" autocomplete="${isLogin ? "current-password" : "new-password"}" minlength="8" required />
-          </div>
-          <div class="field">
-            <label for="api-base">API base</label>
-            <input id="api-base" name="apiBase" type="text" value="${escapeHtml(state.apiBase)}" placeholder="" />
           </div>
           <button class="button primary" type="submit">${icon(isLogin ? "log-in" : "user-plus", isLogin ? "Sign in" : "Create account")}</button>
         </form>
@@ -681,9 +681,6 @@ function bindEvents() {
 async function onAuthSubmit(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
-  const apiBase = String(form.get("apiBase") || "").trim().replace(/\/$/, "");
-  state.apiBase = apiBase;
-  localStorage.setItem("netwatch.apiBase", apiBase);
   const body = {
     email: String(form.get("email") || "").trim(),
     password: String(form.get("password") || ""),
@@ -831,8 +828,17 @@ async function onDeleteRecipient(id) {
 async function onTestEmail() {
   try {
     const result = await api("/api/v1/notifications/test-email", { method: "POST", body: {} });
-    notify("Test queued", `${result.deliveries_count} deliveries`);
+    const count = Number(result.deliveries_count || 0);
+    if (count === 0) {
+      notify("No deliveries queued", "Add and enable a recipient first", "error");
+    } else {
+      notify("Test queued", `${count} ${count === 1 ? "delivery" : "deliveries"}`);
+    }
     await refreshAll();
+    if (count > 0) {
+      await sleep(1200);
+      await refreshAll();
+    }
   } catch (error) {
     notify("Test failed", error.message, "error");
   }

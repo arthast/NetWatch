@@ -118,6 +118,7 @@ class NetWatchFrontendHandler(http.server.BaseHTTPRequestHandler):
 
 class ReusableThreadingTCPServer(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
+    daemon_threads = True
 
 
 def main():
