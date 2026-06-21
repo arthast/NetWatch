@@ -398,21 +398,55 @@ services:
     command:
       - bash
       - -lc
-      - >
-        cmake
-        -S .
-        -B build-compose-debug
-        -G Ninja
-        -DCMAKE_BUILD_TYPE=${NETWATCH_COMPOSE_BUILD_TYPE:-RelWithDebInfo}
-        -DUSERVER_FEATURE_GRPC=ON
-        -DUSERVER_FEATURE_KAFKA=ON
-        -DUSERVER_FEATURE_POSTGRESQL=ON
-        -DUSERVER_SANITIZE='${NETWATCH_COMPOSE_SANITIZE:-}'
-        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON &&
-        cmake --build build-compose-debug -j ${NETWATCH_COMPOSE_BUILD_JOBS:-1} --target notification_service &&
-        ./build-compose-debug/notification_service
-        --config configs/static_config.yaml
-        --config_vars configs/config_vars.compose.yaml
+      - |
+        set -euo pipefail
+        python3 - configs/config_vars.compose.yaml /tmp/netwatch-notification-config-vars.yaml <<'PY'
+        import os
+        import sys
+        from pathlib import Path
+
+        source = Path("/workspace/services/notification-service") / Path(sys.argv[1])
+        destination = Path(sys.argv[2])
+        env_replacements = {
+            "notification-email-provider": "NOTIFICATION_EMAIL_PROVIDER",
+            "notification-email-provider-url": "NOTIFICATION_EMAIL_PROVIDER_URL",
+            "notification-email-from-email": "NOTIFICATION_EMAIL_FROM_EMAIL",
+            "notification-email-from-name": "NOTIFICATION_EMAIL_FROM_NAME",
+            "notification-email-seed-recipient-email": "NOTIFICATION_EMAIL_SEED_RECIPIENT_EMAIL",
+            "notification-yandex-postbox-iam-token": "YANDEX_POSTBOX_IAM_TOKEN",
+            "notification-yandex-postbox-metadata-token-url": "NOTIFICATION_YANDEX_POSTBOX_METADATA_TOKEN_URL",
+        }
+        replacements = {
+            config_key: value
+            for config_key, env_key in env_replacements.items()
+            if (value := os.getenv(env_key))
+        }
+
+        def quote(value: str) -> str:
+            return "'" + value.replace("'", "''") + "'"
+
+        lines = []
+        for line in source.read_text(encoding="utf-8").splitlines():
+            key = line.split(":", 1)[0]
+            if key in replacements:
+                lines.append(f"{key}: {quote(replacements[key])}")
+                continue
+            lines.append(line)
+
+        destination.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        PY
+        cmake \
+          -S . \
+          -B build-compose-debug \
+          -G Ninja \
+          -DCMAKE_BUILD_TYPE=${NETWATCH_COMPOSE_BUILD_TYPE:-RelWithDebInfo} \
+          -DUSERVER_FEATURE_GRPC=ON \
+          -DUSERVER_FEATURE_KAFKA=ON \
+          -DUSERVER_FEATURE_POSTGRESQL=ON \
+          -DUSERVER_SANITIZE='${NETWATCH_COMPOSE_SANITIZE:-}' \
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        cmake --build build-compose-debug -j ${NETWATCH_COMPOSE_BUILD_JOBS:-1} --target notification_service
+        ./build-compose-debug/notification_service --config configs/static_config.yaml --config_vars /tmp/netwatch-notification-config-vars.yaml
 
   auth-service:
     image: ghcr.io/userver-framework/ubuntu-24.04-userver:latest
