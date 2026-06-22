@@ -1,5 +1,6 @@
 #include <notifications/handlers/notification_recipients_handler.hpp>
 
+#include <optional>
 #include <stdexcept>
 #include <userver/components/component_context.hpp>
 #include <userver/formats/json/exception.hpp>
@@ -73,13 +74,18 @@ std::string NotificationRecipientsHandler::HandleCreateRecipient(
                            userver::server::http::HttpStatus::kUnauthorized,
                            "Authorization bearer token is required");
     }
-
-    const auto request_json =
-        userver::formats::json::FromString(request.RequestBody());
-    const auto create_request = ParseCreateEmailRecipientRequest(request_json);
+    if (!session->user.email_verified) {
+      return ErrorResponse(request,
+                           userver::server::http::HttpStatus::kForbidden,
+                           "email must be verified before enabling alerts");
+    }
 
     const auto recipient = notifications_service_.CreateEmailRecipient(
-        session->user.id, create_request);
+        session->user.id,
+        netwatch::notification_client::CreateEmailRecipientRequest{
+            .user_id = std::nullopt,
+            .email = session->user.email,
+        });
     request.SetResponseStatus(userver::server::http::HttpStatus::kCreated);
     return JsonResponse(request, SerializeEmailRecipient(recipient));
   } catch (const userver::formats::json::Exception& ex) {

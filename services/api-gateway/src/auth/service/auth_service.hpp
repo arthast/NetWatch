@@ -21,6 +21,11 @@ class AuthService {
   std::optional<auth_client::ValidatedSession> ValidateToken(
       std::string_view access_token) const;
 
+  auth_client::ValidatedSession VerifyEmail(std::string_view token) const;
+
+  auth_client::ValidatedSession ResendVerificationEmail(
+      std::int64_t user_id) const;
+
  private:
   const auth_client::AuthClient& auth_client_;
 };

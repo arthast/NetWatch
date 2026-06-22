@@ -38,6 +38,8 @@ userver::formats::json::Value SerializeUser(const auth_client::User& user) {
   builder["email"] = user.email;
   builder["created_at"] = user.created_at;
   builder["updated_at"] = user.updated_at;
+  builder["email_verified"] = user.email_verified;
+  builder["email_verified_at"] = user.email_verified_at;
   return builder.ExtractValue();
 }
 

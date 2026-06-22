@@ -20,4 +20,14 @@ std::optional<auth_client::ValidatedSession> AuthService::ValidateToken(
   return auth_client_.ValidateToken(access_token);
 }
 
+auth_client::ValidatedSession AuthService::VerifyEmail(
+    std::string_view token) const {
+  return auth_client_.VerifyEmail(token);
+}
+
+auth_client::ValidatedSession AuthService::ResendVerificationEmail(
+    std::int64_t user_id) const {
+  return auth_client_.ResendVerificationEmail(user_id);
+}
+
 }  // namespace netwatch::api_gateway::auth

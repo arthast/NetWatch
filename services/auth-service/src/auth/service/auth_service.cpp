@@ -4,6 +4,7 @@
 #include <cctype>
 #include <stdexcept>
 #include <utility>
+#include <userver/logging/log.hpp>
 
 namespace netwatch::auth_service::auth {
 namespace {
@@ -55,8 +56,14 @@ InvalidCredentials::InvalidCredentials()
 
 InvalidToken::InvalidToken() : std::runtime_error{"access token is invalid"} {}
 
-AuthService::AuthService(AuthRepository repository)
-    : repository_(std::move(repository)) {}
+InvalidVerificationToken::InvalidVerificationToken()
+    : std::runtime_error{"email verification token is invalid or expired"} {}
+
+AuthService::AuthService(
+    AuthRepository repository,
+    const EmailVerificationSender& email_verification_sender)
+    : repository_(std::move(repository)),
+      email_verification_sender_(email_verification_sender) {}
 
 AuthResult AuthService::Register(const Credentials& credentials) const {
   ValidateCredentials(credentials);
@@ -65,7 +72,9 @@ AuthResult AuthService::Register(const Credentials& credentials) const {
     throw DuplicateEmail{};
   }
 
-  return repository_.IssueSession(repository_.CreateUser(credentials));
+  auto user = repository_.CreateUser(credentials);
+  SendVerificationEmail(user);
+  return repository_.IssueSession(user);
 }
 
 AuthResult AuthService::Login(const Credentials& credentials) const {
@@ -91,6 +100,55 @@ ValidatedSession AuthService::ValidateToken(
   }
 
   return *session;
+}
+
+ValidatedSession AuthService::VerifyEmail(std::string_view token) const {
+  if (token.empty() || token.size() > 512) {
+    throw InvalidVerificationToken{};
+  }
+
+  const auto user = repository_.VerifyEmail(token);
+  if (!user) {
+    throw InvalidVerificationToken{};
+  }
+
+  return ValidatedSession{
+      .user = *user,
+      .expires_at = {},
+  };
+}
+
+ValidatedSession AuthService::ResendVerificationEmail(
+    std::int64_t user_id) const {
+  if (user_id <= 0) {
+    throw std::invalid_argument{"user id must be a positive integer"};
+  }
+
+  const auto user = repository_.GetUserById(user_id);
+  if (!user) {
+    throw InvalidToken{};
+  }
+
+  if (!user->email_verified) {
+    SendVerificationEmail(*user);
+  }
+
+  return ValidatedSession{
+      .user = *user,
+      .expires_at = {},
+  };
+}
+
+void AuthService::SendVerificationEmail(const User& user) const {
+  try {
+    const auto verification = repository_.CreateEmailVerificationToken(user.id);
+    email_verification_sender_.SendVerificationEmail(user.email,
+                                                     verification.token);
+  } catch (const std::exception& ex) {
+    LOG_WARNING() << "Failed to send email verification message, user_id="
+                  << user.id << ", email=" << user.email
+                  << ", error=" << ex.what();
+  }
 }
 
 }  // namespace netwatch::auth_service::auth

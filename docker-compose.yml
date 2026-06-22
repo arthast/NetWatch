@@ -422,14 +422,16 @@ services:
             if (value := os.getenv(env_key))
         }
 
-        def quote(value: str) -> str:
+        def format_value(value: str) -> str:
+            if value.lower() in {"true", "false"}:
+                return value.lower()
             return "'" + value.replace("'", "''") + "'"
 
         lines = []
         for line in source.read_text(encoding="utf-8").splitlines():
             key = line.split(":", 1)[0]
             if key in replacements:
-                lines.append(f"{key}: {quote(replacements[key])}")
+                lines.append(f"{key}: {format_value(replacements[key])}")
                 continue
             lines.append(line)
 
@@ -455,12 +457,22 @@ services:
     environment:
       DB_CONNECTION: postgresql://auth_service:auth_service@auth-postgres:5432/auth_service_db
       USERVER_ENABLE_STACK_USAGE_MONITOR: "0"
+      AUTH_EMAIL_VERIFICATION_ENABLED: ${AUTH_EMAIL_VERIFICATION_ENABLED:-true}
+      AUTH_EMAIL_PROVIDER: ${AUTH_EMAIL_PROVIDER:-mailpit}
+      AUTH_EMAIL_PROVIDER_URL: ${AUTH_EMAIL_PROVIDER_URL:-http://mailpit:8025}
+      AUTH_EMAIL_FROM_EMAIL: ${AUTH_EMAIL_FROM_EMAIL:-alerts@netwatch-arsen-demo.online}
+      AUTH_EMAIL_FROM_NAME: ${AUTH_EMAIL_FROM_NAME:-NetWatch}
+      AUTH_EMAIL_FRONTEND_BASE_URL: ${AUTH_EMAIL_FRONTEND_BASE_URL:-http://127.0.0.1:5173}
+      AUTH_YANDEX_POSTBOX_METADATA_TOKEN_URL: ${AUTH_YANDEX_POSTBOX_METADATA_TOKEN_URL:-http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token}
+      YANDEX_POSTBOX_IAM_TOKEN: ${YANDEX_POSTBOX_IAM_TOKEN:-}
     volumes:
       - .:/workspace
       - netwatch-auth-ccache:/workspace/services/auth-service/.ccache
     depends_on:
       auth-migrations:
         condition: service_completed_successfully
+      mailpit:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
       start_period: ${NETWATCH_COMPOSE_HEALTH_START_PERIOD:-300s}
@@ -470,20 +482,57 @@ services:
     command:
       - bash
       - -lc
-      - >
-        cmake
-        -S .
-        -B build-compose-debug
-        -G Ninja
-        -DCMAKE_BUILD_TYPE=${NETWATCH_COMPOSE_BUILD_TYPE:-RelWithDebInfo}
-        -DUSERVER_FEATURE_GRPC=ON
-        -DUSERVER_FEATURE_POSTGRESQL=ON
-        -DUSERVER_SANITIZE='${NETWATCH_COMPOSE_SANITIZE:-}'
-        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON &&
-        cmake --build build-compose-debug -j ${NETWATCH_COMPOSE_BUILD_JOBS:-1} --target auth_service &&
-        ./build-compose-debug/auth_service
-        --config configs/static_config.yaml
-        --config_vars configs/config_vars.compose.yaml
+      - |
+        set -euo pipefail
+        python3 - configs/config_vars.compose.yaml /tmp/netwatch-auth-config-vars.yaml <<'PY'
+        import os
+        import sys
+        from pathlib import Path
+
+        source = Path("/workspace/services/auth-service") / Path(sys.argv[1])
+        destination = Path(sys.argv[2])
+        env_replacements = {
+            "auth-email-verification-enabled": "AUTH_EMAIL_VERIFICATION_ENABLED",
+            "auth-email-provider": "AUTH_EMAIL_PROVIDER",
+            "auth-email-provider-url": "AUTH_EMAIL_PROVIDER_URL",
+            "auth-email-from-email": "AUTH_EMAIL_FROM_EMAIL",
+            "auth-email-from-name": "AUTH_EMAIL_FROM_NAME",
+            "auth-email-frontend-base-url": "AUTH_EMAIL_FRONTEND_BASE_URL",
+            "auth-yandex-postbox-iam-token": "YANDEX_POSTBOX_IAM_TOKEN",
+            "auth-yandex-postbox-metadata-token-url": "AUTH_YANDEX_POSTBOX_METADATA_TOKEN_URL",
+        }
+        replacements = {
+            config_key: value
+            for config_key, env_key in env_replacements.items()
+            if (value := os.getenv(env_key))
+        }
+
+        def format_value(value: str) -> str:
+            if value.lower() in {"true", "false"}:
+                return value.lower()
+            return "'" + value.replace("'", "''") + "'"
+
+        lines = []
+        for line in source.read_text(encoding="utf-8").splitlines():
+            key = line.split(":", 1)[0]
+            if key in replacements:
+                lines.append(f"{key}: {format_value(replacements[key])}")
+                continue
+            lines.append(line)
+
+        destination.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        PY
+        cmake \
+          -S . \
+          -B build-compose-debug \
+          -G Ninja \
+          -DCMAKE_BUILD_TYPE=${NETWATCH_COMPOSE_BUILD_TYPE:-RelWithDebInfo} \
+          -DUSERVER_FEATURE_GRPC=ON \
+          -DUSERVER_FEATURE_POSTGRESQL=ON \
+          -DUSERVER_SANITIZE='${NETWATCH_COMPOSE_SANITIZE:-}' \
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        cmake --build build-compose-debug -j ${NETWATCH_COMPOSE_BUILD_JOBS:-1} --target auth_service
+        ./build-compose-debug/auth_service --config configs/static_config.yaml --config_vars /tmp/netwatch-auth-config-vars.yaml
 
   target-service:
     image: ghcr.io/userver-framework/ubuntu-24.04-userver:latest

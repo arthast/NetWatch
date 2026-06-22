@@ -33,14 +33,32 @@ if service == "notification_service":
         if value:
             replacements[config_key] = value
 
-def quote(value: str) -> str:
+if service == "auth_service":
+    env_replacements = {
+        "auth-email-verification-enabled": "AUTH_EMAIL_VERIFICATION_ENABLED",
+        "auth-email-provider": "AUTH_EMAIL_PROVIDER",
+        "auth-email-provider-url": "AUTH_EMAIL_PROVIDER_URL",
+        "auth-email-from-email": "AUTH_EMAIL_FROM_EMAIL",
+        "auth-email-from-name": "AUTH_EMAIL_FROM_NAME",
+        "auth-email-frontend-base-url": "AUTH_EMAIL_FRONTEND_BASE_URL",
+        "auth-yandex-postbox-iam-token": "YANDEX_POSTBOX_IAM_TOKEN",
+        "auth-yandex-postbox-metadata-token-url": "AUTH_YANDEX_POSTBOX_METADATA_TOKEN_URL",
+    }
+    for config_key, env_key in env_replacements.items():
+        value = os.getenv(env_key)
+        if value:
+            replacements[config_key] = value
+
+def format_value(value: str) -> str:
+    if value.lower() in {"true", "false"}:
+        return value.lower()
     return "'" + value.replace("'", "''") + "'"
 
 lines = []
 for line in Path(source).read_text(encoding="utf-8").splitlines():
     key = line.split(":", 1)[0]
     if key in replacements:
-        lines.append(f"{key}: {quote(replacements[key])}")
+        lines.append(f"{key}: {format_value(replacements[key])}")
         continue
     lines.append(line)
 

@@ -7,6 +7,8 @@ message User {
   string email = 2;
   string created_at = 3;
   string updated_at = 4;
+  bool email_verified = 5;
+  string email_verified_at = 6;
 }
 
 message RegisterRequest {
@@ -21,6 +23,14 @@ message LoginRequest {
 
 message ValidateTokenRequest {
   string access_token = 1;
+}
+
+message VerifyEmailRequest {
+  string token = 1;
+}
+
+message ResendVerificationEmailRequest {
+  int64 user_id = 1;
 }
 
 message AuthResponse {
@@ -38,4 +48,6 @@ service AuthService {
   rpc Register(RegisterRequest) returns (AuthResponse) {}
   rpc Login(LoginRequest) returns (AuthResponse) {}
   rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse) {}
+  rpc VerifyEmail(VerifyEmailRequest) returns (ValidateTokenResponse) {}
+  rpc ResendVerificationEmail(ResendVerificationEmailRequest) returns (ValidateTokenResponse) {}
 }

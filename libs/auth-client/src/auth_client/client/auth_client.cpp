@@ -18,6 +18,8 @@ User ToDomainUser(const proto::User& user) {
       .email = user.email(),
       .created_at = user.created_at(),
       .updated_at = user.updated_at(),
+      .email_verified = user.email_verified(),
+      .email_verified_at = user.email_verified_at(),
   };
 }
 
@@ -54,6 +56,19 @@ proto::ValidateTokenRequest MakeValidateTokenRequest(
     std::string_view access_token) {
   proto::ValidateTokenRequest request;
   request.set_access_token(std::string{access_token});
+  return request;
+}
+
+proto::VerifyEmailRequest MakeVerifyEmailRequest(std::string_view token) {
+  proto::VerifyEmailRequest request;
+  request.set_token(std::string{token});
+  return request;
+}
+
+proto::ResendVerificationEmailRequest MakeResendVerificationEmailRequest(
+    std::int64_t user_id) {
+  proto::ResendVerificationEmailRequest request;
+  request.set_user_id(user_id);
   return request;
 }
 
@@ -101,6 +116,26 @@ std::optional<ValidatedSession> AuthClient::ValidateToken(
         client_common::MakeGrpcCallOptions()));
   } catch (const userver::ugrpc::client::UnauthenticatedError&) {
     return std::nullopt;
+  }
+}
+
+ValidatedSession AuthClient::VerifyEmail(std::string_view token) const {
+  try {
+    return ToDomainSession(grpc_client_->VerifyEmail(
+        MakeVerifyEmailRequest(token), client_common::MakeGrpcCallOptions()));
+  } catch (const userver::ugrpc::client::InvalidArgumentError& ex) {
+    throw ToInvalidArgument(ex);
+  }
+}
+
+ValidatedSession AuthClient::ResendVerificationEmail(
+    std::int64_t user_id) const {
+  try {
+    return ToDomainSession(grpc_client_->ResendVerificationEmail(
+        MakeResendVerificationEmailRequest(user_id),
+        client_common::MakeGrpcCallOptions()));
+  } catch (const userver::ugrpc::client::InvalidArgumentError& ex) {
+    throw ToInvalidArgument(ex);
   }
 }
 

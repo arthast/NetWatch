@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import re
 import subprocess
 import sys
 import time
@@ -11,6 +12,8 @@ from typing import Any
 
 
 DEFAULT_BASE_URL = "http://localhost:8081"
+MAILPIT_BASE_URL = "http://localhost:8025"
+VERIFICATION_TOKEN_RE = re.compile(r"verify-email\?token=([0-9a-fA-F]{64})")
 
 
 @dataclass(frozen=True)
@@ -112,6 +115,11 @@ def request(
         )
 
 
+def get_json(url: str) -> Any:
+    with urllib.request.urlopen(url, timeout=10) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
 def wait_for_gateway(base_url: str, timeout_seconds: int) -> None:
     deadline = time.monotonic() + timeout_seconds
     last_error: Exception | None = None
@@ -138,7 +146,46 @@ def assert_status(response: HttpResponse, expected: int) -> None:
         )
 
 
-def test_auth_flow(base_url: str) -> dict[str, str]:
+def wait_for_verification_token(email: str, timeout_seconds: int = 30) -> str:
+    deadline = time.monotonic() + timeout_seconds
+    last_payload: Any = None
+
+    while time.monotonic() < deadline:
+        payload = get_json(f"{MAILPIT_BASE_URL}/api/v1/messages")
+        last_payload = payload
+        messages = payload.get("messages", [])
+        for message in messages:
+            subject = message.get("Subject") or message.get("subject") or ""
+            if "Verify your email" not in subject:
+                continue
+
+            raw_to = message.get("To") or message.get("to") or []
+            to_text = json.dumps(raw_to)
+            if email not in to_text:
+                continue
+
+            message_text = json.dumps(message)
+            match = VERIFICATION_TOKEN_RE.search(message_text)
+            if match:
+                return match.group(1)
+
+            message_id = message.get("ID") or message.get("id")
+            if not message_id:
+                continue
+            detail = get_json(f"{MAILPIT_BASE_URL}/api/v1/message/{message_id}")
+            detail_text = json.dumps(detail)
+            match = VERIFICATION_TOKEN_RE.search(detail_text)
+            if match:
+                return match.group(1)
+        time.sleep(1)
+
+    raise RuntimeError(
+        "verification email did not appear in Mailpit. "
+        f"Last messages payload:\n{json.dumps(last_payload, indent=2)}"
+    )
+
+
+def test_auth_flow(base_url: str) -> tuple[dict[str, str], str]:
     suffix = int(time.time() * 1000)
     credentials = {
         "email": f"integration-{suffix}@example.test",
@@ -163,6 +210,7 @@ def test_auth_flow(base_url: str) -> dict[str, str]:
     auth = register.json()
     assert auth["user"]["id"] > 0
     assert auth["user"]["email"] == credentials["email"]
+    assert auth["user"]["email_verified"] is False
     assert len(auth["access_token"]) >= 32
     assert auth["expires_at"]
 
@@ -206,7 +254,38 @@ def test_auth_flow(base_url: str) -> dict[str, str]:
     session = me.json()
     assert session["user"] == auth["user"]
     assert session["expires_at"] == login_body["expires_at"]
-    return {"Authorization": f"Bearer {login_body['access_token']}"}
+
+    unverified_recipient = request(
+        "POST",
+        "/api/v1/notifications/recipients",
+        base_url=base_url,
+        headers={"Authorization": f"Bearer {login_body['access_token']}"},
+        payload={"email": credentials["email"]},
+    )
+    assert_status(unverified_recipient, 403)
+
+    token = wait_for_verification_token(credentials["email"])
+    verify = request(
+        "POST",
+        "/api/v1/auth/verify-email",
+        base_url=base_url,
+        payload={"token": token},
+    )
+    assert_status(verify, 200)
+    verified_session = verify.json()
+    assert verified_session["user"]["email"] == credentials["email"]
+    assert verified_session["user"]["email_verified"] is True
+
+    me_after_verify = request(
+        "GET",
+        "/api/v1/auth/me",
+        base_url=base_url,
+        headers={"Authorization": f"Bearer {login_body['access_token']}"},
+    )
+    assert_status(me_after_verify, 200)
+    assert me_after_verify.json()["user"]["email_verified"] is True
+
+    return {"Authorization": f"Bearer {login_body['access_token']}"}, credentials["email"]
 
 
 def test_target_crud(base_url: str, auth_headers: dict[str, str]) -> int:
@@ -408,7 +487,7 @@ def test_checks(
 
 
 def test_notification_recipient(
-    base_url: str, auth_headers: dict[str, str]
+    base_url: str, auth_headers: dict[str, str], auth_email: str
 ) -> int:
     anonymous_list = request(
         "GET",
@@ -417,18 +496,27 @@ def test_notification_recipient(
     )
     assert_status(anonymous_list, 401)
 
-    suffix = int(time.time() * 1000)
     create = request(
         "POST",
         "/api/v1/notifications/recipients",
         base_url=base_url,
         headers=auth_headers,
-        payload={"email": f"alerts-{suffix}@example.test"},
+        payload={"email": "attacker@example.test"},
     )
     assert_status(create, 201)
     recipient = create.json()
     assert recipient["id"] > 0
+    assert recipient["email"] == auth_email
     assert recipient["is_enabled"] is True
+
+    update_email = request(
+        "PATCH",
+        f"/api/v1/notifications/recipients/{recipient['id']}",
+        base_url=base_url,
+        headers=auth_headers,
+        payload={"email": "attacker@example.test"},
+    )
+    assert_status(update_email, 400)
 
     list_response = request(
         "GET",
@@ -549,15 +637,17 @@ def run_flow(base_url: str) -> None:
     assert "/api/v1/auth/register" in spec["paths"]
     assert "/api/v1/auth/login" in spec["paths"]
     assert "/api/v1/auth/me" in spec["paths"]
+    assert "/api/v1/auth/verify-email" in spec["paths"]
+    assert "/api/v1/auth/resend-verification-email" in spec["paths"]
     assert "/api/v1/targets" in spec["paths"]
     assert "/api/v1/targets/{id}/notifications" in spec["paths"]
     assert "/api/v1/alerts/active" in spec["paths"]
 
-    auth_headers = test_auth_flow(base_url)
+    auth_headers, auth_email = test_auth_flow(base_url)
     target_id = test_target_crud(base_url, auth_headers)
     test_target_crud_edges(base_url, auth_headers)
     test_checks(base_url, target_id, auth_headers)
-    test_notification_recipient(base_url, auth_headers)
+    test_notification_recipient(base_url, auth_headers, auth_email)
     test_alert_lifecycle(base_url, auth_headers)
 
 
