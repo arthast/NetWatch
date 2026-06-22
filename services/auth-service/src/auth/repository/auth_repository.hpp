@@ -8,9 +8,16 @@
 
 namespace netwatch::auth_service::auth {
 
+struct EmailVerificationToken {
+  std::string token;
+  std::string expires_at;
+};
+
 class AuthRepository {
  public:
   explicit AuthRepository(userver::storages::postgres::ClusterPtr pg_cluster);
+
+  std::optional<User> GetUserById(std::int64_t user_id) const;
 
   std::optional<User> GetUserByEmail(std::string_view email) const;
 
@@ -22,6 +29,11 @@ class AuthRepository {
 
   std::optional<ValidatedSession> ValidateToken(
       std::string_view access_token) const;
+
+  EmailVerificationToken CreateEmailVerificationToken(
+      std::int64_t user_id) const;
+
+  std::optional<User> VerifyEmail(std::string_view token) const;
 
  private:
   userver::storages::postgres::ClusterPtr pg_cluster_;

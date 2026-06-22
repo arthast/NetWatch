@@ -113,6 +113,16 @@ components_manager:
             method: GET
             task_processor: main-task-processor
 
+        handler-auth-verify-email:
+            path: /api/v1/auth/verify-email
+            method: POST
+            task_processor: main-task-processor
+
+        handler-auth-resend-verification-email:
+            path: /api/v1/auth/resend-verification-email
+            method: POST
+            task_processor: main-task-processor
+
         handler-targets:
             path: /api/v1/targets
             method: GET,POST

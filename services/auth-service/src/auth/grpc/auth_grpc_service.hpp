@@ -25,6 +25,14 @@ class AuthGrpcService final : public netwatch::auth::v1::AuthServiceBase::Compon
       CallContext& context,
       netwatch::auth::v1::ValidateTokenRequest&& request) override;
 
+  VerifyEmailResult VerifyEmail(
+      CallContext& context,
+      netwatch::auth::v1::VerifyEmailRequest&& request) override;
+
+  ResendVerificationEmailResult ResendVerificationEmail(
+      CallContext& context,
+      netwatch::auth::v1::ResendVerificationEmailRequest&& request) override;
+
  private:
   AuthService auth_service_;
 };

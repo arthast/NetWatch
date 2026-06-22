@@ -82,6 +82,8 @@ assert "/api/v1/targets" in spec["paths"]
 assert "/api/v1/auth/register" in spec["paths"]
 assert "/api/v1/auth/login" in spec["paths"]
 assert "/api/v1/auth/me" in spec["paths"]
+assert "/api/v1/auth/verify-email" in spec["paths"]
+assert "/api/v1/auth/resend-verification-email" in spec["paths"]
 assert "/api/v1/alerts/active" in spec["paths"]
 assert "/api/v1/notifications/recipients" in spec["paths"]
 assert "/api/v1/notifications/deliveries" in spec["paths"]
@@ -102,31 +104,14 @@ AUTH_HEADER="Authorization: Bearer ${ACCESS_TOKEN}"
 
 step "Checking authenticated user"
 request GET /api/v1/auth/me 200
-
-RECIPIENT_EMAIL="smoke-$(date +%s)-$$@example.test"
-
-step "Creating notification recipient"
-request POST /api/v1/notifications/recipients 201 "{\"email\":\"${RECIPIENT_EMAIL}\"}"
-RECIPIENT_ID="$(json_value 'data["id"]')"
-
-step "Checking notification recipient ${RECIPIENT_ID}"
-request GET "/api/v1/notifications/recipients/${RECIPIENT_ID}" 200
-SAVED_RECIPIENT_EMAIL="$(json_value 'data["email"]')"
-if [[ "$SAVED_RECIPIENT_EMAIL" != "$RECIPIENT_EMAIL" ]]; then
-  echo "Expected recipient email $RECIPIENT_EMAIL, got: $SAVED_RECIPIENT_EMAIL" >&2
+AUTH_EMAIL_VERIFIED="$(json_value 'data["user"]["email_verified"]')"
+if [[ "$AUTH_EMAIL_VERIFIED" != "False" ]]; then
+  echo "Expected smoke user email to be unverified before email confirmation, got: $AUTH_EMAIL_VERIFIED" >&2
   exit 1
 fi
 
-step "Disabling notification recipient ${RECIPIENT_ID}"
-request PATCH "/api/v1/notifications/recipients/${RECIPIENT_ID}" 200 '{"is_enabled":false}'
-RECIPIENT_ENABLED="$(json_value 'data["is_enabled"]')"
-if [[ "$RECIPIENT_ENABLED" != "False" ]]; then
-  echo "Expected recipient to be disabled, got: $RECIPIENT_ENABLED" >&2
-  exit 1
-fi
-
-step "Deleting notification recipient ${RECIPIENT_ID}"
-request DELETE "/api/v1/notifications/recipients/${RECIPIENT_ID}" 204
+step "Checking unverified email cannot enable notifications"
+request POST /api/v1/notifications/recipients 403 '{"email":"attacker@example.test"}'
 
 step "Checking notification deliveries endpoint"
 request GET /api/v1/notifications/deliveries?limit=10 200
@@ -153,8 +138,8 @@ assert isinstance(deliveries, list)
 assert all(item["status"] == "sent" for item in deliveries)
 PY
 
-step "Checking test email validation"
-request POST /api/v1/notifications/test-email 400 '{"email":"not-an-email"}'
+step "Checking unverified email cannot send test email"
+request POST /api/v1/notifications/test-email 403 '{"email":"not-an-email"}'
 
 step "Creating HTTP target"
 request POST /api/v1/targets 201 '{

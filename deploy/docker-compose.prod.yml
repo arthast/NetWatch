@@ -331,14 +331,16 @@ services:
             "pg-connection": connection,
         }
 
-        def quote(value: str) -> str:
+        def format_value(value: str) -> str:
+            if value.lower() in {"true", "false"}:
+                return value.lower()
             return "'" + value.replace("'", "''") + "'"
 
         lines = []
         for line in Path(source).read_text(encoding="utf-8").splitlines():
             key = line.split(":", 1)[0]
             if key in replacements:
-                lines.append(f"{key}: {quote(replacements[key])}")
+                lines.append(f"{key}: {format_value(replacements[key])}")
                 continue
             lines.append(line)
         Path(destination).write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -432,17 +434,20 @@ services:
             "notification-email-from-email": os.getenv("NOTIFICATION_EMAIL_FROM_EMAIL", ""),
             "notification-email-from-name": os.getenv("NOTIFICATION_EMAIL_FROM_NAME", ""),
             "notification-email-seed-recipient-email": os.getenv("NOTIFICATION_EMAIL_SEED_RECIPIENT_EMAIL", ""),
+            "notification-yandex-postbox-iam-token": os.getenv("YANDEX_POSTBOX_IAM_TOKEN", ""),
             "notification-yandex-postbox-metadata-token-url": os.getenv("NOTIFICATION_YANDEX_POSTBOX_METADATA_TOKEN_URL", ""),
         }
 
-        def quote(value: str) -> str:
+        def format_value(value: str) -> str:
+            if value.lower() in {"true", "false"}:
+                return value.lower()
             return "'" + value.replace("'", "''") + "'"
 
         lines = []
         for line in Path(source).read_text(encoding="utf-8").splitlines():
             key = line.split(":", 1)[0]
             if key in replacements and replacements[key] != "":
-                lines.append(f"{key}: {quote(replacements[key])}")
+                lines.append(f"{key}: {format_value(replacements[key])}")
                 continue
             lines.append(line)
         Path(destination).write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -458,6 +463,14 @@ services:
     environment:
       USERVER_ENABLE_STACK_USAGE_MONITOR: "0"
       DB_CONNECTION: postgresql://${AUTH_POSTGRES_USER:-auth_service}:${AUTH_POSTGRES_PASSWORD:?set AUTH_POSTGRES_PASSWORD}@auth-postgres:5432/${AUTH_POSTGRES_DB:-auth_service_db}
+      AUTH_EMAIL_VERIFICATION_ENABLED: ${AUTH_EMAIL_VERIFICATION_ENABLED:-true}
+      AUTH_EMAIL_PROVIDER: ${AUTH_EMAIL_PROVIDER:-yandex-postbox}
+      AUTH_EMAIL_PROVIDER_URL: ${AUTH_EMAIL_PROVIDER_URL:-https://postbox.cloud.yandex.net}
+      AUTH_EMAIL_FROM_EMAIL: ${AUTH_EMAIL_FROM_EMAIL:-alerts@netwatch-arsen-demo.online}
+      AUTH_EMAIL_FROM_NAME: ${AUTH_EMAIL_FROM_NAME:-NetWatch}
+      AUTH_EMAIL_FRONTEND_BASE_URL: ${AUTH_EMAIL_FRONTEND_BASE_URL:-https://netwatch-arsen-demo.online}
+      AUTH_YANDEX_POSTBOX_METADATA_TOKEN_URL: ${AUTH_YANDEX_POSTBOX_METADATA_TOKEN_URL:-http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token}
+      YANDEX_POSTBOX_IAM_TOKEN: ${YANDEX_POSTBOX_IAM_TOKEN:-}
     depends_on:
       auth-migrations:
         condition: service_completed_successfully
@@ -468,17 +481,35 @@ services:
       - |
         set -euo pipefail
         python3 - "$$DB_CONNECTION" /opt/netwatch/etc/auth_service/config_vars.compose.yaml /tmp/config_vars.yaml <<'PY'
+        import os
         import sys
         from pathlib import Path
 
         connection, source, destination = sys.argv[1:]
-        quoted = "'" + connection.replace("'", "''") + "'"
+        replacements = {
+            "pg-connection": connection,
+            "auth-email-verification-enabled": os.getenv("AUTH_EMAIL_VERIFICATION_ENABLED", ""),
+            "auth-email-provider": os.getenv("AUTH_EMAIL_PROVIDER", ""),
+            "auth-email-provider-url": os.getenv("AUTH_EMAIL_PROVIDER_URL", ""),
+            "auth-email-from-email": os.getenv("AUTH_EMAIL_FROM_EMAIL", ""),
+            "auth-email-from-name": os.getenv("AUTH_EMAIL_FROM_NAME", ""),
+            "auth-email-frontend-base-url": os.getenv("AUTH_EMAIL_FRONTEND_BASE_URL", ""),
+            "auth-yandex-postbox-iam-token": os.getenv("YANDEX_POSTBOX_IAM_TOKEN", ""),
+            "auth-yandex-postbox-metadata-token-url": os.getenv("AUTH_YANDEX_POSTBOX_METADATA_TOKEN_URL", ""),
+        }
+
+        def format_value(value: str) -> str:
+            if value.lower() in {"true", "false"}:
+                return value.lower()
+            return "'" + value.replace("'", "''") + "'"
+
         lines = []
         for line in Path(source).read_text(encoding="utf-8").splitlines():
-            if line.startswith("pg-connection:"):
-                lines.append(f"pg-connection: {quoted}")
-            else:
-                lines.append(line)
+            key = line.split(":", 1)[0]
+            if key in replacements and replacements[key] != "":
+                lines.append(f"{key}: {format_value(replacements[key])}")
+                continue
+            lines.append(line)
         Path(destination).write_text("\n".join(lines) + "\n", encoding="utf-8")
         PY
         exec /opt/netwatch/bin/auth_service \

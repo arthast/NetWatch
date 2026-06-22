@@ -54,6 +54,8 @@ add_library(
     src/auth/handlers/auth_login_handler.cpp
     src/auth/handlers/auth_me_handler.cpp
     src/auth/handlers/auth_register_handler.cpp
+    src/auth/handlers/auth_resend_verification_email_handler.cpp
+    src/auth/handlers/auth_verify_email_handler.cpp
     src/auth/json/auth_json.cpp
     src/auth/service/auth_service.cpp
     src/auth/service/auth_service_component.cpp

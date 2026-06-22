@@ -1,5 +1,6 @@
 #include <auth/grpc/auth_grpc_service.hpp>
 
+#include <auth/email/email_verification_sender.hpp>
 #include <grpcpp/support/status.h>
 #include <stdexcept>
 #include <userver/components/component_context.hpp>
@@ -34,6 +35,8 @@ void FillProtoUser(const User& source, proto::User& target) {
   target.set_email(source.email);
   target.set_created_at(source.created_at);
   target.set_updated_at(source.updated_at);
+  target.set_email_verified(source.email_verified);
+  target.set_email_verified_at(source.email_verified_at);
 }
 
 proto::AuthResponse MakeAuthResponse(const AuthResult& result) {
@@ -60,7 +63,8 @@ AuthGrpcService::AuthGrpcService(
     : proto::AuthServiceBase::Component(config, context),
       auth_service_(AuthRepository{
           context.FindComponent<userver::components::Postgres>("postgres-db-1")
-              .GetCluster()}) {}
+              .GetCluster()},
+                    context.FindComponent<EmailVerificationSender>()) {}
 
 AuthGrpcService::RegisterResult AuthGrpcService::Register(
     CallContext&, proto::RegisterRequest&& request) {
@@ -93,6 +97,28 @@ AuthGrpcService::ValidateTokenResult AuthGrpcService::ValidateToken(
         auth_service_.ValidateToken(request.access_token()));
   } catch (const InvalidToken& ex) {
     return Unauthenticated(ex.what());
+  }
+}
+
+AuthGrpcService::VerifyEmailResult AuthGrpcService::VerifyEmail(
+    CallContext&, proto::VerifyEmailRequest&& request) {
+  try {
+    return MakeValidateTokenResponse(auth_service_.VerifyEmail(request.token()));
+  } catch (const InvalidVerificationToken& ex) {
+    return InvalidArgument(ex.what());
+  }
+}
+
+AuthGrpcService::ResendVerificationEmailResult
+AuthGrpcService::ResendVerificationEmail(
+    CallContext&, proto::ResendVerificationEmailRequest&& request) {
+  try {
+    return MakeValidateTokenResponse(
+        auth_service_.ResendVerificationEmail(request.user_id()));
+  } catch (const InvalidToken& ex) {
+    return Unauthenticated(ex.what());
+  } catch (const std::invalid_argument& ex) {
+    return InvalidArgument(ex.what());
   }
 }
 

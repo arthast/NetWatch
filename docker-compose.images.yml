@@ -366,9 +366,19 @@ services:
     environment:
       DB_CONNECTION: postgresql://auth_service:auth_service@auth-postgres:5432/auth_service_db
       USERVER_ENABLE_STACK_USAGE_MONITOR: "0"
+      AUTH_EMAIL_VERIFICATION_ENABLED: ${AUTH_EMAIL_VERIFICATION_ENABLED:-true}
+      AUTH_EMAIL_PROVIDER: ${AUTH_EMAIL_PROVIDER:-mailpit}
+      AUTH_EMAIL_PROVIDER_URL: ${AUTH_EMAIL_PROVIDER_URL:-http://mailpit:8025}
+      AUTH_EMAIL_FROM_EMAIL: ${AUTH_EMAIL_FROM_EMAIL:-alerts@netwatch-arsen-demo.online}
+      AUTH_EMAIL_FROM_NAME: ${AUTH_EMAIL_FROM_NAME:-NetWatch}
+      AUTH_EMAIL_FRONTEND_BASE_URL: ${AUTH_EMAIL_FRONTEND_BASE_URL:-http://localhost:8081}
+      AUTH_YANDEX_POSTBOX_METADATA_TOKEN_URL: ${AUTH_YANDEX_POSTBOX_METADATA_TOKEN_URL:-http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token}
+      YANDEX_POSTBOX_IAM_TOKEN: ${YANDEX_POSTBOX_IAM_TOKEN:-}
     depends_on:
       auth-migrations:
         condition: service_completed_successfully
+      mailpit:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/ping >/dev/null"]
       start_period: 30s

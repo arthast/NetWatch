@@ -137,6 +137,69 @@ constexpr std::string_view kOpenApiSpec = R"json({
         }
       }
     },
+    "/api/v1/auth/verify-email": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Verify user email by token",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/VerifyEmailRequest" },
+              "example": {
+                "token": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Email verified",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ValidatedSession" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or expired verification token",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/resend-verification-email": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Send another verification email to current user",
+        "security": [
+          { "BearerAuth": [] }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verification email sent or account already verified",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ValidatedSession" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid bearer token",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/targets": {
       "get": {
         "tags": ["targets"],
@@ -456,24 +519,13 @@ constexpr std::string_view kOpenApiSpec = R"json({
       },
       "post": {
         "tags": ["notifications"],
-        "summary": "Create or re-enable email notification recipient",
+        "summary": "Enable email notifications for current account email",
         "security": [
           { "BearerAuth": [] }
         ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": { "$ref": "#/components/schemas/CreateEmailRecipientRequest" },
-              "example": {
-                "email": "alerts@example.com"
-              }
-            }
-          }
-        },
         "responses": {
           "201": {
-            "description": "Created or re-enabled recipient",
+            "description": "Created or re-enabled recipient for the authenticated user's email",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/EmailRecipient" }
@@ -863,12 +915,21 @@ constexpr std::string_view kOpenApiSpec = R"json({
       },
       "AuthUser": {
         "type": "object",
-        "required": ["id", "email", "created_at", "updated_at"],
+        "required": ["id", "email", "created_at", "updated_at", "email_verified"],
         "properties": {
           "id": { "type": "integer", "format": "int64" },
           "email": { "type": "string", "format": "email" },
           "created_at": { "type": "string", "format": "date-time" },
-          "updated_at": { "type": "string", "format": "date-time" }
+          "updated_at": { "type": "string", "format": "date-time" },
+          "email_verified": { "type": "boolean" },
+          "email_verified_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "VerifyEmailRequest": {
+        "type": "object",
+        "required": ["token"],
+        "properties": {
+          "token": { "type": "string", "minLength": 1 }
         }
       },
       "AuthResponse": {
@@ -977,17 +1038,9 @@ constexpr std::string_view kOpenApiSpec = R"json({
           "resolved_at": { "type": "string", "format": "date-time" }
         }
       },
-      "CreateEmailRecipientRequest": {
-        "type": "object",
-        "required": ["email"],
-        "properties": {
-          "email": { "type": "string", "format": "email" }
-        }
-      },
       "UpdateEmailRecipientRequest": {
         "type": "object",
         "properties": {
-          "email": { "type": "string", "format": "email" },
           "is_enabled": { "type": "boolean" }
         }
       },

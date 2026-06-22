@@ -12,10 +12,16 @@ const state = {
   activeAlerts: [],
   recipients: [],
   deliveries: [],
+  deliveryFilter: "all",
   selectedTargetId: null,
   selectedTargetDetails: null,
   selectedTargetChecks: [],
   selectedTargetNotifications: null,
+  emailVerification: {
+    token: new URLSearchParams(window.location.search).get("token") || "",
+    status: "",
+    message: "",
+  },
   loading: false,
   noticeTimer: null,
 };
@@ -88,6 +94,64 @@ function activeAlertFor(targetId) {
   return state.activeAlerts.find((alert) => Number(alert.target_id) === Number(targetId));
 }
 
+function targetById(targetId) {
+  return state.targets.find((target) => Number(target.id) === Number(targetId));
+}
+
+function targetStatus(target, checks = []) {
+  const status = statusFor(target.id);
+  const alert = activeAlertFor(target.id);
+  const latestCheck = checks[0];
+  const currentStatus = status?.status || latestCheck?.status;
+  if (alert) return { text: "alert", tone: "critical", icon: "siren" };
+  if (currentStatus === "up") return { text: "up", tone: "ok", icon: "circle-check" };
+  if (currentStatus === "down") return { text: "down", tone: "down", icon: "circle-x" };
+  return { text: "unknown", tone: "", icon: "circle-help" };
+}
+
+function deliveryTone(status) {
+  if (status === "sent") return "sent";
+  if (status === "failed") return "down";
+  if (status === "retry_scheduled" || status === "sending" || status === "pending") return "pending";
+  return "";
+}
+
+function targetName(targetId) {
+  const target = targetById(targetId);
+  return target ? target.name : `Target #${targetId}`;
+}
+
+function filteredDeliveries() {
+  if (state.deliveryFilter === "all") return state.deliveries;
+  return state.deliveries.filter((delivery) => delivery.status === state.deliveryFilter);
+}
+
+function countDeliveries(statuses) {
+  return state.deliveries.filter((delivery) => statuses.includes(delivery.status)).length;
+}
+
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+function accountEmail() {
+  return state.session?.user?.email || "";
+}
+
+function emailVerified() {
+  return state.session?.user?.email_verified !== false;
+}
+
+function accountRecipient() {
+  const email = normalizeEmail(accountEmail());
+  return state.recipients.find((recipient) => normalizeEmail(recipient.email) === email);
+}
+
+function legacyRecipients() {
+  const email = normalizeEmail(accountEmail());
+  return state.recipients.filter((recipient) => normalizeEmail(recipient.email) !== email);
+}
+
 async function api(path, options = {}) {
   const headers = new Headers(options.headers || {});
   if (options.body !== undefined && !headers.has("Content-Type")) {
@@ -128,6 +192,13 @@ function clearAuth() {
 }
 
 async function boot() {
+  if (state.emailVerification.token) {
+    state.emailVerification.status = "verifying";
+    render();
+    await verifyEmailFromLink();
+    return;
+  }
+
   render();
   if (state.token) {
     try {
@@ -182,13 +253,25 @@ async function loadStatuses() {
 }
 
 function render() {
-  if (!state.token || !state.session) {
+  if (state.emailVerification.status) {
+    app.innerHTML = verifyEmailMarkup();
+  } else if (!state.token || !state.session) {
     app.innerHTML = authMarkup();
   } else {
     app.innerHTML = shellMarkup();
   }
   bindEvents();
   renderIcons();
+}
+
+function currentViewMeta() {
+  if (state.view === "target-details") {
+    return {
+      label: state.selectedTargetDetails?.name || "Target details",
+      icon: "panel-right-open",
+    };
+  }
+  return views.find((view) => view.id === state.view) || views[0];
 }
 
 function authMarkup() {
@@ -224,8 +307,33 @@ function authMarkup() {
   `;
 }
 
+function verifyEmailMarkup() {
+  const status = state.emailVerification.status;
+  const isSuccess = status === "success";
+  const isError = status === "error";
+  return `
+    <main class="auth-layout">
+      <section class="auth-panel">
+        <div class="auth-head">
+          <div class="brand-mark">${icon(isSuccess ? "mail-check" : isError ? "mail-x" : "loader")}</div>
+          <div>
+            <h1 class="auth-title">${isSuccess ? "Email verified" : isError ? "Verification failed" : "Verifying email"}</h1>
+            <div class="page-subtitle">${escapeHtml(state.emailVerification.message || "Checking your verification link")}</div>
+          </div>
+        </div>
+        <div class="verification-state ${status}">
+          ${isSuccess ? icon("circle-check") : isError ? icon("triangle-alert") : icon("loader")}
+          <span>${escapeHtml(state.emailVerification.message || "Please wait")}</span>
+        </div>
+        <button class="button primary" data-action="${state.token && state.session ? "finish-verification" : "verification-login"}">${icon(state.token && state.session ? "layout-dashboard" : "log-in", state.token && state.session ? "Open dashboard" : "Sign in")}</button>
+      </section>
+      <div class="notice"></div>
+    </main>
+  `;
+}
+
 function shellMarkup() {
-  const current = views.find((view) => view.id === state.view) || views[0];
+  const current = currentViewMeta();
   return `
     <div class="app-shell ${state.loading ? "loading" : ""}">
       <aside class="sidebar">
@@ -272,6 +380,10 @@ function shellMarkup() {
 }
 
 function subtitleForView(view) {
+  if (view === "target-details") {
+    const target = state.selectedTargetDetails;
+    return target ? endpoint(target) : "Target checks, incidents, and notification settings.";
+  }
   const labels = {
     overview: "Fleet health, active incidents, and recent delivery status.",
     targets: "Create targets, run checks, and tune per-target notifications.",
@@ -282,6 +394,7 @@ function subtitleForView(view) {
 }
 
 function contentMarkup() {
+  if (state.view === "target-details") return targetDetailsMarkup();
   if (state.view === "targets") return targetsMarkup();
   if (state.view === "alerts") return alertsMarkup();
   if (state.view === "notifications") return notificationsMarkup();
@@ -294,10 +407,11 @@ function overviewMarkup() {
   const pendingDeliveries = state.deliveries.filter((delivery) =>
     ["pending", "sending", "retry_scheduled"].includes(delivery.status),
   ).length;
+  const healthyTargets = state.targets.length ? Math.round((upCount / state.targets.length) * 100) : 0;
   return `
     <div class="grid three">
       ${metricMarkup("Targets", state.targets.length, "radio-tower")}
-      ${metricMarkup("Up", upCount, "circle-check")}
+      ${metricMarkup("Healthy", `${healthyTargets}%`, "activity")}
       ${metricMarkup("Active alerts", state.activeAlerts.length, "siren")}
     </div>
     <div class="grid two">
@@ -316,6 +430,28 @@ function overviewMarkup() {
         <div class="surface-body">${deliveryListMarkup(state.deliveries.slice(0, 6))}</div>
       </section>
     </div>
+    <div class="grid two">
+      <section class="surface">
+        <div class="surface-header">
+          <h2 class="surface-title">Active incidents</h2>
+          <button class="button" data-view="alerts">${icon("list-tree", "Open")}</button>
+        </div>
+        <div class="surface-body">${activeIncidentListMarkup()}</div>
+      </section>
+      <section class="surface">
+        <div class="surface-header">
+          <h2 class="surface-title">Operations</h2>
+          <button class="button" data-view="notifications">${icon("mail-check", "Notifications")}</button>
+        </div>
+        <div class="surface-body">
+          <div class="ops-grid">
+            ${operationItemMarkup("Recipients", state.recipients.length, "mail")}
+            ${operationItemMarkup("Pending mail", pendingDeliveries, "clock")}
+            ${operationItemMarkup("Recent deliveries", state.deliveries.length, "send")}
+          </div>
+        </div>
+      </section>
+    </div>
   `;
 }
 
@@ -331,8 +467,50 @@ function metricMarkup(label, value, iconName) {
   `;
 }
 
-function targetsMarkup() {
+function operationItemMarkup(label, value, iconName) {
   return `
+    <div class="operation-item">
+      <div class="operation-icon">${icon(iconName)}</div>
+      <div>
+        <strong>${escapeHtml(value)}</strong>
+        <span>${escapeHtml(label)}</span>
+      </div>
+    </div>
+  `;
+}
+
+function activeIncidentListMarkup() {
+  if (!state.activeAlerts.length) return `<div class="empty compact">No active incidents</div>`;
+  return `
+    <div class="event-list">
+      ${state.activeAlerts
+        .slice(0, 6)
+        .map((alert) => {
+          const target = targetById(alert.target_id);
+          return `
+            <button class="event-row" data-action="open-target-details" data-id="${alert.target_id}">
+              <span class="event-icon">${icon("siren")}</span>
+              <span>
+                <strong>${escapeHtml(target?.name || `Target #${alert.target_id}`)}</strong>
+                <small>${escapeHtml(alert.message || alert.type)}</small>
+              </span>
+              <span class="pill ${escapeHtml(alert.severity || "critical")}">${escapeHtml(alert.severity || "critical")}</span>
+            </button>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function targetsMarkup() {
+  const downCount = state.targets.filter((target) => targetStatus(target).tone === "down" || targetStatus(target).tone === "critical").length;
+  return `
+    <div class="grid three">
+      ${metricMarkup("All targets", state.targets.length, "radio-tower")}
+      ${metricMarkup("Needs attention", downCount, "triangle-alert")}
+      ${metricMarkup("Recipients", state.recipients.length, "mail")}
+    </div>
     <div class="grid two">
       <section class="surface">
         <div class="surface-header">
@@ -360,11 +538,11 @@ function targetFormMarkup() {
       <input type="hidden" name="type" value="${type}" />
       <div class="field">
         <label for="target-name">Name</label>
-        <input id="target-name" name="name" required value="Main website" />
+        <input id="target-name" name="name" required placeholder="Main website" />
       </div>
       <div class="field protocol http-fields">
         <label for="target-url">URL</label>
-        <input id="target-url" name="url" type="url" value="http://81.26.189.42:8081/ping" />
+        <input id="target-url" name="url" type="url" placeholder="https://example.com/health" />
       </div>
       <div class="field inline protocol http-fields">
         <div class="field">
@@ -424,9 +602,7 @@ function targetsTableMarkup(targets) {
 
 function targetRowMarkup(target) {
   const status = statusFor(target.id);
-  const alert = activeAlertFor(target.id);
-  const statusClass = alert ? "down" : status?.status === "up" ? "ok" : status?.status === "down" ? "down" : "";
-  const statusText = alert ? "alert" : status?.status || "unknown";
+  const health = targetStatus(target);
   return `
     <tr>
       <td>
@@ -436,12 +612,12 @@ function targetRowMarkup(target) {
         </div>
       </td>
       <td><span class="pill">${escapeHtml(target.type)}</span></td>
-      <td><span class="pill ${statusClass}">${escapeHtml(statusText)}</span></td>
-      <td>${escapeHtml(target.interval_seconds)}s</td>
+      <td><span class="pill ${health.tone}">${icon(health.icon)}${escapeHtml(health.text)}</span></td>
+      <td><span title="${escapeHtml(status?.checked_at || "")}">${escapeHtml(target.interval_seconds)}s</span></td>
       <td>
         <div class="row-actions">
           <button class="button icon" data-action="run-check" data-id="${target.id}" title="Run check">${icon("play")}<span class="sr-only">Run check</span></button>
-          <button class="button icon" data-action="open-target" data-id="${target.id}" title="Details">${icon("panel-right-open")}<span class="sr-only">Details</span></button>
+          <button class="button icon" data-action="open-target-details" data-id="${target.id}" title="Details">${icon("panel-right-open")}<span class="sr-only">Details</span></button>
           <button class="button icon danger" data-action="delete-target" data-id="${target.id}" title="Delete">${icon("trash-2")}<span class="sr-only">Delete</span></button>
         </div>
       </td>
@@ -451,7 +627,13 @@ function targetRowMarkup(target) {
 
 function alertsMarkup() {
   const rows = state.alerts.length ? state.alerts : state.activeAlerts;
+  const resolvedCount = rows.filter((alert) => alert.resolved_at).length;
   return `
+    <div class="grid three">
+      ${metricMarkup("Active", state.activeAlerts.length, "siren")}
+      ${metricMarkup("History", rows.length, "history")}
+      ${metricMarkup("Resolved", resolvedCount, "circle-check")}
+    </div>
     <section class="surface">
       <div class="surface-header">
         <h2 class="surface-title">Alerts</h2>
@@ -467,7 +649,11 @@ function alertsMarkup() {
                     (alert) => `
                       <tr>
                         <td><strong>${escapeHtml(alert.type)}</strong><div class="target-endpoint">${escapeHtml(alert.message)}</div></td>
-                        <td>#${escapeHtml(alert.target_id)}</td>
+                        <td>
+                          <button class="link-button" data-action="open-target-details" data-id="${alert.target_id}">
+                            ${escapeHtml(targetName(alert.target_id))}
+                          </button>
+                        </td>
                         <td><span class="pill ${alert.severity}">${escapeHtml(alert.severity)}</span></td>
                         <td>${formatDate(alert.created_at)}</td>
                         <td>${formatDate(alert.resolved_at)}</td>
@@ -483,33 +669,231 @@ function alertsMarkup() {
   `;
 }
 
-function notificationsMarkup() {
+function targetDetailsMarkup() {
+  const target = state.selectedTargetDetails;
+  const checks = state.selectedTargetChecks || [];
+  const notifications = state.selectedTargetNotifications;
+  if (!state.selectedTargetId || !target) {
+    return `
+      <section class="surface">
+        <div class="surface-body"><div class="empty">Loading target</div></div>
+      </section>
+    `;
+  }
+
+  const health = targetStatus(target, checks);
+  const relatedAlerts = state.alerts
+    .concat(state.activeAlerts)
+    .filter((alert, index, alerts) => {
+      const sameTarget = Number(alert.target_id) === Number(target.id);
+      const alertKey = alert.id ?? `${alert.target_id}:${alert.type}:${alert.created_at}:${alert.resolved_at || ""}`;
+      const firstOccurrence =
+        alerts.findIndex((item) => {
+          const itemKey = item.id ?? `${item.target_id}:${item.type}:${item.created_at}:${item.resolved_at || ""}`;
+          return itemKey === alertKey;
+        }) === index;
+      return sameTarget && firstOccurrence;
+    })
+    .slice(0, 8);
+  const relatedDeliveries = state.deliveries
+    .filter((delivery) => Number(delivery.target_id) === Number(target.id))
+    .slice(0, 8);
+
   return `
+    <div class="detail-toolbar">
+      <button class="button" data-view="targets">${icon("arrow-left", "Targets")}</button>
+      <button class="button primary" data-action="run-check" data-id="${target.id}">${icon("play", "Run check")}</button>
+    </div>
+    <div class="grid two detail-grid">
+      <section class="surface">
+        <div class="surface-body">
+          <div class="status-panel ${health.tone || ""}">
+            <div>
+              <span class="section-label">Current status</span>
+              <strong>${escapeHtml(health.text)}</strong>
+              <small>${escapeHtml(endpoint(target))}</small>
+            </div>
+            <div class="status-icon">${icon(health.icon)}</div>
+          </div>
+          <div class="details">
+            <div class="details-row"><span class="details-key">Protocol</span><span class="details-value">${escapeHtml(target.type)}</span></div>
+            <div class="details-row"><span class="details-key">Interval</span><span class="details-value">${escapeHtml(target.interval_seconds)}s</span></div>
+            <div class="details-row"><span class="details-key">Timeout</span><span class="details-value">${escapeHtml(target.timeout_ms)}ms</span></div>
+            <div class="details-row"><span class="details-key">Created</span><span class="details-value">${formatDate(target.created_at)}</span></div>
+          </div>
+        </div>
+      </section>
+      <section class="surface">
+        <div class="surface-header">
+          <h2 class="surface-title">Notifications</h2>
+          <span class="pill ${notifications?.email_enabled === false ? "" : "ok"}">${notifications?.email_enabled === false ? "muted" : "enabled"}</span>
+        </div>
+        <div class="surface-body">
+          <div class="toggle-row">
+            <div>
+              <strong>Email alerts</strong>
+              <div class="target-endpoint">${notifications?.email_enabled === false ? "No email will be sent for this target" : "Alert opened and resolved events will send email"}</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" data-action="toggle-target-notifications" data-id="${target.id}" ${notifications?.email_enabled !== false ? "checked" : ""} />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="drawer-actions">
+            <button class="button" data-view="notifications">${icon("mail-check", "Recipients")}</button>
+            <button class="button danger" data-action="delete-target" data-id="${target.id}">${icon("trash-2", "Delete target")}</button>
+          </div>
+        </div>
+      </section>
+    </div>
+    <div class="grid two detail-grid">
+      <section class="surface">
+        <div class="surface-header">
+          <h2 class="surface-title">Recent checks</h2>
+          <span class="pill">${checks.length}</span>
+        </div>
+        <div class="surface-body">${checks.length ? `<div class="details">${checks.slice(0, 12).map(checkRowMarkup).join("")}</div>` : `<div class="empty compact">No checks yet</div>`}</div>
+      </section>
+      <section class="surface">
+        <div class="surface-header">
+          <h2 class="surface-title">Incidents</h2>
+          <span class="pill ${relatedAlerts.some((alert) => !alert.resolved_at) ? "critical" : ""}">${relatedAlerts.length}</span>
+        </div>
+        <div class="surface-body">${targetAlertsMarkup(relatedAlerts)}</div>
+      </section>
+    </div>
+    <section class="surface">
+      <div class="surface-header">
+        <h2 class="surface-title">Deliveries for this target</h2>
+        <button class="button" data-view="notifications">${icon("list-filter", "All deliveries")}</button>
+      </div>
+      <div class="surface-body">${deliveryListMarkup(relatedDeliveries)}</div>
+    </section>
+  `;
+}
+
+function targetAlertsMarkup(alerts) {
+  if (!alerts.length) return `<div class="empty compact">No incidents for this target</div>`;
+  return `
+    <div class="event-list">
+      ${alerts
+        .map(
+          (alert) => `
+            <div class="event-row static">
+              <span class="event-icon">${icon(alert.resolved_at ? "circle-check" : "siren")}</span>
+              <span>
+                <strong>${escapeHtml(alert.type)}</strong>
+                <small>${escapeHtml(alert.message || "")}</small>
+              </span>
+              <span class="pill ${alert.resolved_at ? "ok" : "critical"}">${alert.resolved_at ? "resolved" : "active"}</span>
+            </div>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function notificationsMarkup() {
+  const pendingCount = countDeliveries(["pending", "sending", "retry_scheduled"]);
+  const failedCount = countDeliveries(["failed"]);
+  const sentCount = countDeliveries(["sent"]);
+  const visibleDeliveries = filteredDeliveries();
+  const email = accountEmail();
+  const recipient = accountRecipient();
+  const verified = emailVerified();
+  const legacy = legacyRecipients();
+  const emailEnabled = Boolean(recipient?.is_enabled);
+  const emailStatus = !verified ? "verify" : emailEnabled ? "enabled" : recipient ? "disabled" : "not connected";
+  return `
+    <div class="grid three">
+      ${metricMarkup("Email channel", emailEnabled ? "On" : "Off", emailEnabled ? "mail-check" : "mail-x")}
+      ${metricMarkup("Queued", pendingCount, "clock")}
+      ${metricMarkup("Sent", sentCount, "send")}
+    </div>
     <div class="grid two">
       <section class="surface">
         <div class="surface-header">
-          <h2 class="surface-title">Recipients</h2>
-          <span class="pill">${state.recipients.length}</span>
+          <h2 class="surface-title">Account email</h2>
+          <span class="pill ${emailEnabled ? "ok" : !verified ? "warning" : ""}">${escapeHtml(emailStatus)}</span>
         </div>
         <div class="surface-body">
+          ${verified ? "" : verificationNoticeMarkup()}
           <form class="form" data-action="create-recipient">
-            <div class="field">
-              <label for="recipient-email">Email</label>
-              <input id="recipient-email" name="email" type="email" required />
+            <div class="account-recipient">
+              <div class="operation-icon">${icon(verified ? "mail" : "mail-warning")}</div>
+              <div>
+                <strong>${escapeHtml(email)}</strong>
+                <span>${accountEmailStatusText(recipient, verified)}</span>
+              </div>
             </div>
-            <button class="button primary" type="submit">${icon("mail-plus", "Add recipient")}</button>
+            <button class="button primary" type="submit" ${emailEnabled || !verified ? "disabled" : ""}>${icon(emailEnabled ? "mail-check" : "mail-plus", emailEnabled ? "Enabled" : "Enable account email")}</button>
           </form>
+          ${legacy.length ? legacyRecipientsMarkup(legacy) : ""}
         </div>
         <div class="table-wrap">${recipientsTableMarkup()}</div>
       </section>
       <section class="surface">
         <div class="surface-header">
           <h2 class="surface-title">Deliveries</h2>
-          <button class="button" data-action="test-email">${icon("send", "Test")}</button>
+          <div class="toolbar">
+            <button class="button" data-action="test-email">${icon("send", "Test")}</button>
+          </div>
         </div>
-        <div class="surface-body">${deliveryListMarkup(state.deliveries)}</div>
+        <div class="surface-body">
+          <div class="filter-bar">
+            ${deliveryFilterButton("all", "All", state.deliveries.length)}
+            ${deliveryFilterButton("sent", "Sent", sentCount)}
+            ${deliveryFilterButton("retry_scheduled", "Retry", countDeliveries(["retry_scheduled"]))}
+            ${deliveryFilterButton("failed", "Failed", failedCount)}
+          </div>
+          ${deliveryListMarkup(visibleDeliveries)}
+        </div>
       </section>
     </div>
+  `;
+}
+
+function accountEmailStatusText(recipient, verified) {
+  if (!verified) return "Verify this email before enabling alert delivery";
+  if (recipient?.is_enabled) return "Alert delivery is enabled for your account email";
+  if (recipient) return "Alert delivery is disabled for your account email";
+  return "Alerts can be sent only to your account email";
+}
+
+function verificationNoticeMarkup() {
+  return `
+    <div class="notice-inline warning">
+      <span class="event-icon">${icon("mail-warning")}</span>
+      <div>
+        <strong>Email verification required</strong>
+        <span>Confirm this account email before enabling alert delivery.</span>
+      </div>
+      <button class="button" data-action="resend-verification-email">${icon("send", "Resend")}</button>
+    </div>
+  `;
+}
+
+function legacyRecipientsMarkup(recipients) {
+  const enabledCount = recipients.filter((recipient) => recipient.is_enabled).length;
+  return `
+    <div class="notice-inline warning">
+      <span class="event-icon">${icon("triangle-alert")}</span>
+      <div>
+        <strong>${escapeHtml(recipients.length)} legacy ${recipients.length === 1 ? "address" : "addresses"}</strong>
+        <span>${enabledCount ? `${enabledCount} should be disabled before sending real alerts.` : "Disabled legacy addresses are kept only for history."}</span>
+      </div>
+      ${enabledCount ? `<button class="button danger" data-action="disable-legacy-recipients">${icon("bell-off", "Disable")}</button>` : ""}
+    </div>
+  `;
+}
+
+function deliveryFilterButton(id, label, count) {
+  return `
+    <button class="filter-button ${state.deliveryFilter === id ? "active" : ""}" data-action="delivery-filter" data-filter="${id}">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(count)}</strong>
+    </button>
   `;
 }
 
@@ -520,20 +904,27 @@ function recipientsTableMarkup() {
       <thead><tr><th>Email</th><th>Status</th><th></th></tr></thead>
       <tbody>
         ${state.recipients
-          .map(
-            (recipient) => `
+          .map((recipient) => {
+            const isAccount = normalizeEmail(recipient.email) === normalizeEmail(accountEmail());
+            return `
               <tr>
-                <td>${escapeHtml(recipient.email)}</td>
-                <td><span class="pill ${recipient.is_enabled ? "ok" : ""}">${recipient.is_enabled ? "enabled" : "disabled"}</span></td>
+                <td>
+                  <strong>${escapeHtml(recipient.email)}</strong>
+                  ${isAccount ? "" : `<div class="target-endpoint">Legacy address</div>`}
+                </td>
+                <td>
+                  <span class="pill ${recipient.is_enabled ? "ok" : ""}">${icon(recipient.is_enabled ? "bell" : "bell-off")}${recipient.is_enabled ? "enabled" : "disabled"}</span>
+                  ${isAccount ? "" : `<span class="pill warning">legacy</span>`}
+                </td>
                 <td>
                   <div class="row-actions">
-                    <button class="button icon" data-action="toggle-recipient" data-id="${recipient.id}" data-enabled="${recipient.is_enabled ? "false" : "true"}" title="Toggle">${icon(recipient.is_enabled ? "bell-off" : "bell")}<span class="sr-only">Toggle</span></button>
-                    <button class="button icon danger" data-action="delete-recipient" data-id="${recipient.id}" title="Disable">${icon("trash-2")}<span class="sr-only">Disable</span></button>
+                    ${isAccount ? `<button class="button icon" data-action="toggle-recipient" data-id="${recipient.id}" data-enabled="${recipient.is_enabled ? "false" : "true"}" title="Toggle">${icon(recipient.is_enabled ? "bell-off" : "bell")}<span class="sr-only">Toggle</span></button>` : ""}
+                    ${isAccount || recipient.is_enabled ? `<button class="button icon danger" data-action="delete-recipient" data-id="${recipient.id}" title="Disable">${icon("bell-off")}<span class="sr-only">Disable</span></button>` : ""}
                   </div>
                 </td>
               </tr>
-            `,
-          )
+            `;
+          })
           .join("")}
       </tbody>
     </table>
@@ -549,11 +940,11 @@ function deliveryListMarkup(deliveries) {
           (delivery) => `
             <div class="details-row">
               <div>
-                <strong>${escapeHtml(delivery.recipient_email)}</strong>
-                <div class="target-endpoint">${escapeHtml(delivery.event_type)} ${delivery.target_id ? `#${escapeHtml(delivery.target_id)}` : ""}</div>
+                <strong>${escapeHtml(delivery.recipient_email || "No recipient")}</strong>
+                <div class="target-endpoint">${escapeHtml(delivery.event_type)} ${delivery.target_id ? `· ${escapeHtml(targetName(delivery.target_id))}` : ""}</div>
               </div>
               <div class="details-value">
-                <span class="pill ${escapeHtml(delivery.status)}">${escapeHtml(delivery.status)}</span>
+                <span class="pill ${deliveryTone(delivery.status)}">${escapeHtml(delivery.status)}</span>
                 ${delivery.status === "failed" || delivery.status === "retry_scheduled" ? `<button class="button icon" data-action="retry-delivery" data-id="${delivery.id}" title="Retry">${icon("rotate-ccw")}<span class="sr-only">Retry</span></button>` : ""}
               </div>
             </div>
@@ -565,10 +956,11 @@ function deliveryListMarkup(deliveries) {
 }
 
 function drawerMarkup() {
-  const open = Boolean(state.selectedTargetId);
+  const open = Boolean(state.selectedTargetId) && state.view !== "target-details";
   const target = state.selectedTargetDetails;
   const settings = state.selectedTargetNotifications;
   const checks = state.selectedTargetChecks || [];
+  const health = target ? targetStatus(target, checks) : null;
   return `
     <aside class="drawer ${open ? "open" : ""}" data-action="drawer-bg">
       <section class="drawer-panel">
@@ -580,6 +972,18 @@ function drawerMarkup() {
           ${
             target
               ? `
+                <div class="status-panel ${health.tone || ""}">
+                  <div>
+                    <span class="section-label">Current status</span>
+                    <strong>${escapeHtml(health.text)}</strong>
+                    <small>${escapeHtml(endpoint(target))}</small>
+                  </div>
+                  <div class="status-icon">${icon(health.icon)}</div>
+                </div>
+                <div class="drawer-actions">
+                  <button class="button primary" data-action="run-check" data-id="${target.id}">${icon("play", "Run check")}</button>
+                  <button class="button danger" data-action="delete-target" data-id="${target.id}">${icon("trash-2", "Delete")}</button>
+                </div>
                 <div class="details">
                   <div class="details-row"><span class="details-key">Endpoint</span><span class="details-value">${escapeHtml(endpoint(target))}</span></div>
                   <div class="details-row"><span class="details-key">Protocol</span><span class="details-value">${escapeHtml(target.type)}</span></div>
@@ -590,7 +994,7 @@ function drawerMarkup() {
                 <div class="toggle-row">
                   <div>
                     <strong>Email notifications</strong>
-                    <div class="target-endpoint">Target #${escapeHtml(target.id)}</div>
+                    <div class="target-endpoint">${settings?.email_enabled === false ? "Muted for this target" : "Enabled for this target"}</div>
                   </div>
                   <label class="switch">
                     <input type="checkbox" data-action="toggle-target-notifications" data-id="${target.id}" ${settings?.email_enabled !== false ? "checked" : ""} />
@@ -598,6 +1002,10 @@ function drawerMarkup() {
                   </label>
                 </div>
                 <hr />
+                <div class="section-heading">
+                  <span class="section-label">Recent checks</span>
+                  <span class="pill">${checks.length}</span>
+                </div>
                 <div class="details">
                   ${checks.length ? checks.slice(0, 8).map(checkRowMarkup).join("") : `<div class="empty">No checks</div>`}
                 </div>
@@ -615,7 +1023,7 @@ function checkRowMarkup(check) {
     <div class="details-row">
       <div>
         <strong>${escapeHtml(check.status)}</strong>
-        <div class="target-endpoint">${formatDate(check.checked_at)}</div>
+        <div class="target-endpoint">${formatDate(check.checked_at)}${check.error_message ? ` · ${escapeHtml(check.error_message)}` : ""}</div>
       </div>
       <div class="details-value">
         <span class="pill ${check.status === "up" ? "ok" : "down"}">${escapeHtml(check.protocol)}</span>
@@ -646,11 +1054,27 @@ function bindEvents() {
     clearAuth();
     render();
   });
+  document.querySelector("[data-action='finish-verification']")?.addEventListener("click", () => {
+    state.emailVerification = { token: "", status: "", message: "" };
+    state.view = "notifications";
+    render();
+  });
+  document.querySelector("[data-action='verification-login']")?.addEventListener("click", () => {
+    state.emailVerification = { token: "", status: "", message: "" };
+    state.authMode = "login";
+    render();
+  });
 
-  document.querySelector("[data-action='refresh']")?.addEventListener("click", refreshAll);
+  document.querySelector("[data-action='refresh']")?.addEventListener("click", onRefresh);
   document.querySelector("[data-action='create-target']")?.addEventListener("submit", onCreateTarget);
   document.querySelector("[data-action='create-recipient']")?.addEventListener("submit", onCreateRecipient);
   document.querySelector("[data-action='test-email']")?.addEventListener("click", onTestEmail);
+  document.querySelectorAll("[data-action='delivery-filter']").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.deliveryFilter = button.dataset.filter;
+      render();
+    });
+  });
 
   document.querySelectorAll("[data-target-type] .segment").forEach((button) => {
     button.addEventListener("click", () => switchTargetType(button.dataset.type));
@@ -662,6 +1086,9 @@ function bindEvents() {
   document.querySelectorAll("[data-action='open-target']").forEach((button) => {
     button.addEventListener("click", () => openTarget(button.dataset.id));
   });
+  document.querySelectorAll("[data-action='open-target-details']").forEach((button) => {
+    button.addEventListener("click", () => openTargetDetails(button.dataset.id));
+  });
   document.querySelectorAll("[data-action='delete-target']").forEach((button) => {
     button.addEventListener("click", () => onDeleteTarget(button.dataset.id));
   });
@@ -671,11 +1098,22 @@ function bindEvents() {
   document.querySelectorAll("[data-action='delete-recipient']").forEach((button) => {
     button.addEventListener("click", () => onDeleteRecipient(button.dataset.id));
   });
+  document.querySelector("[data-action='disable-legacy-recipients']")?.addEventListener("click", onDisableLegacyRecipients);
+  document.querySelector("[data-action='resend-verification-email']")?.addEventListener("click", onResendVerificationEmail);
   document.querySelectorAll("[data-action='retry-delivery']").forEach((button) => {
     button.addEventListener("click", () => onRetryDelivery(button.dataset.id));
   });
   document.querySelector("[data-action='close-drawer']")?.addEventListener("click", closeDrawer);
-  document.querySelector("[data-action='toggle-target-notifications']")?.addEventListener("change", onToggleTargetNotifications);
+  document.querySelectorAll("[data-action='toggle-target-notifications']").forEach((input) => {
+    input.addEventListener("change", onToggleTargetNotifications);
+  });
+}
+
+async function onRefresh() {
+  await refreshAll();
+  if (state.view === "target-details" && state.selectedTargetId) {
+    await openTargetDetails(state.selectedTargetId, false);
+  }
 }
 
 async function onAuthSubmit(event) {
@@ -692,10 +1130,30 @@ async function onAuthSubmit(event) {
     });
     persistAuth(auth);
     await refreshAll();
-    notify("Signed in", state.session.user.email);
+    notify(state.authMode === "login" ? "Signed in" : "Account created", emailVerified() ? state.session.user.email : "Check your email to verify alerts");
   } catch (error) {
     notify("Auth failed", error.message, "error");
   }
+}
+
+async function verifyEmailFromLink() {
+  try {
+    const session = await api("/api/v1/auth/verify-email", {
+      method: "POST",
+      body: { token: state.emailVerification.token },
+    });
+    if (state.session?.user?.id === session.user.id) {
+      state.session = { ...state.session, user: session.user };
+      localStorage.setItem("netwatch.session", JSON.stringify(state.session));
+    }
+    state.emailVerification.status = "success";
+    state.emailVerification.message = "Your email is confirmed. Alerts can now be enabled.";
+    window.history.replaceState({}, "", window.location.pathname);
+  } catch (error) {
+    state.emailVerification.status = "error";
+    state.emailVerification.message = error.message;
+  }
+  render();
 }
 
 function switchTargetType(type) {
@@ -744,10 +1202,37 @@ async function onRunCheck(id) {
     const result = await api(`/api/v1/targets/${id}/check`, { method: "POST" });
     notify("Check saved", `Target #${id} is ${result.status}`);
     await refreshAll();
-    if (state.selectedTargetId) await openTarget(state.selectedTargetId, false);
+    if (state.view === "target-details") {
+      await openTargetDetails(id, false);
+    } else if (state.selectedTargetId) {
+      await openTarget(state.selectedTargetId, false);
+    }
   } catch (error) {
     notify("Check failed", error.message, "error");
   }
+}
+
+async function openTargetDetails(id, shouldRender = true) {
+  state.view = "target-details";
+  state.selectedTargetId = Number(id);
+  state.selectedTargetDetails = null;
+  state.selectedTargetChecks = [];
+  state.selectedTargetNotifications = null;
+  if (shouldRender) render();
+  try {
+    const [target, checks, notifications] = await Promise.all([
+      api(`/api/v1/targets/${id}`),
+      api(`/api/v1/targets/${id}/checks`),
+      api(`/api/v1/targets/${id}/notifications`),
+    ]);
+    state.selectedTargetDetails = target;
+    state.selectedTargetChecks = checks || [];
+    state.selectedTargetNotifications = notifications;
+  } catch (error) {
+    notify("Target failed", error.message, "error");
+    state.view = "targets";
+  }
+  render();
 }
 
 async function openTarget(id, shouldRender = true) {
@@ -785,6 +1270,13 @@ async function onDeleteTarget(id) {
   try {
     await api(`/api/v1/targets/${id}`, { method: "DELETE" });
     notify("Target deleted", `Target #${id}`);
+    if (state.view === "target-details") {
+      state.view = "targets";
+      state.selectedTargetId = null;
+      state.selectedTargetDetails = null;
+      state.selectedTargetChecks = [];
+      state.selectedTargetNotifications = null;
+    }
     await refreshAll();
   } catch (error) {
     notify("Delete failed", error.message, "error");
@@ -793,14 +1285,17 @@ async function onDeleteTarget(id) {
 
 async function onCreateRecipient(event) {
   event.preventDefault();
-  const form = new FormData(event.currentTarget);
-  const email = String(form.get("email") || "").trim();
+  const email = accountEmail();
+  if (!emailVerified()) {
+    notify("Verify email first", email, "error");
+    return;
+  }
   try {
     await api("/api/v1/notifications/recipients", { method: "POST", body: { email } });
-    notify("Recipient added", email);
+    notify("Email enabled", email);
     await refreshAll();
   } catch (error) {
-    notify("Recipient failed", error.message, "error");
+    notify("Email failed", error.message, "error");
   }
 }
 
@@ -825,12 +1320,49 @@ async function onDeleteRecipient(id) {
   }
 }
 
+async function onDisableLegacyRecipients() {
+  const enabledLegacy = legacyRecipients().filter((recipient) => recipient.is_enabled);
+  try {
+    await Promise.all(enabledLegacy.map((recipient) => api(`/api/v1/notifications/recipients/${recipient.id}`, { method: "DELETE" })));
+    notify("Legacy disabled", `${enabledLegacy.length} ${enabledLegacy.length === 1 ? "address" : "addresses"}`);
+    await refreshAll();
+  } catch (error) {
+    notify("Legacy cleanup failed", error.message, "error");
+  }
+}
+
+async function onResendVerificationEmail() {
+  try {
+    const session = await api("/api/v1/auth/resend-verification-email", {
+      method: "POST",
+      body: {},
+    });
+    state.session = { ...state.session, user: session.user };
+    localStorage.setItem("netwatch.session", JSON.stringify(state.session));
+    notify(
+      session.user.email_verified ? "Email already verified" : "Verification sent",
+      session.user.email,
+    );
+    await refreshAll();
+  } catch (error) {
+    notify("Resend failed", error.message, "error");
+  }
+}
+
 async function onTestEmail() {
+  if (!emailVerified()) {
+    notify("Verify email first", accountEmail(), "error");
+    return;
+  }
+  if (!accountRecipient()?.is_enabled) {
+    notify("No deliveries queued", "Enable account email first", "error");
+    return;
+  }
   try {
     const result = await api("/api/v1/notifications/test-email", { method: "POST", body: {} });
     const count = Number(result.deliveries_count || 0);
     if (count === 0) {
-      notify("No deliveries queued", "Add and enable a recipient first", "error");
+      notify("No deliveries queued", "Enable account email first", "error");
     } else {
       notify("Test queued", `${count} ${count === 1 ? "delivery" : "deliveries"}`);
     }
@@ -862,6 +1394,7 @@ async function onToggleTargetNotifications(event) {
     });
     state.selectedTargetNotifications = settings;
     notify("Settings saved", `Target #${id}`);
+    render();
   } catch (error) {
     notify("Settings failed", error.message, "error");
     await openTarget(id);

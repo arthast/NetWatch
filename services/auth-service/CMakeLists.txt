@@ -27,6 +27,7 @@ endif()
 
 add_library(
     ${PROJECT_NAME}_objs OBJECT
+    src/auth/email/email_verification_sender.cpp
     src/auth/grpc/auth_grpc_service.cpp
     src/auth/repository/auth_repository.cpp
     src/auth/service/auth_service.cpp

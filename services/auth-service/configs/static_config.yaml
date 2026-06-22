@@ -24,6 +24,10 @@ components_manager:
 
         dynamic-config:
             defaults:
+                HTTP_CLIENT_CONNECTION_POOL_SIZE: 1000
+                POSTGRES_DEFAULT_COMMAND_CONTROL:
+                    network_timeout_ms: 1000
+                    statement_timeout_ms: 1000
                 POSTGRES_CONNECTION_POOL_SETTINGS:
                     auth-service-db:
                         max_pool_size: 10
@@ -31,6 +35,14 @@ components_manager:
         testsuite-support: {}
 
         congestion-control:
+
+        http-client:
+        http-client-core:
+            load-enabled: true
+            fs-task-processor: fs-task-processor
+
+        dns-client:
+            fs-task-processor: fs-task-processor
 
         grpc-server:
             port: $grpc-port
@@ -56,3 +68,23 @@ components_manager:
 
         auth-grpc-service:
             task-processor: main-task-processor
+
+        email-verification-sender:
+            enabled: $auth-email-verification-enabled
+            enabled#env: AUTH_EMAIL_VERIFICATION_ENABLED
+            provider: $auth-email-provider
+            provider#env: AUTH_EMAIL_PROVIDER
+            provider-url: $auth-email-provider-url
+            provider-url#env: AUTH_EMAIL_PROVIDER_URL
+            from-email: $auth-email-from-email
+            from-email#env: AUTH_EMAIL_FROM_EMAIL
+            from-name: $auth-email-from-name
+            from-name#env: AUTH_EMAIL_FROM_NAME
+            frontend-base-url: $auth-email-frontend-base-url
+            frontend-base-url#env: AUTH_EMAIL_FRONTEND_BASE_URL
+            request-timeout-ms: $auth-email-request-timeout-ms
+            yandex-postbox-iam-token: $auth-yandex-postbox-iam-token
+            yandex-postbox-iam-token#env: YANDEX_POSTBOX_IAM_TOKEN
+            yandex-postbox-metadata-token-url: $auth-yandex-postbox-metadata-token-url
+            yandex-postbox-metadata-token-url#env: AUTH_YANDEX_POSTBOX_METADATA_TOKEN_URL
+            yandex-postbox-token-refresh-skew-sec: $auth-yandex-postbox-token-refresh-skew-sec

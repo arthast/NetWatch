@@ -8,3 +8,14 @@ server-port: 8080
 grpc-port: 8094
 
 pg-connection: postgresql://auth_service:auth_service@auth-postgres:5432/auth_service_db
+
+auth-email-verification-enabled: true
+auth-email-provider: yandex-postbox
+auth-email-provider-url: https://postbox.cloud.yandex.net
+auth-email-from-email: alerts@netwatch-arsen-demo.online
+auth-email-from-name: NetWatch
+auth-email-frontend-base-url: https://netwatch-arsen-demo.online
+auth-email-request-timeout-ms: 3000
+auth-yandex-postbox-iam-token: ''
+auth-yandex-postbox-metadata-token-url: http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token
+auth-yandex-postbox-token-refresh-skew-sec: 300

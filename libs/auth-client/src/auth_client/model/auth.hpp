@@ -10,6 +10,8 @@ struct User {
   std::string email;
   std::string created_at;
   std::string updated_at;
+  bool email_verified{false};
+  std::string email_verified_at;
 };
 
 struct Credentials {

@@ -59,6 +59,11 @@ std::string NotificationTestEmailHandler::HandleRequestThrow(
                            userver::server::http::HttpStatus::kUnauthorized,
                            "Authorization bearer token is required");
     }
+    if (!session->user.email_verified) {
+      return ErrorResponse(request,
+                           userver::server::http::HttpStatus::kForbidden,
+                           "email must be verified before sending test email");
+    }
 
     const auto request_json = ParseOptionalBody(request.RequestBody());
     const auto test_email_request = ParseSendTestEmailRequest(request_json);

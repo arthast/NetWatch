@@ -23,6 +23,8 @@
 #include <auth/handlers/auth_login_handler.hpp>
 #include <auth/handlers/auth_me_handler.hpp>
 #include <auth/handlers/auth_register_handler.hpp>
+#include <auth/handlers/auth_resend_verification_email_handler.hpp>
+#include <auth/handlers/auth_verify_email_handler.hpp>
 #include <auth/service/auth_service_component.hpp>
 #include <auth_client/client/auth_client.hpp>
 #include <checks/handlers/manual_check_handler.hpp>
@@ -83,6 +85,9 @@ int main(int argc, char* argv[]) {
           .Append<netwatch::api_gateway::auth::AuthRegisterHandler>()
           .Append<netwatch::api_gateway::auth::AuthLoginHandler>()
           .Append<netwatch::api_gateway::auth::AuthMeHandler>()
+          .Append<netwatch::api_gateway::auth::AuthVerifyEmailHandler>()
+          .Append<netwatch::api_gateway::auth::
+                      AuthResendVerificationEmailHandler>()
           .Append<netwatch::api_gateway::alerts::AlertsHandler>()
           .Append<netwatch::api_gateway::alerts::ActiveAlertsHandler>()
           .Append<netwatch::api_gateway::checks::ManualCheckHandler>()

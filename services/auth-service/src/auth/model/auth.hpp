@@ -11,6 +11,8 @@ struct User {
   std::string email;
   std::string created_at;
   std::string updated_at;
+  bool email_verified{false};
+  std::string email_verified_at;
 };
 
 struct AuthResult {
@@ -42,6 +44,11 @@ class InvalidCredentials final : public std::runtime_error {
 class InvalidToken final : public std::runtime_error {
  public:
   InvalidToken();
+};
+
+class InvalidVerificationToken final : public std::runtime_error {
+ public:
+  InvalidVerificationToken();
 };
 
 }  // namespace netwatch::auth_service::auth
