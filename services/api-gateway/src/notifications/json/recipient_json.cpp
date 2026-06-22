@@ -12,17 +12,6 @@ namespace notification_client = netwatch::notification_client;
 namespace {
 
 template <typename T>
-T ReadRequired(const userver::formats::json::Value& json,
-               std::string_view field) {
-  const auto value = json[field];
-  if (value.IsMissing() || value.IsNull()) {
-    throw std::invalid_argument("field '" + std::string{field} +
-                                "' is required");
-  }
-  return value.As<T>();
-}
-
-template <typename T>
 std::optional<T> ReadPatchOptional(const userver::formats::json::Value& json,
                                    std::string_view field) {
   const auto value = json[field];
@@ -37,18 +26,6 @@ std::optional<T> ReadPatchOptional(const userver::formats::json::Value& json,
 }
 
 }  // namespace
-
-notification_client::CreateEmailRecipientRequest
-ParseCreateEmailRecipientRequest(const userver::formats::json::Value& json) {
-  if (!json.IsObject()) {
-    throw std::invalid_argument("request body must be a JSON object");
-  }
-
-  return notification_client::CreateEmailRecipientRequest{
-      .user_id = std::nullopt,
-      .email = ReadRequired<std::string>(json, "email"),
-  };
-}
 
 notification_client::UpdateEmailRecipientRequest
 ParseUpdateEmailRecipientRequest(const userver::formats::json::Value& json) {
