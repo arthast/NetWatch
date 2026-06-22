@@ -743,17 +743,6 @@ constexpr std::string_view kOpenApiSpec = R"json({
         "security": [
           { "BearerAuth": [] }
         ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": { "$ref": "#/components/schemas/SendTestEmailRequest" },
-              "example": {
-                "email": "alerts@example.com"
-              }
-            }
-          }
-        },
         "responses": {
           "202": {
             "description": "Test email queued",
@@ -1087,16 +1076,6 @@ constexpr std::string_view kOpenApiSpec = R"json({
           "created_at": { "type": "string", "format": "date-time" },
           "updated_at": { "type": "string", "format": "date-time" },
           "delivered_at": { "type": "string", "format": "date-time" }
-        }
-      },
-      "SendTestEmailRequest": {
-        "type": "object",
-        "properties": {
-          "email": {
-            "type": "string",
-            "format": "email",
-            "description": "Optional direct recipient. When omitted, the test email is queued for all enabled recipients."
-          }
         }
       },
       "SendTestEmailResponse": {

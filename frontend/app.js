@@ -17,6 +17,7 @@ const state = {
   selectedTargetDetails: null,
   selectedTargetChecks: [],
   selectedTargetNotifications: null,
+  targetNotifications: new Map(),
   emailVerification: {
     token: new URLSearchParams(window.location.search).get("token") || "",
     status: "",
@@ -147,9 +148,12 @@ function accountRecipient() {
   return state.recipients.find((recipient) => normalizeEmail(recipient.email) === email);
 }
 
-function legacyRecipients() {
-  const email = normalizeEmail(accountEmail());
-  return state.recipients.filter((recipient) => normalizeEmail(recipient.email) !== email);
+function accountEmailEnabled() {
+  return Boolean(accountRecipient()?.is_enabled);
+}
+
+function targetNotificationsFor(targetId) {
+  return state.targetNotifications.get(Number(targetId));
 }
 
 async function api(path, options = {}) {
@@ -231,6 +235,7 @@ async function refreshAll() {
     state.recipients = recipients || [];
     state.deliveries = deliveries || [];
     await loadStatuses();
+    await loadTargetNotifications();
   } catch (error) {
     notify("Request failed", error.message, "error");
   } finally {
@@ -250,6 +255,19 @@ async function loadStatuses() {
     }),
   );
   state.statuses = new Map(pairs);
+}
+
+async function loadTargetNotifications() {
+  const pairs = await Promise.all(
+    state.targets.map(async (target) => {
+      try {
+        return [Number(target.id), await api(`/api/v1/targets/${target.id}/notifications`)];
+      } catch (_error) {
+        return [Number(target.id), null];
+      }
+    }),
+  );
+  state.targetNotifications = new Map(pairs);
 }
 
 function render() {
@@ -388,7 +406,7 @@ function subtitleForView(view) {
     overview: "Fleet health, active incidents, and recent delivery status.",
     targets: "Create targets, run checks, and tune per-target notifications.",
     alerts: "Active and resolved alert lifecycle events.",
-    notifications: "Email recipients and delivery attempts.",
+    notifications: "Account email delivery and target notification settings.",
   };
   return labels[view] || "";
 }
@@ -445,7 +463,7 @@ function overviewMarkup() {
         </div>
         <div class="surface-body">
           <div class="ops-grid">
-            ${operationItemMarkup("Recipients", state.recipients.length, "mail")}
+            ${operationItemMarkup("Email channel", accountEmailEnabled() ? "On" : "Off", accountEmailEnabled() ? "mail-check" : "mail-x")}
             ${operationItemMarkup("Pending mail", pendingDeliveries, "clock")}
             ${operationItemMarkup("Recent deliveries", state.deliveries.length, "send")}
           </div>
@@ -509,7 +527,7 @@ function targetsMarkup() {
     <div class="grid three">
       ${metricMarkup("All targets", state.targets.length, "radio-tower")}
       ${metricMarkup("Needs attention", downCount, "triangle-alert")}
-      ${metricMarkup("Recipients", state.recipients.length, "mail")}
+      ${metricMarkup("Email channel", accountEmailEnabled() ? "On" : "Off", accountEmailEnabled() ? "mail-check" : "mail-x")}
     </div>
     <div class="grid two">
       <section class="surface">
@@ -698,6 +716,7 @@ function targetDetailsMarkup() {
   const relatedDeliveries = state.deliveries
     .filter((delivery) => Number(delivery.target_id) === Number(target.id))
     .slice(0, 8);
+  const accountEnabled = accountEmailEnabled();
 
   return `
     <div class="detail-toolbar">
@@ -732,10 +751,10 @@ function targetDetailsMarkup() {
           <div class="toggle-row">
             <div>
               <strong>Email alerts</strong>
-              <div class="target-endpoint">${notifications?.email_enabled === false ? "No email will be sent for this target" : "Alert opened and resolved events will send email"}</div>
+              <div class="target-endpoint">${accountEnabled ? notifications?.email_enabled === false ? "No email will be sent for this target" : `Alert events will send to ${escapeHtml(accountEmail())}` : "Enable account email before target delivery can send"}</div>
             </div>
             <label class="switch">
-              <input type="checkbox" data-action="toggle-target-notifications" data-id="${target.id}" ${notifications?.email_enabled !== false ? "checked" : ""} />
+              <input type="checkbox" data-action="toggle-target-notifications" data-id="${target.id}" ${notifications?.email_enabled !== false ? "checked" : ""} ${accountEnabled ? "" : "disabled"} />
               <span class="slider"></span>
             </label>
           </div>
@@ -802,14 +821,13 @@ function notificationsMarkup() {
   const email = accountEmail();
   const recipient = accountRecipient();
   const verified = emailVerified();
-  const legacy = legacyRecipients();
-  const emailEnabled = Boolean(recipient?.is_enabled);
+  const emailEnabled = accountEmailEnabled();
   const emailStatus = !verified ? "verify" : emailEnabled ? "enabled" : recipient ? "disabled" : "not connected";
   return `
     <div class="grid three">
       ${metricMarkup("Email channel", emailEnabled ? "On" : "Off", emailEnabled ? "mail-check" : "mail-x")}
+      ${metricMarkup("Targets using email", targetsWithEmailEnabled(), "bell")}
       ${metricMarkup("Queued", pendingCount, "clock")}
-      ${metricMarkup("Sent", sentCount, "send")}
     </div>
     <div class="grid two">
       <section class="surface">
@@ -819,26 +837,38 @@ function notificationsMarkup() {
         </div>
         <div class="surface-body">
           ${verified ? "" : verificationNoticeMarkup()}
-          <form class="form" data-action="create-recipient">
-            <div class="account-recipient">
+          <div class="account-recipient">
+            <div class="account-recipient-main">
               <div class="operation-icon">${icon(verified ? "mail" : "mail-warning")}</div>
               <div>
                 <strong>${escapeHtml(email)}</strong>
                 <span>${accountEmailStatusText(recipient, verified)}</span>
               </div>
             </div>
-            <button class="button primary" type="submit" ${emailEnabled || !verified ? "disabled" : ""}>${icon(emailEnabled ? "mail-check" : "mail-plus", emailEnabled ? "Enabled" : "Enable account email")}</button>
-          </form>
-          ${legacy.length ? legacyRecipientsMarkup(legacy) : ""}
+            <label class="switch" title="Account email delivery">
+              <input type="checkbox" data-action="toggle-account-email" ${emailEnabled ? "checked" : ""} ${verified ? "" : "disabled"} />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="drawer-actions account-actions">
+            <button class="button" data-action="test-email" ${verified && emailEnabled ? "" : "disabled"}>${icon("send", "Send test")}</button>
+            ${verified ? "" : `<button class="button" data-action="resend-verification-email">${icon("mail-plus", "Resend verification")}</button>`}
+          </div>
         </div>
-        <div class="table-wrap">${recipientsTableMarkup()}</div>
       </section>
       <section class="surface">
         <div class="surface-header">
+          <h2 class="surface-title">Target delivery</h2>
+          <span class="pill">${state.targets.length}</span>
+        </div>
+        <div class="surface-body">${targetNotificationListMarkup()}</div>
+      </section>
+    </div>
+    <div class="grid two">
+      <section class="surface">
+        <div class="surface-header">
           <h2 class="surface-title">Deliveries</h2>
-          <div class="toolbar">
-            <button class="button" data-action="test-email">${icon("send", "Test")}</button>
-          </div>
+          <span class="pill">${visibleDeliveries.length}</span>
         </div>
         <div class="surface-body">
           <div class="filter-bar">
@@ -850,8 +880,25 @@ function notificationsMarkup() {
           ${deliveryListMarkup(visibleDeliveries)}
         </div>
       </section>
+      <section class="surface">
+        <div class="surface-header">
+          <h2 class="surface-title">Delivery health</h2>
+          <span class="pill ${failedCount ? "down" : "ok"}">${failedCount ? `${failedCount} failed` : "clear"}</span>
+        </div>
+        <div class="surface-body">
+          <div class="ops-grid">
+            ${operationItemMarkup("Pending", pendingCount, "clock")}
+            ${operationItemMarkup("Sent", sentCount, "send")}
+            ${operationItemMarkup("Failed", failedCount, "triangle-alert")}
+          </div>
+        </div>
+      </section>
     </div>
   `;
+}
+
+function targetsWithEmailEnabled() {
+  return state.targets.filter((target) => targetNotificationsFor(target.id)?.email_enabled !== false).length;
 }
 
 function accountEmailStatusText(recipient, verified) {
@@ -874,16 +921,32 @@ function verificationNoticeMarkup() {
   `;
 }
 
-function legacyRecipientsMarkup(recipients) {
-  const enabledCount = recipients.filter((recipient) => recipient.is_enabled).length;
+function targetNotificationListMarkup() {
+  if (!state.targets.length) {
+    return `<div class="empty compact">Create a target to configure delivery</div>`;
+  }
   return `
-    <div class="notice-inline warning">
-      <span class="event-icon">${icon("triangle-alert")}</span>
-      <div>
-        <strong>${escapeHtml(recipients.length)} legacy ${recipients.length === 1 ? "address" : "addresses"}</strong>
-        <span>${enabledCount ? `${enabledCount} should be disabled before sending real alerts.` : "Disabled legacy addresses are kept only for history."}</span>
-      </div>
-      ${enabledCount ? `<button class="button danger" data-action="disable-legacy-recipients">${icon("bell-off", "Disable")}</button>` : ""}
+    <div class="event-list">
+      ${state.targets
+        .map((target) => {
+          const settings = targetNotificationsFor(target.id);
+          const enabled = settings?.email_enabled !== false;
+          const health = targetStatus(target);
+          return `
+            <div class="event-row static target-notification-row">
+              <span class="event-icon">${icon(health.icon)}</span>
+              <span>
+                <strong>${escapeHtml(target.name)}</strong>
+                <small>${escapeHtml(endpoint(target))}</small>
+              </span>
+              <label class="switch" title="Target email delivery">
+                <input type="checkbox" data-action="toggle-target-notifications" data-id="${target.id}" ${enabled ? "checked" : ""} ${accountEmailEnabled() ? "" : "disabled"} />
+                <span class="slider"></span>
+              </label>
+            </div>
+          `;
+        })
+        .join("")}
     </div>
   `;
 }
@@ -894,40 +957,6 @@ function deliveryFilterButton(id, label, count) {
       <span>${escapeHtml(label)}</span>
       <strong>${escapeHtml(count)}</strong>
     </button>
-  `;
-}
-
-function recipientsTableMarkup() {
-  if (!state.recipients.length) return `<div class="empty">No recipients</div>`;
-  return `
-    <table>
-      <thead><tr><th>Email</th><th>Status</th><th></th></tr></thead>
-      <tbody>
-        ${state.recipients
-          .map((recipient) => {
-            const isAccount = normalizeEmail(recipient.email) === normalizeEmail(accountEmail());
-            return `
-              <tr>
-                <td>
-                  <strong>${escapeHtml(recipient.email)}</strong>
-                  ${isAccount ? "" : `<div class="target-endpoint">Legacy address</div>`}
-                </td>
-                <td>
-                  <span class="pill ${recipient.is_enabled ? "ok" : ""}">${icon(recipient.is_enabled ? "bell" : "bell-off")}${recipient.is_enabled ? "enabled" : "disabled"}</span>
-                  ${isAccount ? "" : `<span class="pill warning">legacy</span>`}
-                </td>
-                <td>
-                  <div class="row-actions">
-                    ${isAccount ? `<button class="button icon" data-action="toggle-recipient" data-id="${recipient.id}" data-enabled="${recipient.is_enabled ? "false" : "true"}" title="Toggle">${icon(recipient.is_enabled ? "bell-off" : "bell")}<span class="sr-only">Toggle</span></button>` : ""}
-                    ${isAccount || recipient.is_enabled ? `<button class="button icon danger" data-action="delete-recipient" data-id="${recipient.id}" title="Disable">${icon("bell-off")}<span class="sr-only">Disable</span></button>` : ""}
-                  </div>
-                </td>
-              </tr>
-            `;
-          })
-          .join("")}
-      </tbody>
-    </table>
   `;
 }
 
@@ -961,6 +990,7 @@ function drawerMarkup() {
   const settings = state.selectedTargetNotifications;
   const checks = state.selectedTargetChecks || [];
   const health = target ? targetStatus(target, checks) : null;
+  const accountEnabled = accountEmailEnabled();
   return `
     <aside class="drawer ${open ? "open" : ""}" data-action="drawer-bg">
       <section class="drawer-panel">
@@ -994,10 +1024,10 @@ function drawerMarkup() {
                 <div class="toggle-row">
                   <div>
                     <strong>Email notifications</strong>
-                    <div class="target-endpoint">${settings?.email_enabled === false ? "Muted for this target" : "Enabled for this target"}</div>
+                    <div class="target-endpoint">${accountEnabled ? settings?.email_enabled === false ? "Muted for this target" : `Sending to ${escapeHtml(accountEmail())}` : "Enable account email before this target can send"}</div>
                   </div>
                   <label class="switch">
-                    <input type="checkbox" data-action="toggle-target-notifications" data-id="${target.id}" ${settings?.email_enabled !== false ? "checked" : ""} />
+                    <input type="checkbox" data-action="toggle-target-notifications" data-id="${target.id}" ${settings?.email_enabled !== false ? "checked" : ""} ${accountEnabled ? "" : "disabled"} />
                     <span class="slider"></span>
                   </label>
                 </div>
@@ -1067,7 +1097,6 @@ function bindEvents() {
 
   document.querySelector("[data-action='refresh']")?.addEventListener("click", onRefresh);
   document.querySelector("[data-action='create-target']")?.addEventListener("submit", onCreateTarget);
-  document.querySelector("[data-action='create-recipient']")?.addEventListener("submit", onCreateRecipient);
   document.querySelector("[data-action='test-email']")?.addEventListener("click", onTestEmail);
   document.querySelectorAll("[data-action='delivery-filter']").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1092,13 +1121,7 @@ function bindEvents() {
   document.querySelectorAll("[data-action='delete-target']").forEach((button) => {
     button.addEventListener("click", () => onDeleteTarget(button.dataset.id));
   });
-  document.querySelectorAll("[data-action='toggle-recipient']").forEach((button) => {
-    button.addEventListener("click", () => onToggleRecipient(button.dataset.id, button.dataset.enabled === "true"));
-  });
-  document.querySelectorAll("[data-action='delete-recipient']").forEach((button) => {
-    button.addEventListener("click", () => onDeleteRecipient(button.dataset.id));
-  });
-  document.querySelector("[data-action='disable-legacy-recipients']")?.addEventListener("click", onDisableLegacyRecipients);
+  document.querySelector("[data-action='toggle-account-email']")?.addEventListener("change", onToggleAccountEmail);
   document.querySelector("[data-action='resend-verification-email']")?.addEventListener("click", onResendVerificationEmail);
   document.querySelectorAll("[data-action='retry-delivery']").forEach((button) => {
     button.addEventListener("click", () => onRetryDelivery(button.dataset.id));
@@ -1228,6 +1251,7 @@ async function openTargetDetails(id, shouldRender = true) {
     state.selectedTargetDetails = target;
     state.selectedTargetChecks = checks || [];
     state.selectedTargetNotifications = notifications;
+    state.targetNotifications.set(Number(id), notifications);
   } catch (error) {
     notify("Target failed", error.message, "error");
     state.view = "targets";
@@ -1250,6 +1274,7 @@ async function openTarget(id, shouldRender = true) {
     state.selectedTargetDetails = target;
     state.selectedTargetChecks = checks || [];
     state.selectedTargetNotifications = notifications;
+    state.targetNotifications.set(Number(id), notifications);
   } catch (error) {
     notify("Target failed", error.message, "error");
     closeDrawer();
@@ -1284,14 +1309,13 @@ async function onDeleteTarget(id) {
 }
 
 async function onCreateRecipient(event) {
-  event.preventDefault();
   const email = accountEmail();
   if (!emailVerified()) {
     notify("Verify email first", email, "error");
     return;
   }
   try {
-    await api("/api/v1/notifications/recipients", { method: "POST", body: { email } });
+    await api("/api/v1/notifications/recipients", { method: "POST", body: {} });
     notify("Email enabled", email);
     await refreshAll();
   } catch (error) {
@@ -1299,35 +1323,27 @@ async function onCreateRecipient(event) {
   }
 }
 
-async function onToggleRecipient(id, enabled) {
+async function onToggleAccountEmail(event) {
+  const enabled = event.currentTarget.checked;
+  const recipient = accountRecipient();
+  if (!enabled && !recipient) {
+    return;
+  }
+  if (enabled && !recipient) {
+    await onCreateRecipient();
+    return;
+  }
+
   try {
-    await api(`/api/v1/notifications/recipients/${id}`, {
+    await api(`/api/v1/notifications/recipients/${recipient.id}`, {
       method: "PATCH",
       body: { is_enabled: enabled },
     });
+    notify(enabled ? "Email enabled" : "Email disabled", accountEmail());
     await refreshAll();
   } catch (error) {
-    notify("Recipient failed", error.message, "error");
-  }
-}
-
-async function onDeleteRecipient(id) {
-  try {
-    await api(`/api/v1/notifications/recipients/${id}`, { method: "DELETE" });
+    notify("Email channel failed", error.message, "error");
     await refreshAll();
-  } catch (error) {
-    notify("Recipient failed", error.message, "error");
-  }
-}
-
-async function onDisableLegacyRecipients() {
-  const enabledLegacy = legacyRecipients().filter((recipient) => recipient.is_enabled);
-  try {
-    await Promise.all(enabledLegacy.map((recipient) => api(`/api/v1/notifications/recipients/${recipient.id}`, { method: "DELETE" })));
-    notify("Legacy disabled", `${enabledLegacy.length} ${enabledLegacy.length === 1 ? "address" : "addresses"}`);
-    await refreshAll();
-  } catch (error) {
-    notify("Legacy cleanup failed", error.message, "error");
   }
 }
 
@@ -1387,17 +1403,28 @@ async function onRetryDelivery(id) {
 
 async function onToggleTargetNotifications(event) {
   const id = event.currentTarget.dataset.id;
+  if (!accountEmailEnabled()) {
+    notify("Enable account email first", accountEmail(), "error");
+    event.currentTarget.checked = false;
+    return;
+  }
   try {
     const settings = await api(`/api/v1/targets/${id}/notifications`, {
       method: "PATCH",
       body: { email_enabled: event.currentTarget.checked },
     });
     state.selectedTargetNotifications = settings;
+    state.targetNotifications.set(Number(id), settings);
     notify("Settings saved", `Target #${id}`);
     render();
   } catch (error) {
     notify("Settings failed", error.message, "error");
-    await openTarget(id);
+    if (state.selectedTargetId) {
+      await openTarget(state.selectedTargetId);
+    } else {
+      await loadTargetNotifications();
+      render();
+    }
   }
 }
 

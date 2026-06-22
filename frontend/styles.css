@@ -365,13 +365,21 @@ button {
 .account-recipient {
   min-height: 58px;
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   border: 1px solid var(--border);
   border-radius: 7px;
   padding: 10px;
   background: #fbfcfd;
+}
+
+.account-recipient-main {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
 }
 
 .account-recipient .operation-icon {
@@ -386,6 +394,13 @@ button {
 .account-recipient span {
   color: var(--muted);
   font-size: 12px;
+}
+
+.account-actions {
+  grid-template-columns: repeat(2, minmax(0, auto));
+  justify-content: start;
+  margin-top: 12px;
+  margin-bottom: 0;
 }
 
 .form {
@@ -890,6 +905,10 @@ tr:last-child td {
   color: var(--muted);
 }
 
+.target-notification-row {
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+}
+
 .section-heading {
   display: flex;
   align-items: center;
@@ -1076,6 +1095,15 @@ tr:last-child td {
   }
 
   .event-row .pill {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .target-notification-row {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .target-notification-row .switch {
     grid-column: 2;
     justify-self: start;
   }

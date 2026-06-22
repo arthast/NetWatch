@@ -7,9 +7,6 @@
 
 namespace netwatch::api_gateway::notifications {
 
-netwatch::notification_client::CreateEmailRecipientRequest
-ParseCreateEmailRecipientRequest(const userver::formats::json::Value& json);
-
 netwatch::notification_client::UpdateEmailRecipientRequest
 ParseUpdateEmailRecipientRequest(const userver::formats::json::Value& json);
 

@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <userver/components/component_context.hpp>
 #include <userver/formats/json/exception.hpp>
+#include <userver/formats/json/serialize.hpp>
 #include <userver/server/http/http_method.hpp>
 #include <userver/server/http/http_request.hpp>
 #include <userver/server/http/http_status.hpp>
@@ -78,6 +79,20 @@ std::string NotificationRecipientsHandler::HandleCreateRecipient(
       return ErrorResponse(request,
                            userver::server::http::HttpStatus::kForbidden,
                            "email must be verified before enabling alerts");
+    }
+    if (!request.RequestBody().empty()) {
+      const auto request_json =
+          userver::formats::json::FromString(request.RequestBody());
+      if (!request_json.IsObject()) {
+        return ErrorResponse(request,
+                             userver::server::http::HttpStatus::kBadRequest,
+                             "request body must be a JSON object");
+      }
+      if (!request_json["email"].IsMissing()) {
+        return ErrorResponse(
+            request, userver::server::http::HttpStatus::kBadRequest,
+            "recipient email cannot be set; notifications use account email");
+      }
     }
 
     const auto recipient = notifications_service_.CreateEmailRecipient(

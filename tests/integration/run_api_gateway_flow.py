@@ -496,18 +496,35 @@ def test_notification_recipient(
     )
     assert_status(anonymous_list, 401)
 
-    create = request(
+    create_with_email = request(
         "POST",
         "/api/v1/notifications/recipients",
         base_url=base_url,
         headers=auth_headers,
         payload={"email": "attacker@example.test"},
     )
+    assert_status(create_with_email, 400)
+
+    create = request(
+        "POST",
+        "/api/v1/notifications/recipients",
+        base_url=base_url,
+        headers=auth_headers,
+    )
     assert_status(create, 201)
     recipient = create.json()
     assert recipient["id"] > 0
     assert recipient["email"] == auth_email
     assert recipient["is_enabled"] is True
+
+    direct_test_email = request(
+        "POST",
+        "/api/v1/notifications/test-email",
+        base_url=base_url,
+        headers=auth_headers,
+        payload={"email": "attacker@example.test"},
+    )
+    assert_status(direct_test_email, 400)
 
     update_email = request(
         "PATCH",
