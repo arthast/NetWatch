@@ -32,10 +32,13 @@ ParseUpdateEmailRecipientRequest(const userver::formats::json::Value& json) {
   if (!json.IsObject()) {
     throw std::invalid_argument("request body must be a JSON object");
   }
+  if (!json["email"].IsMissing()) {
+    throw std::invalid_argument(
+        "recipient email cannot be changed; notifications use account email");
+  }
 
   return notification_client::UpdateEmailRecipientRequest{
       .user_id = std::nullopt,
-      .email = ReadPatchOptional<std::string>(json, "email"),
       .is_enabled = ReadPatchOptional<bool>(json, "is_enabled"),
   };
 }

@@ -96,11 +96,6 @@ std::string NotificationRecipientByIdHandler::HandlePatchRecipient(
     const auto request_json =
         userver::formats::json::FromString(request.RequestBody());
     const auto update_request = ParseUpdateEmailRecipientRequest(request_json);
-    if (update_request.email) {
-      return ErrorResponse(
-          request, userver::server::http::HttpStatus::kBadRequest,
-          "recipient email cannot be changed; notifications use account email");
-    }
 
     const auto recipient = notifications_service_.UpdateEmailRecipient(
         session->user.id, recipient_id, update_request);

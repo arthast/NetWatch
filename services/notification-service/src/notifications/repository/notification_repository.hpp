@@ -97,15 +97,11 @@ class NotificationRepository final {
       std::int64_t recipient_id) const;
   std::optional<EmailRecipient> GetRecipientByIdForUser(
       std::int64_t recipient_id, std::int64_t user_id) const;
-  std::optional<EmailRecipient> GetRecipientByEmail(
-      std::string_view email,
-      std::optional<std::int64_t> user_id = std::nullopt) const;
   EmailRecipient CreateRecipient(
       std::string_view email,
       std::optional<std::int64_t> user_id = std::nullopt) const;
   std::optional<EmailRecipient> UpdateRecipient(
-      std::int64_t recipient_id, const std::optional<std::string>& email,
-      const std::optional<bool>& is_enabled,
+      std::int64_t recipient_id, const std::optional<bool>& is_enabled,
       std::optional<std::int64_t> user_id = std::nullopt) const;
   bool DisableRecipient(std::int64_t recipient_id) const;
   bool DisableRecipientForUser(std::int64_t recipient_id,
@@ -116,7 +112,6 @@ class NotificationRepository final {
       std::int64_t delivery_id,
       std::optional<std::int64_t> user_id = std::nullopt) const;
   TestEmailResult QueueTestEmail(
-      std::string_view email,
       std::optional<std::int64_t> user_id = std::nullopt) const;
   TargetNotificationSettings GetTargetNotificationSettings(
       std::int64_t user_id, std::int64_t target_id) const;

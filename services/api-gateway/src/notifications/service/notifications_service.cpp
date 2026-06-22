@@ -7,7 +7,7 @@ namespace {
 
 bool HasPatchFields(
     const netwatch::notification_client::UpdateEmailRecipientRequest& request) {
-  return request.email || request.is_enabled;
+  return request.is_enabled.has_value();
 }
 
 }  // namespace

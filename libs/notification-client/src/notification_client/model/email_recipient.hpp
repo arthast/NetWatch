@@ -22,7 +22,6 @@ struct CreateEmailRecipientRequest {
 
 struct UpdateEmailRecipientRequest {
   std::optional<std::int64_t> user_id;
-  std::optional<std::string> email;
   std::optional<bool> is_enabled;
 };
 

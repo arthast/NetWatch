@@ -428,24 +428,6 @@ std::optional<EmailRecipient> NotificationRepository::GetRecipientByIdForUser(
   return RecipientFromRow(result.Front());
 }
 
-std::optional<EmailRecipient> NotificationRepository::GetRecipientByEmail(
-    std::string_view email, std::optional<std::int64_t> user_id) const {
-  const auto result =
-      pg_cluster_->Execute(userver::storages::postgres::ClusterHostType::kSlave,
-                           "SELECT " + std::string{kRecipientFields} +
-                               R"(
-            FROM notification_recipients
-            WHERE email = $1
-              AND user_id IS NOT DISTINCT FROM $2
-          )",
-                           email, user_id);
-
-  if (result.Size() == 0) {
-    return std::nullopt;
-  }
-  return RecipientFromRow(result.Front());
-}
-
 EmailRecipient NotificationRepository::CreateRecipient(
     std::string_view email, std::optional<std::int64_t> user_id) const {
   const auto result = pg_cluster_->Execute(
@@ -462,20 +444,18 @@ EmailRecipient NotificationRepository::CreateRecipient(
 }
 
 std::optional<EmailRecipient> NotificationRepository::UpdateRecipient(
-    std::int64_t recipient_id, const std::optional<std::string>& email,
-    const std::optional<bool>& is_enabled,
+    std::int64_t recipient_id, const std::optional<bool>& is_enabled,
     std::optional<std::int64_t> user_id) const {
   const auto result = pg_cluster_->Execute(
       userver::storages::postgres::ClusterHostType::kMaster,
       "UPDATE notification_recipients "
-      "SET email = COALESCE($2, email), "
-      "    is_enabled = COALESCE($3, is_enabled), "
+      "SET is_enabled = COALESCE($2, is_enabled), "
       "    updated_at = NOW() "
       "WHERE id = $1 "
-      "  AND user_id IS NOT DISTINCT FROM $4 "
+      "  AND user_id IS NOT DISTINCT FROM $3 "
       "RETURNING " +
           std::string{kRecipientFields},
-      recipient_id, email, is_enabled, user_id);
+      recipient_id, is_enabled, user_id);
 
   if (result.Size() == 0) {
     return std::nullopt;
@@ -574,7 +554,7 @@ std::optional<NotificationDelivery> NotificationRepository::RetryDelivery(
 }
 
 TestEmailResult NotificationRepository::QueueTestEmail(
-    std::string_view email, std::optional<std::int64_t> user_id) const {
+    std::optional<std::int64_t> user_id) const {
   const auto result = pg_cluster_->Execute(
       userver::storages::postgres::ClusterHostType::kMaster,
       R"(
@@ -594,7 +574,7 @@ TestEmailResult NotificationRepository::QueueTestEmail(
                         'occurred_at', event_metadata.occurred_at,
                         'notification_kind', 'test_email',
                         'target', jsonb_build_object(
-                            'user_id', $2::bigint,
+                            'user_id', $1::bigint,
                             'name', 'Test notification',
                             'type', 'email'
                         ),
@@ -621,24 +601,14 @@ TestEmailResult NotificationRepository::QueueTestEmail(
                 FROM payload
                 RETURNING event_id, payload
             ),
-            direct_recipient AS (
-                SELECT
-                    NULL::BIGINT AS id,
-                    $2::BIGINT AS user_id,
-                    NULLIF($1, '') AS email
-                WHERE NULLIF($1, '') IS NOT NULL
-            ),
             saved_recipients AS (
                 SELECT id, user_id, email
                 FROM notification_recipients
                 WHERE is_enabled = TRUE
-                  AND user_id IS NOT DISTINCT FROM $2::BIGINT
-                  AND NULLIF($1, '') IS NULL
+                  AND user_id IS NOT DISTINCT FROM $1::BIGINT
                 ORDER BY id
             ),
             recipients AS (
-                SELECT id, user_id, email FROM direct_recipient
-                UNION ALL
                 SELECT id, user_id, email FROM saved_recipients
             ),
             recipient_deliveries AS (
@@ -674,7 +644,7 @@ TestEmailResult NotificationRepository::QueueTestEmail(
                 )
                 SELECT
                     incoming.event_id,
-                    $2::BIGINT,
+                    $1::BIGINT,
                     'email',
                     'skipped',
                     incoming.payload,
@@ -691,7 +661,7 @@ TestEmailResult NotificationRepository::QueueTestEmail(
                     (SELECT COUNT(*) FROM skipped_delivery)
                 ) AS deliveries_count
         )",
-      email, user_id);
+      user_id);
 
   const auto& row = result.Front();
   return TestEmailResult{

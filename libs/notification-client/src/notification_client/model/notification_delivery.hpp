@@ -34,7 +34,6 @@ struct ListNotificationDeliveriesRequest {
 
 struct SendTestEmailRequest {
   std::optional<std::int64_t> user_id;
-  std::string email;
 };
 
 struct SendTestEmailResult {
