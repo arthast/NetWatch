@@ -227,16 +227,6 @@ proto::ListEmailRecipientsResponse MakeRecipientsResponse(
   return response;
 }
 
-void EnsureEmailCanBeUsed(const NotificationRepository& repository,
-                          std::string_view email,
-                          std::optional<std::int64_t> user_id,
-                          std::optional<std::int64_t> current_id) {
-  const auto existing = repository.GetRecipientByEmail(email, user_id);
-  if (existing && (!current_id || existing->id != *current_id)) {
-    throw std::invalid_argument{"email recipient already exists"};
-  }
-}
-
 }  // namespace
 
 NotificationGrpcService::NotificationGrpcService(
@@ -311,22 +301,15 @@ NotificationGrpcService::UpdateEmailRecipient(
       ValidateUserId(request.user_id());
       user_id = request.user_id();
     }
-    if (!request.has_email() && !request.has_is_enabled()) {
+    if (!request.has_is_enabled()) {
       throw std::invalid_argument{"patch body must contain at least one field"};
-    }
-
-    std::optional<std::string> email;
-    if (request.has_email()) {
-      ValidateEmail(request.email());
-      EnsureEmailCanBeUsed(repository_, request.email(), user_id, request.id());
-      email = request.email();
     }
 
     const std::optional<bool> is_enabled =
         request.has_is_enabled() ? std::make_optional(request.is_enabled())
                                  : std::nullopt;
     const auto recipient =
-        repository_.UpdateRecipient(request.id(), email, is_enabled, user_id);
+        repository_.UpdateRecipient(request.id(), is_enabled, user_id);
     if (!recipient) {
       return NotFound("email recipient not found");
     }
@@ -393,16 +376,12 @@ NotificationGrpcService::SendTestEmailResult
 NotificationGrpcService::SendTestEmail(CallContext&,
                                        proto::SendTestEmailRequest&& request) {
   try {
-    if (request.has_email()) {
-      ValidateEmail(request.email());
-    }
     std::optional<std::int64_t> user_id;
     if (request.has_user_id()) {
       ValidateUserId(request.user_id());
       user_id = request.user_id();
     }
-    return MakeTestEmailResponse(repository_.QueueTestEmail(
-        request.has_email() ? request.email() : "", user_id));
+    return MakeTestEmailResponse(repository_.QueueTestEmail(user_id));
   } catch (const std::invalid_argument& ex) {
     return InvalidArgument(ex.what());
   }

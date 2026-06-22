@@ -18,7 +18,6 @@ notification_client::SendTestEmailRequest ParseSendTestEmailRequest(
 
   return notification_client::SendTestEmailRequest{
       .user_id = std::nullopt,
-      .email = "",
   };
 }
 

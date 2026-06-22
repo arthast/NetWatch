@@ -199,9 +199,6 @@ std::optional<EmailRecipient> NotificationClient::UpdateEmailRecipient(
   if (request.user_id) {
     proto_request.set_user_id(*request.user_id);
   }
-  if (request.email) {
-    proto_request.set_email(*request.email);
-  }
   if (request.is_enabled) {
     proto_request.set_is_enabled(*request.is_enabled);
   }
@@ -302,9 +299,6 @@ SendTestEmailResult NotificationClient::SendTestEmail(
   proto::SendTestEmailRequest proto_request;
   if (request.user_id) {
     proto_request.set_user_id(*request.user_id);
-  }
-  if (!request.email.empty()) {
-    proto_request.set_email(request.email);
   }
 
   try {
